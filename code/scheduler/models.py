@@ -26,6 +26,7 @@ class Application(object):
         self.p = int(p)
         self.m = int(m)
         self.pm = int(pm)
+        self.instances = []
 
     @staticmethod
     def from_csv_line(line):
@@ -49,6 +50,10 @@ class Machine(object):
         self.cpu = np.array([cpu_capacity * LINE_SIZE])
         self.mem = np.array([mem_capacity * LINE_SIZE])
         self.disk = np.array([disk_capacity * LINE_SIZE])
+        self.cpu_use = 0
+        self.mem_use = 0
+        self.disk_use = 0
+        self.apps = []
 
         self.p_num = 0
         self.m_num = 0
@@ -64,6 +69,22 @@ class Machine(object):
             self.pm_capacity)
 
 
+class AppInterference(object):
+    def __init__(self, app_a, app_b, num):
+        self.app_a = app_a
+        self.app_b = app_b
+        self.num = int(num)
+
+    @staticmethod
+    def from_csv_line(line):
+        return AppInterference(*line.split(","))
+
+    def __str__(self):
+        return "App_a (%s) App_b (%s) number (%d)" % (
+            self.app_a, self.app_b, self.num
+        )
+
+
 def read_from_csv(directory_path):
     instances = []
     for line in open(os.path.join(directory_path, INSTANCE_INPUT_FILE)):
@@ -77,6 +98,16 @@ def read_from_csv(directory_path):
     for line in open(os.path.join(directory_path, APP_INPUT_FILE)):
         applications.append(Application.from_csv_line(line))
 
-    return instances, applications, machines
+    app_interfer = []
+    for line in open(os.path.join(directory_path, APP_INTERFER_FILE)):
+        app_interfer.append(AppInterference.from_csv_line(line))
+
+    return instances, applications, machines, app_interfer
 
 
+def get_apps_instances(instances, applications):
+    for inst in instances:
+        for app in applications:
+            if inst.app_id == app.id:
+                app.instances.append(inst)
+                break
