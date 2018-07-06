@@ -3,7 +3,7 @@
 ### Lower Bound
 
 ```bash
-gcc code/lower_bound.cpp -o lb && lb < request > lower_bound
+gcc code/lower_bound.cpp -o lb && ./lb < request > lower_bound
 ```
 
 ### Solution
