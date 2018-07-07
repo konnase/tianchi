@@ -47,13 +47,14 @@ class Machine(object):
         self.m_capacity = int(m_capacity)
         self.pm_capacity = int(pm_capacity)
 
-        self.cpu = np.array([cpu_capacity * LINE_SIZE])
-        self.mem = np.array([mem_capacity * LINE_SIZE])
-        self.disk = np.array([disk_capacity * LINE_SIZE])
-        self.cpu_use = 0
-        self.mem_use = 0
+        self.cpu = np.full(int(LINE_SIZE), self.cpu_capacity)
+        self.mem = np.full(int(LINE_SIZE), self.mem_capacity)
+        # self.disk = np.array([disk_capacity * LINE_SIZE])
+        self.cpu_use = np.zeros(int(LINE_SIZE))
+        self.mem_use = np.zeros(int(LINE_SIZE))
         self.disk_use = 0
         self.apps = []
+        self.apps_id = []
 
         self.p_num = 0
         self.m_num = 0

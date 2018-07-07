@@ -13,17 +13,21 @@ def main():
     get_apps_instances(instances, applications)
     print len(instances), len(applications), len(machines), len(app_interfers)
 
+    # for count, machine in enumerate(machines):
+    #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
+    #     if count > 20:
+    #         break
     # for app in applications:
     #     print app.instances
     ffd = FFD(instances, applications, machines, app_interfers)
     ffd.fit()
-    f = open("machine_tasks.txt", "w")
-    for count, machine in enumerate(machines):
-        inst_disk = []
-        for app in machine.apps:
-            inst_disk.append(app.disk)
-        f.write("number {0}, total({1}), ({2})\n".format(count, machine.disk_capacity, inst_disk))
-    f.close()
+    with open("machine_tasks.txt", "w") as f:
+        for count, machine in enumerate(machines):
+            inst_disk = []
+            for app in machine.apps:
+                inst_disk.append(app.disk)
+            f.write("number {0}, total({1}), ({2})\n".format(count, machine.disk_capacity, inst_disk))
+
 
 if __name__ == '__main__':
     main()
