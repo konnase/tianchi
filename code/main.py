@@ -20,7 +20,10 @@ def main():
     # for app in applications:
     #     print app.instances
     ffd = FFD(instances, applications, machines, app_interfers)
-    ffd.fit()
+    submit = ffd.fit()
+    with open("submit.csv", "w") as f:
+        for count, item in enumerate(submit):
+            f.write("{0} {1}\n".format(item[0], item[1]))
     with open("machine_tasks.txt", "w") as f:
         for count, machine in enumerate(machines):
             inst_disk = []
