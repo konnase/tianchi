@@ -3,7 +3,7 @@
 ### Lower Bound
 
 ```bash
-gcc code/lower_bound.cpp -o lb && ./lb < request > lower_bound
+g++ code/lower_bound.cpp -o lb && ./lb < request > lower_bound
 ```
 
 rating for this lower_bound:
@@ -24,6 +24,14 @@ Method enum:
 class Method(Enum):
     FFD = 1
     Knapsack = 2
+```
+
+### Ofifcial Judger 
+```bash
+
+java -jar judge/judge.jar data/problem.csv submit.csv
+
+# suppose there is the submit.csv file at project root
 ```
 
 -----
