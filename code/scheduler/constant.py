@@ -4,3 +4,9 @@ INSTANCE_INPUT_FILE = "scheduling_preliminary_instance_deploy_20180606.csv"
 APP_INTERFER_FILE = "scheduling_preliminary_app_interference_20180606.csv"
 
 LINE_SIZE = 98
+
+MAX_CPU_REQUEST = 32
+MAX_MEM_REQUEST = 128
+
+CPU_WEIGHT = 0.2
+MEM_WEIGHT = 0.8
