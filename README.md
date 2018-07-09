@@ -26,7 +26,7 @@ class Method(Enum):
     Knapsack = 2
 ```
 
-### Ofifcial Judger 
+### Offcial Judger 
 ```bash
 
 java -jar judge/judge.jar data/problem.csv submit.csv
