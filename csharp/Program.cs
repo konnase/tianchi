@@ -100,8 +100,7 @@ namespace Tianchi {
       //Console.WriteLine("==Init==");
       //PrintCsvInfo();
 
-      ParseOut("D:/tianchi/out_170");
-      ParseOut("D:/tianchi/out_168");
+      ParseOut("D:/tianchi/out-n169");
 
       Console.WriteLine("==End==");
     }

@@ -54,7 +54,7 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"C {Cpu.Max:0.0}, M {Mem.Max:0.0}, D {Disk}, P {P}";
+      return $"{Cpu.Max:0}, {Mem.Max:0}, {Disk}, {P}";
     }
   }
 }
