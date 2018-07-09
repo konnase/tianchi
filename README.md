@@ -9,7 +9,15 @@ gcc code/lower_bound.cpp -o lb && ./lb < request > lower_bound
 ### Solution
 
 ```bash
-$ python code/main.py --data_dir=data
+$ python code/main.py --data_dir=data --method=<method>
+```
+
+Method enum:
+
+```python
+class Method(Enum):
+    FFD = 1
+    Knapsack = 2
 ```
 
 -----

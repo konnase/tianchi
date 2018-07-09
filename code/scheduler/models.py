@@ -1,6 +1,13 @@
 import os
 import numpy as np
+from enum import Enum
+
 from constant import *
+
+
+class Method(Enum):
+    FFD = 1
+    Knapsack = 2
 
 
 class Instance(object):
@@ -8,13 +15,30 @@ class Instance(object):
         self.id = id
         self.app_id = app_id
         self.machine_id = machine_id
+        self.placed = False
+        self.app = None
+
+        self._score = -1
 
     @staticmethod
     def from_csv_line(line):
-        return Instance(*line.split(","))
+        return Instance(*line.strip().split(","))
+
+    @property
+    def score(self):
+        if self._score > 0:
+            return self._score
+
+        cpu = self.app.cpu / MAX_CPU_REQUEST
+        mem = self.app.mem / MAX_MEM_REQUEST
+
+        score = np.linalg.norm(cpu, ord=1) / LINE_SIZE * CPU_WEIGHT + np.linalg.norm(mem, ord=1) / LINE_SIZE * MEM_WEIGHT
+        self._score = score
+
+        return score
 
     def __str__(self):
-        return "Instance id(%s) app_id(%s) machine_id(%s)" % (self.id, self.app_id, self.machine_id)
+        return "Instance id(%s) app_id(%s) machine_id(%s) score(%f)" % (self.id, self.app_id, self.machine_id, self.score)
 
 
 class Application(object):
@@ -30,7 +54,7 @@ class Application(object):
 
     @staticmethod
     def from_csv_line(line):
-        return Application(*line.split(","))
+        return Application(*line.strip().split(","))
 
     def __str__(self):
         return "App id(%s) cpu(%s) mem(%s) disk(%d) p(%d) m(%d) pm(%d)" % (
@@ -49,12 +73,12 @@ class Machine(object):
 
         self.cpu = np.full(int(LINE_SIZE), self.cpu_capacity)
         self.mem = np.full(int(LINE_SIZE), self.mem_capacity)
-        # self.disk = np.array([disk_capacity * LINE_SIZE])
         self.cpu_use = np.zeros(int(LINE_SIZE))
         self.mem_use = np.zeros(int(LINE_SIZE))
         self.disk_use = 0
         self.apps = []
         self.apps_id = []
+        self.bins = []
 
         self.p_num = 0
         self.m_num = 0
@@ -62,7 +86,7 @@ class Machine(object):
 
     @staticmethod
     def from_csv_line(line):
-        return Machine(*line.split(","))
+        return Machine(*line.strip().split(","))
 
     def __str__(self):
         return "Machine id(%s) cpu(%d) mem(%d) disk(%d) p(%d) m(%d) pm(%d)" % (
@@ -95,20 +119,22 @@ def read_from_csv(directory_path):
     for line in open(os.path.join(directory_path, MACHINE_INPUT_FILE)):
         machines.append(Machine.from_csv_line(line))
 
-    applications = []
+    apps = []
+    app_index = {}
     for line in open(os.path.join(directory_path, APP_INPUT_FILE)):
-        applications.append(Application.from_csv_line(line))
+        app = Application.from_csv_line(line)
+        app_index[app.id] = len(apps)
+        apps.append(app)
 
     app_interfer = []
     for line in open(os.path.join(directory_path, APP_INTERFER_FILE)):
         app_interfer.append(AppInterference.from_csv_line(line))
 
-    return instances, applications, machines, app_interfer
+    return instances, apps, machines, app_interfer, app_index
 
 
-def get_apps_instances(instances, applications):
-    for inst in instances:
-        for app in applications:
-            if inst.app_id == app.id:
-                app.instances.append(inst)
-                break
+def get_apps_instances(insts, apps, app_index):
+    for inst in insts:
+        index = app_index[inst.app_id]
+        apps[index].instances.append(inst)
+        inst.app = apps[index]
