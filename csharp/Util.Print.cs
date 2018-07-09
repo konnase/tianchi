@@ -4,20 +4,15 @@ using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
-    private static int DeployedInstCount => Instances.Sum(inst => inst.IsDeployed ? 1 : 0);
-    private static bool AllInstDeployed => Instances.Count == DeployedInstCount;
-    private static double TotalCostScore => AllInstDeployed ? Machines.Sum(m => m.Score) : 1e9;
-    private static int UsedMachineCount => Machines.Sum(m => m.IsIdle ? 0 : 1);
-
     private static void PrintScore() {
       Console.WriteLine($"TotalScore: " +
                         $"{TotalCostScore:0.00} / {UsedMachineCount}" +
                         $" = [{TotalCostScore / UsedMachineCount:0.00}]");
     }
 
-    private static void PrintCsvInfo() {
+    private static void PrintCsvInitInfo() {
       Console.WriteLine($"App: {AppKv.Count}, " +
-                        $"Instance: {Instances.Count}, " +
+                        $"Instance: {Instances.Length}, " +
                         $"Machine: {Machines.Count}");
     }
 
@@ -30,8 +25,8 @@ namespace Tianchi {
         Console.Write(m);
 
         if (showInstId) {
-          Console.WriteLine(); //添一个空行
           Console.WriteLine(m.InstListToStr());
+          Console.WriteLine();
         }
       }
     }

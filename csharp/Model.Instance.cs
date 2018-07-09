@@ -5,8 +5,6 @@ namespace Tianchi {
 
     public Machine DeployedMachine;
 
-    public bool IsInitDeployed = false;
-
     public Instance(int id, App app) {
       Id = id;
       App = app;
@@ -14,7 +12,7 @@ namespace Tianchi {
 
     public Resource R => App.R;
 
-    public bool IsDeployed => DeployedMachine != null;
+    public bool IsDeployed = false;
 
     public override string ToString() {
       return $"inst_{Id},app_{App.Id}, {R}";

@@ -11,6 +11,8 @@ namespace Tianchi {
     private static string CsvSubmit => $"{_projectPath}/submit.csv";
     //submit_{DateTime.Now:yyyyMMdd_hhmmss}.csv";
 
+    private static StreamWriter _writer;
+
     // ReSharper disable once ParameterTypeCanBeEnumerable.Local
     private static void FirstFit(IEnumerable<Instance> instances, bool onlyIdleMachine = false) {
       foreach (var inst in instances) {
@@ -19,14 +21,15 @@ namespace Tianchi {
         foreach (var m in Machines) {
           if (onlyIdleMachine && !m.IsIdle) continue;
 
-          if (m.AddInstance(inst)) break;
+          if (m.AddInstance(inst, _writer)) break;
         }
       }
     }
 
-    private static void RunFFD() {
+    private static void RunFfd() {
       Console.WriteLine("==Deploy==");
 
+      _writer = File.CreateText(CsvSubmit);
       var vip1Insts = from i in Instances
         where !i.IsDeployed &&
               (i.R.Disk >= 500
@@ -42,54 +45,22 @@ namespace Tianchi {
 
       FirstFit(vip2Insts);
 
-      Instances.Sort((a, b) => 0);
+      var rest = from i in Instances
+        orderby i.R.Disk
+        select i;
 
-      FirstFit(Instances);
-      var outlierMachines = from m in Machines
-        where m.Score > 1.5
-        // Math.Abs(0.5 - m.UtilCpuAvg) > 0.3  ||
-        // 1.0 - m.UtilMemAvg > 0.3 ||
-        // 1.0 - m.UtilDisk > 0.3
-        select m;
+      FirstFit(rest);
 
-      // PrintMachineDeployment(outlierMachines);
 
       if (!AllInstDeployed) {
         PrintUndeployedInst();
       } else {
         PrintScore();
-        WriteSubmitCsv(CsvSubmit);
-
-        Console.WriteLine("==Verify==");
-        ClearMachineDeployment();
-        ReadInitDeployment(); //恢复初始状态
-
-        VerifySubmit(CsvSubmit);
-      }
-    }
-
-    private static void VerifySubmit(string csvSubmit) {
-      if (!File.Exists(csvSubmit)) {
-        Console.WriteLine("Error: No Submit File!");
-        return;
       }
 
-      ReadCsv(csvSubmit, line => {
-        var fields = line.Split(',');
-        var instId = fields[0].Id();
-        var mId = fields[1].Id();
-        var inst = InstanceKv[instId];
-        var m = MachineKv[mId];
-
-        if (!m.AddInstance(inst)) {
-          Console.Write(m.FailedReason(inst));
-          Console.Write("\t");
-          Console.WriteLine(m.ToString());
-        }
-      });
-
-      PrintScore();
+      _writer.Close();
     }
+
 
     private static void Main(string[] args) {
       if (args.Length == 1) {
@@ -100,7 +71,21 @@ namespace Tianchi {
       //Console.WriteLine("==Init==");
       //PrintCsvInfo();
 
-      ParseOut("D:/tianchi/out-n169");
+      RunFfd();
+
+      Console.WriteLine("==Judge==");
+      JudgeSubmit(CsvSubmit);
+
+      //var outlierMachines = from m in Machines
+      //  where m.Score > 1.5 ||
+      //        Math.Abs(0.5 - m.UtilCpuAvg) > 0.3 ||
+      //        1.0 - m.UtilMemAvg > 0.3 ||
+      //        1.0 - m.UtilDisk > 0.3
+      //  select m;
+
+      // PrintMachineDeployment(outlierMachines);
+
+      //ParseOut($"{_projectPath}/out-n169");
 
       Console.WriteLine("==End==");
     }

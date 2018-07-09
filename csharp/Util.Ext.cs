@@ -45,13 +45,13 @@ namespace Tianchi {
     }
 
     public static string ToStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
-      var disks = new List<T>(insts.Count);
-      foreach (var i in insts) disks.Add(attr(i));
+      var list = new List<T>(insts.Count);
+      foreach (var i in insts) list.Add(attr(i));
 
-      return disks.ToMergeString();
+      return list.ToMergeStr();
     }
 
-    private static string ToMergeString<T>(this List<T> list) {
+    private static string ToMergeStr<T>(this List<T> list) {
       if (list.Count == 0) return string.Empty;
 
       var arr = new T[list.Count];
