@@ -1,0 +1,11 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+    <AssemblyName>tianchi</AssemblyName>
+    <RootNamespace>Tianchi</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="gurobi80.netstandard20.dll" />
+  </ItemGroup>
+</Project>

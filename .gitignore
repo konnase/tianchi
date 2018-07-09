@@ -3,3 +3,12 @@
 .DS_Store
 .swap
 machine_tasks.txt
+Thumbs.db
+bin/
+obj/
+.vscode/
+db.json
+.idea/
+submit*
+~$*.xlsx
+
