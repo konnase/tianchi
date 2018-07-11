@@ -110,7 +110,7 @@ namespace Tianchi {
           //在迁移之前，向旧机器放置实例就可能导致资源或亲和性冲突；
           //这里和官方评测代码行为保持一致
           m.AddInstance(inst, ignoreCheck: true);
-          inst.IsDeployed = !m.IsOverCapacity(inst) && !m.IsXWithDeployed(inst);
+          inst.NeedDeployOrMigrate = m.IsOverCapacity(inst) || m.IsXWithDeployed(inst);
         }
       );
     }

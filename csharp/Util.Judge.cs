@@ -6,7 +6,7 @@ using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
-    private static int DeployedInstCount => Instances.Sum(inst => inst.IsDeployed ? 1 : 0);
+    private static int DeployedInstCount => Instances.Sum(inst => inst.NeedDeployOrMigrate ? 0 : 1);
 
     private static bool AllInstDeployed => Instances.Length == DeployedInstCount;
     private static double TotalCostScore => AllInstDeployed ? Machines.Sum(m => m.Score) : 1e9;
@@ -15,7 +15,7 @@ namespace Tianchi {
     private static void ClearMachineDeployment() {
       foreach (var m in Machines) m.ClearInstances();
 
-      Debug.Assert(Instances.All(inst => !inst.IsDeployed));
+      Debug.Assert(Instances.All(inst => inst.NeedDeployOrMigrate));
     }
 
     //private static void ClearMachineDeployment(IEnumerable<Machine> list) {

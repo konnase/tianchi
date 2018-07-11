@@ -33,9 +33,9 @@ namespace Tianchi {
 
     private static void PrintUndeployedInst() {
       foreach (var inst in Instances) {
-        if (inst.IsDeployed) continue;
-
-        Console.WriteLine(inst);
+        if (inst.NeedDeployOrMigrate) {
+          Console.WriteLine(inst);
+        }
       }
     }
   }

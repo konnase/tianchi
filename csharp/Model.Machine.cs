@@ -6,26 +6,21 @@ namespace Tianchi {
   public class Machine {
     private const int TsCount = Resource.TsCount;
 
-    private const double Alpha = 10, Beta = 0.5;
-
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
     private readonly Resource _accum = new Resource();
-
-    // 各应用部署到本机的实例个数
-    public readonly Dictionary<App, int> AppCount = new Dictionary<App, int>();
-
     private readonly Resource _avail = new Resource();
-
     public readonly Resource Cap;
     public readonly double CapCpu;
-    public readonly int CapDisk;
     public readonly double CapMem;
+    public readonly int CapDisk;
+
     public readonly int Id;
 
-    public readonly List<Instance> InstList = new List<Instance>();
+    // 分应用汇总的实例个数
+    public readonly Dictionary<App, int> AppCount = new Dictionary<App, int>();
 
-    private double _score = double.MinValue;
+    public readonly List<Instance> InstList = new List<Instance>();
 
     // ReSharper disable once SuggestBaseTypeForParameter
     private Machine(string[] fields) {
@@ -34,8 +29,8 @@ namespace Tianchi {
       CapMem = double.Parse(fields[2]);
       CapDisk = int.Parse(fields[3]);
       Cap = new Resource(
-        new Series(Resource.TsCount, CapCpu),
-        new Series(Resource.TsCount, CapMem),
+        new Series(TsCount, CapCpu),
+        new Series(TsCount, CapMem),
         CapDisk,
         int.Parse(fields[4]),
         int.Parse(fields[5]),
@@ -64,6 +59,10 @@ namespace Tianchi {
                           || Avail.Cpu.Max < 0.5; //出现的最小的资源值
 
     public bool IsIdle { get; private set; }
+
+    private const double Alpha = 10, Beta = 0.5;
+
+    private double _score = double.MinValue;
 
     // 机器按时间T平均后的成本分数
     public double Score {
@@ -111,7 +110,7 @@ namespace Tianchi {
       inst.DeployedMachine?.RemoveInstance(inst);
       inst.DeployedMachine = this;
 
-      inst.IsDeployed = true;
+      inst.NeedDeployOrMigrate = false;
 
       w?.WriteLine($"inst_{inst.Id},machine_{Id}");
       return true;
@@ -132,7 +131,7 @@ namespace Tianchi {
       if (AppCount[inst.App] == 0) AppCount.Remove(inst.App);
 
       inst.DeployedMachine = null;
-      inst.IsDeployed = false;
+      inst.NeedDeployOrMigrate = true;
     }
 
     public void ClearInstances() {
@@ -143,7 +142,7 @@ namespace Tianchi {
     // 不会修改当前资源量
     public bool IsOverCapacity(Instance inst) {
       var r = inst.R;
-      return _accum.Disk + r.Disk > Cap.Disk
+      return _accum.Disk + r.Disk > CapDisk
              || _accum.P + r.P > Cap.P
              || _accum.Pm + r.Pm > Cap.Pm //所有App的PM都等于P
              || _accum.M + r.M > Cap.M //所有App的M都是0

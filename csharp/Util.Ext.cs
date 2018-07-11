@@ -34,8 +34,8 @@ namespace Tianchi {
       return result;
     }
 
-    public static void Init<T>(this T[] list, T v) {
-      for (var i = 0; i < list.Length; i++) list[i] = v;
+    public static void Init<T>(this T[] array, T v) {
+      for (var i = 0; i < array.Length; i++) array[i] = v;
     }
 
     public static void Init<T>(this T[,] array, T v) {

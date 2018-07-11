@@ -12,7 +12,7 @@ namespace Tianchi {
 
     public Resource R => App.R;
 
-    public bool IsDeployed = false;
+    public bool NeedDeployOrMigrate = true;
 
     public override string ToString() {
       return $"inst_{Id},app_{App.Id}, {R}";

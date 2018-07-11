@@ -16,41 +16,32 @@ namespace Tianchi {
     // ReSharper disable once ParameterTypeCanBeEnumerable.Local
     private static void FirstFit(IEnumerable<Instance> instances, bool onlyIdleMachine = false) {
       foreach (var inst in instances) {
-        if (inst.IsDeployed) continue;
+        if (onlyIdleMachine || inst.NeedDeployOrMigrate) {
+          foreach (var m in Machines) {
+            if (onlyIdleMachine && !m.IsIdle) continue;
 
-        foreach (var m in Machines) {
-          if (onlyIdleMachine && !m.IsIdle) continue;
-
-          if (m.AddInstance(inst, _writer)) break;
+            if (m.AddInstance(inst, _writer)) break;
+          }
         }
       }
     }
 
-    private static void RunFfd() {
+    private static void RunFf() {
       Console.WriteLine("==Deploy==");
 
       _writer = File.CreateText(CsvSubmit);
-      var vip1Insts = from i in Instances
-        where !i.IsDeployed &&
-              (i.R.Disk >= 500
-               || i.R.Mem.Avg >= 15
-               || i.R.Cpu.Avg >= 6)
+
+      var vips = from i in Instances
+        where i.NeedDeployOrMigrate &&
+              (i.R.Disk >= 300
+               || i.R.Mem.Avg >= 12
+               || i.R.Cpu.Avg >= 7 //5871: 300,12,7
+              )
         select i;
 
-      FirstFit(vip1Insts, onlyIdleMachine: true);
+      FirstFit(vips, onlyIdleMachine: true);
 
-      var vip2Insts = from i in Instances
-        where !i.IsDeployed && i.R.Disk >= 100
-        select i;
-
-      FirstFit(vip2Insts);
-
-      var rest = from i in Instances
-        orderby i.R.Disk
-        select i;
-
-      FirstFit(rest);
-
+      FirstFit(Instances);
 
       if (!AllInstDeployed) {
         PrintUndeployedInst();
@@ -61,7 +52,6 @@ namespace Tianchi {
       _writer.Close();
     }
 
-
     private static void Main(string[] args) {
       if (args.Length == 1) {
         _projectPath = args[0];
@@ -71,7 +61,7 @@ namespace Tianchi {
       //Console.WriteLine("==Init==");
       //PrintCsvInfo();
 
-      RunFfd();
+      RunFf();
 
       Console.WriteLine("==Judge==");
       JudgeSubmit(CsvSubmit);
