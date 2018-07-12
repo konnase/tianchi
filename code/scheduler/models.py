@@ -80,18 +80,36 @@ class Machine(object):
         self.apps_id = []
         self.bins = []
 
+        self.insts = {}
+
         self.p_num = 0
         self.m_num = 0
         self.pm_num = 0
+
+    def put_inst(self, inst):
+        self.insts[inst.id] = inst
+        self.cpu_use += inst.app.cpu
+        self.mem_use += inst.app.mem
+        self.disk_use += inst.app.disk
+        self.p_num += inst.app.p
+        self.m_num += inst.app.m
+        self.pm_num += inst.app.pm
+
+    @property
+    def cpu_score(self):
+        return max(self.cpu_use / self.cpu_capacity)
+
+    @property
+    def mem_score(self):
+        return max(self.mem_use / self.mem_capacity)
 
     @staticmethod
     def from_csv_line(line):
         return Machine(*line.strip().split(","))
 
     def __str__(self):
-        return "Machine id(%s) cpu(%d) mem(%d) disk(%d) p(%d) m(%d) pm(%d)" % (
-            self.id, self.cpu_capacity, self.mem_capacity, self.disk_capacity, self.p_capacity, self.m_capacity,
-            self.pm_capacity)
+        return "Machine id(%s) disk(%d) cpu_score(%f) mem_score(%f) bins(%s)" % (
+            self.id,  self.disk_capacity ,self.cpu_score, self.mem_score, ",".join([str(i.app.disk) for i in self.insts.values()]))
 
 
 class AppInterference(object):

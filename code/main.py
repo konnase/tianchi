@@ -26,7 +26,13 @@ def main():
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.test:
-            knapsack.test(options.test)
+            try:
+                knapsack.test(options.test)
+                knapsack.search()
+                Knapsack.output()
+            except KeyboardInterrupt:
+                print "write to file."
+                knapsack.output()
 
     # for count, machine in enumerate(machines):
     #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
