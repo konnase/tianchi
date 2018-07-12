@@ -29,7 +29,7 @@ def main():
             try:
                 knapsack.test(options.test)
                 knapsack.search()
-                Knapsack.output()
+                knapsack.output()
             except KeyboardInterrupt:
                 print "write to file."
                 knapsack.output()
