@@ -11,8 +11,8 @@ namespace Tianchi {
     public static readonly Dictionary<int, Machine> MachineKv = new Dictionary<int, Machine>(6000);
     public static readonly List<Machine> Machines = new List<Machine>(6000);
 
-    public static readonly List<Instance> Instances = new List<Instance>(68300);
-    public static readonly Dictionary<int, Instance> InstanceKv = new Dictionary<int, Instance>(68300);
+    public static readonly Instance[] Instances = new Instance[68219];
+    public static readonly Dictionary<int, Instance> InstanceKv = new Dictionary<int, Instance>(68219);
 
     private static string DataPath => $"{_projectPath}/data/";
     private static string CsvApp => $"{DataPath}/scheduling_preliminary_app_resources_20180606.csv";
@@ -20,22 +20,12 @@ namespace Tianchi {
     private static string CsvInterference => $"{DataPath}/scheduling_preliminary_app_interference_20180606.csv";
     private static string CsvMachine => $"{DataPath}/scheduling_preliminary_machine_resources_20180606.csv";
 
-    private static void ClearMachineDeployment() {
-      foreach (var m in Machines) m.ClearInstances();
-
-      Debug.Assert(!Instances.Exists(inst => inst.IsDeployed));
-    }
-
-    private static void ClearMachineDeployment(IEnumerable<Machine> list) {
-      foreach (var m in list) m.ClearInstances();
-    }
-
-    private static void ReadAllData(bool printUndeployedInst = false) {
+    private static void ReadAllData() {
       ReadApp();
       ReadInterference();
       ReadMachine();
       ReadInstance();
-      ReadInitDeployment(printUndeployedInst);
+      ReadInitDeployment();
     }
 
     private static void ReadCsv(string csvFile, Action<string> action) {
@@ -83,9 +73,9 @@ namespace Tianchi {
       foreach (var l in sorted) Machines.Add(l);
     }
 
-    // 读取实例，并按磁盘大小排序
+    // 读取实例，保持原有顺序！
     private static void ReadInstance() {
-      var list = new List<Instance>(6000);
+      var i = 0;
       ReadCsv(CsvDeploy, line => {
           var fields = line.Split(',');
           var instId = fields[0].Id();
@@ -96,20 +86,15 @@ namespace Tianchi {
 
           app.InstanceCount++;
 
-          list.Add(inst);
+          Instances[i++] = inst;
           InstanceKv.Add(instId, inst);
         }
       );
-      var sorted = from l in list
-        orderby l.R.Disk descending
-        select l;
-      foreach (var l in sorted) Instances.Add(l);
     }
 
-    private static void ReadInitDeployment(bool printUndeployedInst = false) {
+    private static void ReadInitDeployment() {
       ReadCsv(CsvDeploy, line => {
           var fields = line.Split(',');
-
           var mId = fields[2].Id();
 
           //可能初始状态没有分配机器
@@ -120,27 +105,14 @@ namespace Tianchi {
           var instId = fields[0].Id();
           var inst = InstanceKv[instId];
 
-          var deployOk = m.AddInstance(inst);
-
-          if (deployOk)
-            inst.IsInitDeployed = true;
-          else if (printUndeployedInst) Console.WriteLine(m.FailedReason(inst));
+          //官方的评测代码在初始化阶段忽略资源和亲和性检查，直接将 inst 添加到机器上。
+          //在评价阶段，如果提交的代码中有 inst 的新部署目标，才会将其迁移；
+          //在迁移之前，向旧机器放置实例就可能导致资源或亲和性冲突；
+          //这里和官方评测代码行为保持一致
+          m.AddInstance(inst, ignoreCheck: true);
+          inst.NeedDeployOrMigrate = m.IsOverCapacity(inst) || m.IsXWithDeployed(inst);
         }
       );
-    }
-
-    private static void WriteSubmitCsv(string csv) {
-      if (!AllInstDeployed) {
-        Console.WriteLine("Error: Not All Instances Are Deployed!");
-        return;
-      }
-
-      using (var w = File.CreateText(csv)) {
-        foreach (var m in Machines)
-        foreach (var i in m.Instances)
-          if (!i.IsInitDeployed)
-            w.WriteLine($"inst_{i.Id},machine_{m.Id}");
-      }
     }
   }
 }

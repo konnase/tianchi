@@ -1,30 +1,26 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 
 namespace Tianchi {
   public class Machine {
     private const int TsCount = Resource.TsCount;
 
-    private const double Alpha = 10, Beta = 0.5;
-
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
     private readonly Resource _accum = new Resource();
-
-    // 各应用部署到本机的实例个数
-    private readonly Dictionary<App, int> _app = new Dictionary<App, int>();
-
     private readonly Resource _avail = new Resource();
-
     public readonly Resource Cap;
     public readonly double CapCpu;
-    public readonly int CapDisk;
     public readonly double CapMem;
+    public readonly int CapDisk;
+
     public readonly int Id;
 
-    public readonly List<Instance> Instances = new List<Instance>();
+    // 分应用汇总的实例个数
+    public readonly Dictionary<App, int> AppCount = new Dictionary<App, int>();
 
-    private double _score = double.MinValue;
+    public readonly List<Instance> InstList = new List<Instance>();
 
     // ReSharper disable once SuggestBaseTypeForParameter
     private Machine(string[] fields) {
@@ -33,8 +29,8 @@ namespace Tianchi {
       CapMem = double.Parse(fields[2]);
       CapDisk = int.Parse(fields[3]);
       Cap = new Resource(
-        new Series(Resource.TsCount, CapCpu),
-        new Series(Resource.TsCount, CapMem),
+        new Series(TsCount, CapCpu),
+        new Series(TsCount, CapMem),
         CapDisk,
         int.Parse(fields[4]),
         int.Parse(fields[5]),
@@ -64,6 +60,10 @@ namespace Tianchi {
 
     public bool IsIdle { get; private set; }
 
+    private const double Alpha = 10, Beta = 0.5;
+
+    private double _score = double.MinValue;
+
     // 机器按时间T平均后的成本分数
     public double Score {
       get {
@@ -89,52 +89,60 @@ namespace Tianchi {
       _score = sum / TsCount;
     }
 
-    public bool AddInstance(Instance inst) {
-      if (IsOverCapacity(inst) || IsXWithDeployed(inst)) return false;
+    /// <summary>
+    /// 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
+    /// </summary>
+    public bool AddInstance(Instance inst, StreamWriter w = null, bool ignoreCheck = false) {
+      if (!ignoreCheck && (IsOverCapacity(inst) || IsXWithDeployed(inst))) return false;
 
-      Instances.Add(inst);
+      InstList.Add(inst);
       IsIdle = false;
       _accum.Add(inst.R);
 
       _score = double.MinValue;
 
-      if (!_app.ContainsKey(inst.App))
-        _app[inst.App] = 1;
+      if (!AppCount.ContainsKey(inst.App))
+        AppCount[inst.App] = 1;
       else
-        _app[inst.App] += 1;
+        AppCount[inst.App] += 1;
 
       //inst之前已经部署到某台机器上了，需要迁移
       inst.DeployedMachine?.RemoveInstance(inst);
       inst.DeployedMachine = this;
+
+      inst.NeedDeployOrMigrate = false;
+
+      w?.WriteLine($"inst_{inst.Id},machine_{Id}");
       return true;
     }
 
-    private void RemoveInstance(Instance inst) {
+    public void RemoveInstance(Instance inst) {
       if (inst.DeployedMachine != this) return;
 
-      Instances.Remove(inst);
+      InstList.Remove(inst);
 
-      if (Instances.Count == 0) IsIdle = true;
+      if (InstList.Count == 0) IsIdle = true;
 
       _accum.Subtract(inst.R);
 
       _score = double.MinValue;
 
-      _app[inst.App] -= 1;
-      if (_app[inst.App] == 0) _app.Remove(inst.App);
+      AppCount[inst.App] -= 1;
+      if (AppCount[inst.App] == 0) AppCount.Remove(inst.App);
 
       inst.DeployedMachine = null;
+      inst.NeedDeployOrMigrate = true;
     }
 
     public void ClearInstances() {
-      for (var i = Instances.Count - 1; i >= 0; i--) RemoveInstance(Instances[i]);
+      for (var i = InstList.Count - 1; i >= 0; i--) RemoveInstance(InstList[i]);
     }
 
     // 检查当前累积使用的资源量 _accum **加上r之后** 是否会超出 capacity，
     // 不会修改当前资源量
     public bool IsOverCapacity(Instance inst) {
       var r = inst.R;
-      return _accum.Disk + r.Disk > Cap.Disk
+      return _accum.Disk + r.Disk > CapDisk
              || _accum.P + r.P > Cap.P
              || _accum.Pm + r.Pm > Cap.Pm //所有App的PM都等于P
              || _accum.M + r.M > Cap.M //所有App的M都是0
@@ -146,23 +154,23 @@ namespace Tianchi {
     public bool IsXWithDeployed(Instance inst) {
       var appB = inst.App;
 
-      var appBCnt = 0;
-      if (_app.ContainsKey(appB)) appBCnt = _app[appB];
+      var appBCnt = AppCount.ContainsKey(appB) ? AppCount[appB] : 0;
 
-      foreach (var kv in _app) {
+      foreach (var kv in AppCount) {
         //<appA, appB, k>
         var appA = kv.Key; //已部署的应用
         var k = appA.XLimit(appB);
-        if (k == int.MaxValue) continue; //限制为MaxValue表示不存在冲突
 
-        if (appBCnt >= k) return true;
+        if (appBCnt + 1 > k)
+          return true;
 
         //同时，已部署的应用不会与将要部署的inst的规则冲突
         //<appB,appA,xk>
         var xk = appB.XLimit(appA);
         var appACnt = kv.Value;
 
-        if (appACnt > xk) return true;
+        if (appACnt > xk)
+          return true;
       }
 
       return false;
@@ -173,16 +181,20 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"m_{Id}|{Cap.Disk}, Sc={Score:0.0}, " +
+      return $"m_{Id}|{CapDisk}, Sc={Score:0.0}, " +
              $"{Avail.Cpu.Min:0}/{100 * UtilCpuAvg:0}%, " + //cpu
              $"{Avail.Mem.Min:0}/{100 * UtilMemAvg:0}%, " + //mem
              $"{Avail.Disk:0}/{100 * UtilDisk:0}%, " + //disk
              $"{Avail.P:0}, " + //P
-             $"{Instances.Count}#, [{Instances.ToStr(i => i.R.Disk)}]";
+             $"{InstList.Count}#, [{InstList.ToStr(i => i.R.Disk)}]";
     }
 
     public string InstListToStr() {
-      return $"[{Instances.ToStr(i => i.Id)}]";
+      return $"[{InstList.ToStr(i => $"inst_{i.Id}")}]";
+    }
+
+    public string AppListToStr() {
+      return $"[{InstList.ToStr(i => $"app_{i.App.Id}")}]";
     }
 
     public string FailedReason(Instance inst) {

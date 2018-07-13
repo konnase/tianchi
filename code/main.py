@@ -9,6 +9,7 @@ def main():
     parser.add_option("-d", "--data_dir", dest="data_dir", help="directory of csv data")
     parser.add_option("-m", "--method", dest="method", type="int", help="method to solve this prolem")
     parser.add_option("-t", "--test_output", dest="test", help="output to test")
+    parser.add_option("-s", "--search", dest="search", help="file to search")
     (options, args) = parser.parse_args()
 
     insts, apps, machines, app_interfers, app_index, machine_index = read_from_csv(options.data_dir)
@@ -35,9 +36,17 @@ def main():
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.test:
-            knapsack.test(options.test)
+                knapsack.test(options.test)
+        if options.search:
+            try:
+                knapsack.test(options.search)
+                knapsack.search()
+                knapsack.output()
+            except KeyboardInterrupt:
+                print "write to file."
+                knapsack.output()
 
-    # for count, machine in enumerate(machines):
+# for count, machine in enumerate(machines):
     #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
     #     if count > 20:
     #         break
