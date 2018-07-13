@@ -266,7 +266,7 @@ class Knapsack(object):
                     set2_dic[inst.app.disk] = set()
                 set2_dic[inst.app.disk].add(machine)
 
-        for (disk_set1, disk_set2) in [(300, 60)]:
+        for (disk_set1, disk_set2, set1_num, set2_num) in [(300, 60, 1, 5)]:
             if disk_set1 not in set1_dic or disk_set2 not in set2_dic:
                 continue
             for i, machine1 in enumerate(set1_dic[disk_set1]):
@@ -278,18 +278,17 @@ class Knapsack(object):
                         continue
                     if len(filter(lambda x: x.app.disk == disk_set2, machine2.insts.values())) < disk_set1 / disk_set2:
                         continue
-                    if self.step_one_mul_search(machine1, machine2, disk_set1, disk_set2):
+                    if self.step_one_mul_search(machine1, machine2, disk_set1, disk_set2, set1_num, set2_num):
                         return True
                 self.done.add(machine1.id)
 
-    def step_one_mul_search(self, machine1, machine2, disk_set1, disk_set2):
+    def step_one_mul_search(self, machine1, machine2, disk_set1, disk_set2, set1_num, set2_num):
         inst_set1 = filter(lambda x: x.app.disk == disk_set1, machine1.insts.values())
         inst_set2 = filter(lambda x: x.app.disk == disk_set2, machine2.insts.values())
-        set2_num = disk_set1 / disk_set2
 
-        for inst1 in inst_set1:
+        for inst1_comb in list(combinations(inst_set1, set1_num)):
             for inst2_comb in list(combinations(inst_set2, set2_num)):
-                if self.score_after_swap_mul([inst1], inst2_comb):
+                if self.score_after_swap_mul(inst1_comb, inst2_comb):
                     return True
         return False
 
