@@ -1,6 +1,7 @@
 import numpy as np
 import re
 import copy
+from itertools import combinations
 
 
 class Knapsack(object):
@@ -154,6 +155,9 @@ class Knapsack(object):
         cpu_overload_cnt = 0
         mem_overload_cnt = 0
         half_cpu_overload_cnt = 0
+        p_overload_cnt = 0
+        m_overload_cnt = 0
+        pm_overload_cnt = 0
         interfer_cnt = 0
 
         total_cnt = 0
@@ -163,6 +167,9 @@ class Knapsack(object):
             cpu = np.array([0.0] * 98)
             mem = np.array([0.0] * 98)
             disk = 0
+            p = 0
+            m = 0
+            pm = 0
 
             if machine.disk_use > 0:
                 total_cnt += 1
@@ -171,6 +178,9 @@ class Knapsack(object):
                 cpu += inst.app.cpu
                 mem += inst.app.mem
                 disk += inst.app.disk
+                p += inst.app.p
+                m += inst.app.m
+                pm += inst.app.pm
                 app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 0
 
             for app, cnt in app_dict.iteritems():
@@ -185,11 +195,20 @@ class Knapsack(object):
                 mem_overload_cnt += 1
             if any(cpu > machine.cpu_capacity / 2):
                 half_cpu_overload_cnt += 1
+            if p > machine.p_capacity:
+                p_overload_cnt += 1
+            if m > machine.m_capacity:
+                m_overload_cnt += 1
+            if pm > machine.pm_capacity:
+                pm_overload_cnt += 1
 
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
         print "Half CPU Overload: %f (%d / %d)" % (
             float(half_cpu_overload_cnt) / total_cnt, half_cpu_overload_cnt, total_cnt)
+        print "P Overload %f (%d / %d)" % (float(p_overload_cnt) / total_cnt, p_overload_cnt, total_cnt)
+        print "M Overload %f (%d / %d)" % (float(m_overload_cnt) / total_cnt, m_overload_cnt, total_cnt)
+        print "PM Overload %f (%d / %d)" % (float(pm_overload_cnt) / total_cnt, pm_overload_cnt, total_cnt)
         print "Constraint violate: %d" % interfer_cnt
 
     def search(self):
@@ -202,12 +221,12 @@ class Knapsack(object):
                 self.machines[i].insts[inst_id].machine_id = i
 
         while True:
-            if not self.step():
+            if not self.step_one_mul():
                 break
 
         self.rating()
 
-    def step(self):
+    def step_one_one(self):
         set1 = filter(lambda x: x.cpu_score > 0.5, self.machines)
         set2 = filter(lambda x: x.cpu_score < 0.47, self.machines)
 
@@ -226,6 +245,111 @@ class Knapsack(object):
                             if self.score_after_swap(inst1, inst2):
                                 return True
             self.done.add(set1[i].id)
+
+    def step_one_mul(self):
+        set1 = filter(lambda x: x.cpu_score > 0.5, self.machines)
+        set2 = filter(lambda x: x.cpu_score < 0.45, self.machines)
+        self.done.clear()
+
+        set1_dic = {}
+        set2_dic = {}
+
+        for i, machine in enumerate(set1):
+            for inst in machine.insts.values():
+                if inst.app.disk not in set1_dic:
+                    set1_dic[inst.app.disk] = set()
+                set1_dic[inst.app.disk].add(machine)
+
+        for machine in set2:
+            for inst in machine.insts.values():
+                if inst.app.disk not in set2_dic:
+                    set2_dic[inst.app.disk] = set()
+                set2_dic[inst.app.disk].add(machine)
+
+        for (disk_set1, disk_set2) in [(300, 60)]:
+            if disk_set1 not in set1_dic or disk_set2 not in set2_dic:
+                continue
+            for i, machine1 in enumerate(set1_dic[disk_set1]):
+                if machine1.id in self.done:
+                    continue
+                print "SET1(%d/%d): " % (i + 1, len(set1_dic[disk_set1])), machine1
+                for machine2 in set2_dic[disk_set2]:
+                    if machine1.id == machine2.id:
+                        continue
+                    if len(filter(lambda x: x.app.disk == disk_set2, machine2.insts.values())) < disk_set1 / disk_set2:
+                        continue
+                    if self.step_one_mul_search(machine1, machine2, disk_set1, disk_set2):
+                        return True
+                self.done.add(machine1.id)
+
+    def step_one_mul_search(self, machine1, machine2, disk_set1, disk_set2):
+        inst_set1 = filter(lambda x: x.app.disk == disk_set1, machine1.insts.values())
+        inst_set2 = filter(lambda x: x.app.disk == disk_set2, machine2.insts.values())
+        set2_num = disk_set1 / disk_set2
+
+        for inst1 in inst_set1:
+            for inst2_comb in list(combinations(inst_set2, set2_num)):
+                if self.score_after_swap_mul([inst1], inst2_comb):
+                    return True
+        return False
+
+    def score_after_swap_mul(self, inst1_set, inst2_set):
+        machine1 = self.machines[inst1_set[0].machine_id]
+        machine2 = self.machines[inst2_set[0].machine_id]
+
+        cpu1 = copy.copy(machine1.cpu_use)
+        cpu2 = copy.copy(machine2.cpu_use)
+        mem1 = copy.copy(machine1.mem_use)
+        mem2 = copy.copy(machine2.mem_use)
+
+        for inst in inst1_set:
+            cpu1 -= inst.app.cpu
+            cpu2 += inst.app.cpu
+            mem1 -= inst.app.mem
+            mem2 += inst.app.mem
+
+        for inst in inst2_set:
+            cpu1 += inst.app.cpu
+            cpu2 -= inst.app.cpu
+            mem1 += inst.app.mem
+            mem2 -= inst.app.mem
+
+        cpu_radio1 = max(cpu1) / machine1.cpu_capacity
+        cpu_radio2 = max(cpu2) / machine2.cpu_capacity
+        cpu_delta = -cpu_radio1 ** 2 - cpu_radio2 ** 2 + machine1.cpu_score ** 2 + machine2.cpu_score ** 2
+
+        mem_radio1 = max(mem1) / machine1.mem_capacity
+        mem_radio2 = max(mem2) / machine2.mem_capacity
+        mem_delta = -mem_radio1 ** 2 - mem_radio2 ** 2 + machine1.mem_score ** 2 + machine2.mem_score ** 2
+
+        if cpu_radio2 <= 0.5 and mem_radio1 <= 1 and mem_radio2 <= 1 and cpu_delta > 0.01:
+            self.do_swap_mul(inst1_set, inst2_set)
+            return True
+        return False
+
+    def do_swap_mul(self, inst1_set, inst2_set):
+        i = inst1_set[0].machine_id
+        j = inst2_set[0].machine_id
+
+        for inst in inst1_set:
+            self.machines[i].cpu_use -= inst.app.cpu
+            self.machines[j].cpu_use += inst.app.cpu
+            self.machines[i].mem_use -= inst.app.mem
+            self.machines[j].mem_use += inst.app.mem
+            self.machines[i].insts.pop(inst.id)
+            self.machines[j].insts[inst.id] = inst
+            self.machines[j].insts[inst.id].machine_id = j
+
+        for inst in inst2_set:
+            self.machines[i].cpu_use += inst.app.cpu
+            self.machines[j].cpu_use -= inst.app.cpu
+            self.machines[i].mem_use += inst.app.mem
+            self.machines[j].mem_use -= inst.app.mem
+            self.machines[j].insts.pop(inst.id)
+            self.machines[i].insts[inst.id] = inst
+            self.machines[i].insts[inst.id].machine_id = i
+
+        print "after swap: cpu(%f) mem(%f)" % (self.machines[i].cpu_score, self.machines[i].mem_score)
 
     def score_after_swap(self, inst1, inst2):
         machine1 = self.machines[inst1.machine_id]
@@ -246,11 +370,6 @@ class Knapsack(object):
         mem_delta = -mem_radio1 ** 2 - mem_radio2 ** 2 + machine1.mem_score ** 2 + machine2.mem_score ** 2
 
         if cpu_radio2 <= 0.5 and mem_radio1 <= 1 and mem_radio2 <= 1 and cpu_delta > 0.01:
-            # print "after(%.2f,%.2f) before(%.2f,%.2f), delta(%f)" % (
-            #     cpu_radio1, cpu_radio2, machine1.cpu_score, machine2.cpu_score, cpu_delta)
-            # print "after(%.2f,%.2f) before(%.2f,%.2f), delta(%f)" % (
-            #     mem_radio1, mem_radio2, machine1.mem_score, machine2.mem_score, mem_delta)
-
             self.do_swap(inst1, inst2)
             return True
 
@@ -275,9 +394,10 @@ class Knapsack(object):
         print "after swap: cpu(%f) mem(%f)" % (self.machines[i].cpu_score, self.machines[i].mem_score)
 
     def output(self):
-        self.machines.sort(key=lambda x:x.disk_capacity,reverse=True)
+        self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
         with open('search', 'w') as f:
             for machine in self.machines:
-                line = "total(%f): {%s} (%s)\n" % (machine.cpu_score, ",".join([str(int(i.app.disk)) for i in machine.insts.values()]),
-                                               ",".join([i.id for i in machine.insts.values()]))
+                line = "total(%f): {%s} (%s)\n" % (
+                machine.cpu_score, ",".join([str(int(i.app.disk)) for i in machine.insts.values()]),
+                ",".join([i.id for i in machine.insts.values()]))
                 f.write(line)
