@@ -6,10 +6,24 @@
 gcc code/lower_bound.cpp -o lb && ./lb < request > lower_bound
 ```
 
+rating for this lower_bound:
+
+```bash
+python code/main.py --data_dir=data --method=2 --test=lower_bound
+```
+
 ### Solution
 
 ```bash
-$ python code/main.py --data_dir=data
+$ python code/main.py --data_dir=data --method=<method>
+```
+
+Method enum:
+
+```python
+class Method(Enum):
+    FFD = 1
+    Knapsack = 2
 ```
 
 -----
@@ -77,7 +91,7 @@ CPU和内存 资源曲线是一天 24小时 内对应用各实例定时采样后
 | 最小 |  68439.36 / 18.4% | 375839.43 / 35.6% |
 | 平均 |  93850.33 / 25.3% | 396890.45 / 37.6% |
 
-![CPU和内存资源利用率](utilts.jpg)
+![CPU和内存资源利用率](/utilts.jpg)
 
 CPU有日内峰谷的整体趋势，但具体到实例，分时的变化曲线就可能不太规律了。
 

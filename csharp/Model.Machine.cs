@@ -173,15 +173,12 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      var score = "\t";
-      if (Score > 1) score = $"Sc={Score:0.0}";
-
-      return $"machine_{Id}, " +
-             $"{100 * UtilCpuAvg:0}%," + //cpu
-             $"{100 * UtilMemAvg:0}%," + //mem
-             $"{100 * (UtilDisk - 0.01):0}%/{Cap.Disk}," + //disk
-             $"{Instances.Count}#,[{Instances.ToStr(i => i.R.Disk)}]  " +
-             $"{score}";
+      return $"m_{Id}|{Cap.Disk}, Sc={Score:0.0}, " +
+             $"{Avail.Cpu.Min:0}/{100 * UtilCpuAvg:0}%, " + //cpu
+             $"{Avail.Mem.Min:0}/{100 * UtilMemAvg:0}%, " + //mem
+             $"{Avail.Disk:0}/{100 * UtilDisk:0}%, " + //disk
+             $"{Avail.P:0}, " + //P
+             $"{Instances.Count}#, [{Instances.ToStr(i => i.R.Disk)}]";
     }
 
     public string InstListToStr() {
@@ -189,7 +186,7 @@ namespace Tianchi {
     }
 
     public string FailedReason(Instance inst) {
-      return $"inst_{inst.Id},machine_{Id}" +
+      return $"inst_{inst.Id},m_{Id}" +
              $"{(IsOverCapacity(inst) ? ",R" : "")}" +
              $"{(IsXWithDeployed(inst) ? ",X" : "")}";
     }

@@ -17,7 +17,7 @@ namespace Tianchi {
     public bool IsDeployed => DeployedMachine != null;
 
     public override string ToString() {
-      return $"inst_{Id},app_{App.Id},{R}";
+      return $"inst_{Id},app_{App.Id}, {R}";
     }
   }
 }
