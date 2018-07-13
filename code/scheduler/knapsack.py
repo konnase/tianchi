@@ -266,7 +266,8 @@ class Knapsack(object):
                     set2_dic[inst.app.disk] = set()
                 set2_dic[inst.app.disk].add(machine)
 
-        for (disk_set1, disk_set2, set1_num, set2_num) in [(300, 60, 1, 5)]:
+        for (disk_set1, disk_set2, set1_num, set2_num) in [(300, 60, 1, 5),(100,40,2,5),(500,100,1,5),(40,60,3,2)]:
+            print "search", disk_set1, disk_set2, set1_num, set2_num
             if disk_set1 not in set1_dic or disk_set2 not in set2_dic:
                 continue
             for i, machine1 in enumerate(set1_dic[disk_set1]):
