@@ -135,8 +135,11 @@ class AppInterference(object):
 
 def read_from_csv(directory_path):
     instances = []
+    instance_index = {}
     for line in open(os.path.join(directory_path, INSTANCE_INPUT_FILE)):
-        instances.append(Instance.from_csv_line(line))
+        instance = Instance.from_csv_line(line)
+        instance_index[instance.id] = len(instances)
+        instances.append(instance)
 
     machines = []
     machine_index = {}
@@ -156,7 +159,7 @@ def read_from_csv(directory_path):
     for line in open(os.path.join(directory_path, APP_INTERFER_FILE)):
         app_interfer.append(AppInterference.from_csv_line(line))
 
-    return instances, apps, machines, app_interfer, app_index, machine_index
+    return instances, apps, machines, app_interfer, app_index, machine_index, instance_index
 
 
 def get_apps_instances(insts, apps, app_index):

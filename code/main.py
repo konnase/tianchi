@@ -13,7 +13,7 @@ def main():
     parser.add_option("-s", "--search", dest="search", help="file to search")
     (options, args) = parser.parse_args()
 
-    insts, apps, machines, app_interfers, app_index, machine_index = read_from_csv(options.data_dir)
+    insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
     get_apps_instances(insts, apps, app_index)
 
     if Method(options.method) == Method.FFD:
@@ -47,8 +47,10 @@ def main():
                 print "write to file."
                 knapsack.output()
     elif Method(options.method) == Method.Analyse:
-        start_analyse(insts, apps, machines, app_interfers, machine_index)
-
+        results = start_analyse(insts, instance_index)
+        with open("analyse.csv", "w") as f:
+            for line in results:
+                f.write(line)
 # for count, machine in enumerate(machines):
     #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
     #     if count > 20:
