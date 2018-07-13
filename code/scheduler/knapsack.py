@@ -209,7 +209,7 @@ class Knapsack(object):
 
     def step(self):
         set1 = filter(lambda x: x.cpu_score > 0.5, self.machines)
-        set2 = filter(lambda x: x.cpu_score < 0.45, self.machines)
+        set2 = filter(lambda x: x.cpu_score < 0.47, self.machines)
 
         for i in range(len(set1) - 1, -1, -1):
             if set1[i].id in self.done:
