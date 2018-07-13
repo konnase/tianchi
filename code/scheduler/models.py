@@ -8,6 +8,7 @@ from constant import *
 class Method(Enum):
     FFD = 1
     Knapsack = 2
+    Analyse = 3
 
 
 class Instance(object):

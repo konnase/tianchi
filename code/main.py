@@ -2,6 +2,7 @@ from scheduler.knapsack import Knapsack
 from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
 from scheduler.ffd import FFD
+from scheduler.analyse import start_analyse
 
 
 def main():
@@ -45,6 +46,8 @@ def main():
             except KeyboardInterrupt:
                 print "write to file."
                 knapsack.output()
+    elif Method(options.method) == Method.Analyse:
+        start_analyse(insts, apps, machines, app_interfers, machine_index)
 
 # for count, machine in enumerate(machines):
     #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
