@@ -24,6 +24,7 @@ Method enum:
 class Method(Enum):
     FFD = 1
     Knapsack = 2
+    Analyse = 3
 ```
 
 ### Offcial Judger 
