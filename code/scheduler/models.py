@@ -85,7 +85,6 @@ class Machine(object):
         self.apps_id = []
         self.bins = []
 
-        self.insts = {}
 
         self.p_num = 0
         self.m_num = 0
