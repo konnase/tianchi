@@ -12,3 +12,5 @@ db.json
 submit*
 ~$*.xlsx
 
+knapsack_deploy*
+init_deploy*

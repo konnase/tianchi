@@ -15,7 +15,7 @@ class Instance(object):
     def __init__(self, id, app_id, machine_id):
         self.id = id
         self.app_id = app_id
-        self.machine_id = ""
+        self.machine_id = machine_id
         self.raw_machine_id = machine_id
         self.placed = False
         self.app = None
@@ -90,7 +90,6 @@ class Machine(object):
         self.bins = []
         self.app_inst = {}
 
-        self.insts = {}
 
         self.p_num = 0
         self.m_num = 0
