@@ -36,9 +36,7 @@ namespace Tianchi {
       var lineNo = 0;
 
       ReadCsv(csvSubmit, line => {
-        if (failedResource + failedX > 0 && !verbose) {
-          return;
-        }
+        if (failedResource + failedX > 0 && !verbose) return;
 
         var fields = line.Split(',');
         var instId = fields[0].Id();
@@ -49,13 +47,9 @@ namespace Tianchi {
         inst.DeployedMachine?.RemoveInstance(inst); //Debug.Assert(inst.IsInitConflict);
 
         if (!m.AddInstance(inst)) {
-          if (m.IsOverCapacity(inst)) {
-            failedResource++;
-          }
+          if (m.IsOverCapacity(inst)) failedResource++;
 
-          if (m.IsXWithDeployed(inst)) {
-            failedX++;
-          }
+          if (m.IsXWithDeployed(inst)) failedX++;
 
           Console.Write($"[{lineNo}] ");
           Console.Write(m.FailedReason(inst));
@@ -75,9 +69,7 @@ namespace Tianchi {
             || m.Avail.P < 0) {
           Console.WriteLine(m);
 
-          if (!verbose) {
-            return;
-          }
+          if (!verbose) return;
         }
 
         var appCnt = m.AppCount;
@@ -90,9 +82,7 @@ namespace Tianchi {
             if (appBCnt <= appA.XLimit(appB)) continue;
             Console.WriteLine($"m_{m.Id},[app_{appA.Id},app_{appB.Id}, " +
                               $"{appBCnt} > k={appA.XLimit(appB)}]");
-            if (!verbose) {
-              return;
-            }
+            if (!verbose) return;
           }
         }
       }

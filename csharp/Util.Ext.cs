@@ -8,9 +8,8 @@ namespace Tianchi {
     public static int Id(this string id) {
       if (string.IsNullOrEmpty(id)
           || !id.Contains('_')
-          || !char.IsDigit(id.Last())) {
+          || !char.IsDigit(id.Last()))
         return int.MinValue;
-      }
 
       return int.Parse(id.Substring(id.IndexOf('_') + 1));
     }

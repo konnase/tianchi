@@ -6,21 +6,25 @@ namespace Tianchi {
   public class Machine {
     private const int TsCount = Resource.TsCount;
 
+    private const double Alpha = 10, Beta = 0.5;
+
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
     private readonly Resource _accum = new Resource();
     private readonly Resource _avail = new Resource();
-    public readonly Resource Cap;
-    public readonly double CapCpu;
-    public readonly double CapMem;
-    public readonly int CapDisk;
-
-    public readonly int Id;
 
     // 分应用汇总的实例个数
     public readonly Dictionary<App, int> AppCount = new Dictionary<App, int>();
+    public readonly Resource Cap;
+    public readonly double CapCpu;
+    public readonly int CapDisk;
+    public readonly double CapMem;
+
+    public readonly int Id;
 
     public readonly List<Instance> InstList = new List<Instance>();
+
+    private double _score = double.MinValue;
 
     // ReSharper disable once SuggestBaseTypeForParameter
     private Machine(string[] fields) {
@@ -64,10 +68,6 @@ namespace Tianchi {
 
     public bool IsIdle { get; private set; }
 
-    private const double Alpha = 10, Beta = 0.5;
-
-    private double _score = double.MinValue;
-
     // 机器按时间T平均后的成本分数
     public double Score {
       get {
@@ -94,7 +94,7 @@ namespace Tianchi {
     }
 
     /// <summary>
-    /// 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
+    ///   如果添加成功，会自动从旧机器上迁移过来（如果有的话）
     /// </summary>
     public bool AddInstance(Instance inst, StreamWriter w = null, bool ignoreCheck = false) {
       if (!ignoreCheck && (IsOverCapacity(inst) || IsXWithDeployed(inst))) return false;

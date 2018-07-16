@@ -1,21 +1,19 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
     // ReSharper disable once ParameterTypeCanBeEnumerable.Local
     private static void FirstFit(IEnumerable<Instance> instances, bool onlyIdleMachine = false) {
-      foreach (var inst in instances) {
-        if (onlyIdleMachine || inst.NeedDeployOrMigrate) {
+      foreach (var inst in instances)
+        if (onlyIdleMachine || inst.NeedDeployOrMigrate)
           foreach (var m in Machines) {
             if (onlyIdleMachine && !m.IsIdle) continue;
 
             if (m.AddInstance(inst, _writer)) break;
           }
-        }
-      }
     }
 
     private static void RunFf() {
@@ -31,15 +29,14 @@ namespace Tianchi {
               )
         select i;
 
-      FirstFit(vips, onlyIdleMachine: true);
+      FirstFit(vips, true);
 
       FirstFit(Instances);
 
-      if (!AllInstDeployed) {
+      if (!AllInstDeployed)
         PrintUndeployedInst();
-      } else {
+      else
         PrintScore();
-      }
 
       _writer.Close();
     }

@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Tianchi {
   public static partial class Program {
-    static void VerifySearchResult(string fileName) {
+    private static void VerifySearchResult(string fileName) {
       var mCnt = 0;
       ClearMachineDeployment(); //clean state
 
@@ -31,7 +31,7 @@ namespace Tianchi {
 
       f.Close();
 
-      FinalCheck(verbose: true);
+      FinalCheck(true);
     }
   }
 }

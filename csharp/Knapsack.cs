@@ -5,13 +5,13 @@ using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
-    const int BinCount = 5506;
-    static readonly int[][] Bins = new int[BinCount][];
+    private const int BinCount = 5506;
+    private static readonly int[][] Bins = new int[BinCount][];
 
     // 将所有实例按所需磁盘大小分组
-    static readonly Dictionary<int, List<Instance>> InstDiskKv = new Dictionary<int, List<Instance>>(16);
+    private static readonly Dictionary<int, List<Instance>> InstDiskKv = new Dictionary<int, List<Instance>>(16);
 
-    static void SetInstDiskKv() {
+    private static void SetInstDiskKv() {
       foreach (var inst in Instances) {
         var key = inst.R.Disk;
         var val = InstDiskKv.GetValueOrDefault(key, new List<Instance>());
@@ -20,15 +20,14 @@ namespace Tianchi {
       }
 
       //依次按cpu，mem逆序排序
-      foreach (var kv in InstDiskKv) {
+      foreach (var kv in InstDiskKv)
         kv.Value.Sort((a, b) => {
           var cpu = b.R.Cpu.Max.CompareTo(a.R.Cpu.Max);
           return cpu == 0 ? b.R.Mem.Max.CompareTo(a.R.Mem.Max) : cpu;
         });
-      }
     }
 
-    static void ParseBins(string binsFile) {
+    private static void ParseBins(string binsFile) {
       var f = File.OpenText(binsFile);
       string line;
       var b = 0;
@@ -44,9 +43,7 @@ namespace Tianchi {
         var csv = line.Substring(lb + 1, rb - lb - 1);
         var plan = csv.CsvToIntArray();
         Array.Sort(plan, (x, y) => y.CompareTo(x)); //逆序，将大的磁盘放到前面
-        for (var i = 0; i < cnt; i++) {
-          Bins[b++] = plan;
-        }
+        for (var i = 0; i < cnt; i++) Bins[b++] = plan;
       }
 
       Array.Sort(Bins, (x, y) => {
@@ -57,7 +54,7 @@ namespace Tianchi {
     }
 
     // 根据已知按磁盘装箱得出的下限，按Disk大小，从相应分组找出一个实例放置到机器上
-    static void PackBins(StreamWriter w) {
+    private static void PackBins(StreamWriter w) {
       Machine m = null;
       for (var k = 0; k < BinCount; k++) {
         var plan = Bins[k];
@@ -68,9 +65,7 @@ namespace Tianchi {
         foreach (var disk in plan) {
           var deployed = false;
           foreach (var inst in InstDiskKv[disk]) {
-            if (inst.DeployedMachine != null) {
-              m = inst.DeployedMachine;
-            }
+            if (inst.DeployedMachine != null) m = inst.DeployedMachine;
 
             if (inst.DeployedMachine != null || !m.AddInstance(inst, w)) continue;
             deployed = true;
@@ -99,16 +94,13 @@ namespace Tianchi {
 
         //否则选择一台空机器
         var sumDisk = plan.Sum();
-        foreach (var machine in Machines) {
+        foreach (var machine in Machines)
           if (machine.CapDisk >= sumDisk && machine.IsIdle) {
             m = machine;
             break;
           }
-        }
 
-        if (m != null) {
-          break;
-        }
+        if (m != null) break;
       }
 
       return m;

@@ -26,11 +26,9 @@ namespace Tianchi {
     }
 
     private static void PrintUndeployedInst() {
-      foreach (var inst in Instances) {
-        if (inst.NeedDeployOrMigrate) {
+      foreach (var inst in Instances)
+        if (inst.NeedDeployOrMigrate)
           Console.WriteLine(inst);
-        }
-      }
     }
 
     private static void PrintCsvInitInfo() {
@@ -39,16 +37,15 @@ namespace Tianchi {
                         $"Instance: {Instances.Length}, " +
                         $"Machine: {Machines.Count}");
 
-      FinalCheck(verbose: true); //151;
+      FinalCheck(true); //151;
       var insts = (from i in Instances
         where i.DeployedMachine != null && i.NeedDeployOrMigrate
         select i).ToList(); //初始被忽略约束，强制部署到机器上的实例
       Console.WriteLine(insts.Count()); //143; 没有资源超限的初始部署实例；
-                                        //注意，与上述FinalCheck结果不同，但这是合理的
-      foreach (var i in insts) {
+      //注意，与上述FinalCheck结果不同，但这是合理的
+      foreach (var i in insts)
         Console.WriteLine($"m_{i.DeployedMachine.Id},app_{i.App.Id}," +
                           $"inst_{i.Id},{i.DeployedMachine.AppListToStr()}");
-      }
     }
   }
 }
