@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -74,7 +73,6 @@ namespace Tianchi {
             || m.Avail.Mem.Min < 0
             || m.Avail.Disk < 0
             || m.Avail.P < 0) {
-          Console.Write("Resource over capacity: ");
           Console.WriteLine(m);
 
           if (!verbose) {
@@ -90,9 +88,8 @@ namespace Tianchi {
             var appA = ku.Key;
             //因为遍历了两遍app列表，所以这里只需单向检测即可
             if (appBCnt <= appA.XLimit(appB)) continue;
-            Console.WriteLine($"Error: [app_{appA.Id},app_{appB.Id}, " +
-                              $"{appBCnt} > k={appA.XLimit(appB)}] " +
-                              $" @ m_{m.Id}");
+            Console.WriteLine($"m_{m.Id},[app_{appA.Id},app_{appB.Id}, " +
+                              $"{appBCnt} > k={appA.XLimit(appB)}]");
             if (!verbose) {
               return;
             }

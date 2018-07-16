@@ -58,6 +58,10 @@ namespace Tianchi {
                           || Avail.Mem.Max < 1.0
                           || Avail.Cpu.Max < 0.5; //出现的最小的资源值
 
+    public bool IsFullHalfCpu => Avail.Disk < 40.0
+                                 || Avail.Mem.Max < 1.0
+                                 || Avail.Cpu.Max < CapCpu * 0.5;
+
     public bool IsIdle { get; private set; }
 
     private const double Alpha = 10, Beta = 0.5;

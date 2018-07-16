@@ -51,6 +51,20 @@ namespace Tianchi {
       return list.ToMergeStr();
     }
 
+    public static string ToStr<T>(this T[] array) {
+      if (array.Length == 0) return string.Empty;
+      var s = new StringBuilder();
+
+      foreach (var p in array) {
+        s.Append(p);
+        s.Append(",");
+      }
+
+      return s[s.Length - 1] == ','
+        ? s.ToString(0, s.Length - 1)
+        : s.ToString();
+    }
+
     private static string ToMergeStr<T>(this List<T> list) {
       if (list.Count == 0) return string.Empty;
 
