@@ -16,6 +16,9 @@ class Knapsack(object):
         self.interfer_index = {}
         self.bins = []
 
+        self.reverse = dict()
+        self.safe_apps = set()
+
         self.pre_process_machine()
         self.build_index()
         self.read_lower_bound()
@@ -35,6 +38,11 @@ class Knapsack(object):
 
         for interfer in self.app_interfers:
             self.interfer_index[interfer.app_a] = interfer
+            self.reverse[interfer.app_b] = interfer
+
+        for app in self.apps:
+            if app.id not in self.interfer_index and app.id not in self.reverse:
+                self.safe_apps.add(app.id)
 
         self.inst_index = inst_index
         self.inst_id_index = inst_id_index
@@ -151,6 +159,53 @@ class Knapsack(object):
                 self.inst_id_index[inst].machine_id = i
         self.rating()
 
+    def handle_swap_500_100(self):
+        candidates_1 = []
+        for i in range(len(self.machines)):
+            inst_60 = 0
+            if self.machines[i].disk_capacity == 1024.0 and self.machines[i].cpu_score < 0.2:
+                for inst in self.machines[i].insts.values():
+                    if inst.app.disk == 60:
+                        inst_60 += 1
+                    if inst_60 >= 1:
+                        candidates_1.append(i)
+                        break
+        candidates_1.sort(key=lambda x: self.machines[x].cpu_score)
+        candidates_2 = []
+        for i in range(len(self.machines)):
+            if self.machines[i].disk_capacity != 600 or self.machines[i].cpu_score < 0.5:
+                continue
+            inst_500 = 0
+            inst_100 = 0
+            for inst in self.machines[i].insts.values():
+                if inst.app.disk == 500:
+                    inst_500 += 1
+                if inst.app.disk == 100:
+                    inst_100 += 1
+                if inst_500 == 1 and inst_100 == 1:
+                    candidates_2.append(i)
+                    break
+                candidates_2.sort(key=lambda x: self.machines[x].cpu_score)
+
+        for i in range(3):
+            machine1 = copy.copy(self.machines[candidates_1[i]])
+            machine2 = copy.copy(self.machines[candidates_2[i]])
+
+            print machine1
+            print machine2
+
+            insts2 = machine2.insts.values()
+            insts1 = sorted(filter(lambda x: x.app.disk == 60, machine1.insts.values()), key=lambda x: max(x.app.cpu))[
+                     0:10]
+
+            disk = 0
+            cpu = np.array([0.0] * 98)
+            for inst in insts1:
+                cpu += inst.app.cpu
+                disk += inst.app.disk
+
+            self.score_after_swap_mul(insts1, insts2)
+
     def rating(self):
         cpu_overload_cnt = 0
         mem_overload_cnt = 0
@@ -170,6 +225,8 @@ class Knapsack(object):
             p = 0
             m = 0
             pm = 0
+            violate = False
+            violate_cnt = 0
 
             if machine.disk_use > 0:
                 total_cnt += 1
@@ -188,6 +245,10 @@ class Knapsack(object):
                     app_b = self.interfer_index[app].app_b
                     if app_b in app_dict and app_dict[app_b] > self.interfer_index[app].num:
                         interfer_cnt += 1
+                        violate_cnt += app_dict[app_b]
+                        violate = True
+                        print machine
+                        print app, app_b, self.interfer_index[app].num, app_dict[app_b]
 
             if any(cpu > machine.cpu_capacity):
                 cpu_overload_cnt += 1
@@ -202,6 +263,13 @@ class Knapsack(object):
             if pm > machine.pm_capacity:
                 pm_overload_cnt += 1
 
+            # if machine.disk_use > 0 and machine.disk_capacity - machine.disk_use >= 50:
+                # ddd = set()
+                # for i in machine.insts.values():
+                #     ddd.add(i.app.id)
+                # if 'app_6564' not in ddd:
+                #     print "not use", machine.disk_use, machine
+
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
         print "Half CPU Overload: %f (%d / %d)" % (
@@ -213,7 +281,6 @@ class Knapsack(object):
 
     def search(self):
         self.machines = filter(lambda x: x.disk_use > 0, self.machines)
-
         self.machines.sort(key=lambda x: x.cpu_score)
 
         for i in range(len(self.machines)):
@@ -221,14 +288,172 @@ class Knapsack(object):
                 self.machines[i].insts[inst_id].machine_id = i
 
         while True:
-            if not self.step_one_mul():
+            if not self.handle_constraint_violate():
                 break
 
         self.rating()
 
+    def update_pmp(self):
+        for i, machine in enumerate(self.machines):
+            self.machines[i].pmp = np.array([0] * 3)
+            self.machines[i].pmp_cap = np.array(
+                [self.machines[i].p_capacity, self.machines[i].m_capacity, self.machines[i].pm_capacity])
+            for inst in machine.insts.values():
+                self.machines[i].pmp += np.array([inst.app.p, inst.app.m, inst.app.pm])
+
+    def handle_pm(self):
+        self.update_pmp()
+        set1 = filter(lambda x: any(x.pmp > x.pmp_cap), self.machines)
+        set2 = filter(lambda x: all(x.pmp < x.pmp_cap) and x.disk_capacity == 1024, self.machines)
+        print len(set1), len(set2)
+
+        for i, machine1 in enumerate(set1):
+            print "SET1(%d/%d) %s" % (i + 1, len(set1), set1[i])
+            for inst1 in machine1.insts.values():
+                if inst1.app.disk != 60:
+                    continue
+                for machine2 in set2:
+                    for inst2 in machine2.insts.values():
+                        if inst2.app.disk != 60:
+                            continue
+                        if self.can_swap_pmp(inst1, inst2):
+                            return True
+        return False
+
+    def can_swap_pmp(self, inst1, inst2):
+        machine1 = copy.copy(self.machines[inst1.machine_id])
+        machine2 = copy.copy(self.machines[inst2.machine_id])
+
+        machine1.cpu_use = machine1.cpu_use - inst1.app.cpu + inst2.app.cpu
+        machine2.cpu_use = machine2.cpu_use - inst2.app.cpu + inst1.app.cpu
+        if any(machine1.cpu_use > machine1.cpu_capacity) or any(machine2.cpu_use > machine2.cpu_capacity):
+            return False
+
+        machine1.mem_use = machine1.mem_use - inst1.app.mem + inst2.app.mem
+        machine2.mem_use = machine2.mem_use - inst2.app.mem + inst1.app.mem
+        if any(machine1.mem_use > machine1.mem_capacity) or any(machine2.mem_use > machine2.mem_capacity):
+            return False
+
+        machine1.pmp = machine1.pmp - np.array([inst1.app.p, inst1.app.m, inst1.app.pm]) + np.array(
+            [inst2.app.p, inst2.app.m, inst2.app.pm])
+        machine2.pmp = machine2.pmp - np.array([inst2.app.p, inst2.app.m, inst2.app.pm]) + np.array(
+            [inst1.app.p, inst1.app.m, inst1.app.pm])
+
+        if sum(machine1.pmp) < sum(self.machines[inst1.machine_id].pmp) and all(machine2.pmp < machine2.pmp_cap):
+            print machine1.pmp, self.machines[inst1.machine_id].pmp
+            print machine2.pmp, self.machines[inst2.machine_id].pmp
+            self.do_swap(inst1, inst2)
+            return True
+        return False
+
+    def update_app_inst(self):
+        for i, machine in enumerate(self.machines):
+            self.machines[i].app_interfers = self.interfer_index
+
+    def handle_constraint_violate(self):
+        self.update_pmp()
+        self.update_app_inst()
+
+        set1 = filter(lambda x: x.inter_inst_num > 0, self.machines)
+        set2 = filter(lambda x: x.inter_inst_num == 0, self.machines)
+
+        for i, machine1 in enumerate(set1):
+            print "SET1(%d/%d) %s" % (i + 1, len(set1), set1[i])
+            print set1[i].inter_inst_num
+            for inst1 in set1[i].insts.values():
+                if inst1.app.id not in set1[i].violate_apps:
+                    continue
+                for j, machine2 in enumerate(set2):
+                    for inst2 in set2[j].insts.values():
+                        if self.can_swap_constraint(inst1, inst2):
+                            return True
+        return False
+
+    def can_swap_constraint(self, inst1, inst2):
+        if inst2.app.id not in self.safe_apps:
+            return False
+        machine1 = copy.copy(self.machines[inst1.machine_id])
+        machine2 = copy.copy(self.machines[inst2.machine_id])
+
+        machine1.disk_use = machine1.disk_use - inst1.app.disk + inst2.app.disk
+        machine2.disk_use = machine2.disk_use - inst2.app.disk + inst1.app.disk
+        if machine1.disk_use > machine1.disk_capacity or machine2.disk_use > machine2.disk_capacity:
+            return False
+
+        machine1.cpu_use = machine1.cpu_use - inst1.app.cpu + inst2.app.cpu
+        machine2.cpu_use = machine2.cpu_use - inst2.app.cpu + inst1.app.cpu
+        if any(machine1.cpu_use > machine1.cpu_capacity / 2) or any(machine2.cpu_use > machine2.cpu_capacity / 2):
+            return False
+
+        machine1.mem_use = machine1.mem_use - inst1.app.mem + inst2.app.mem
+        machine2.mem_use = machine2.mem_use - inst2.app.mem + inst1.app.mem
+        if any(machine1.mem_use > machine1.mem_capacity) or any(machine2.mem_use > machine2.mem_capacity):
+            return False
+
+        machine1.pmp = machine1.pmp - np.array([inst1.app.p, inst1.app.m, inst1.app.pm]) + np.array(
+            [inst2.app.p, inst2.app.m, inst2.app.pm])
+        machine2.pmp = machine2.pmp - np.array([inst2.app.p, inst2.app.m, inst2.app.pm]) + np.array(
+            [inst1.app.p, inst1.app.m, inst1.app.pm])
+        if any(machine1.pmp > machine1.pmp_cap) or any(machine2.pmp > machine2.pmp_cap):
+            return False
+
+        violate1 = self.machines[inst1.machine_id].inter_inst_num
+        violate2 = self.machines[inst2.machine_id].inter_inst_num
+
+        self.do_swap(inst1, inst2)
+
+        violate1a = self.machines[inst1.machine_id].inter_inst_num
+        violate2a = self.machines[inst2.machine_id].inter_inst_num
+        # print violate1, violate2,violate1a,violate2a
+
+        # if violate1 > self.machines[inst1.machine_id].inter_inst_num and violate2 >= self.machines[inst2.machine_id].inter_inst_num:
+        if violate1a < violate1 and (violate1a+violate2a) < (violate1+violate2):
+            # if inst2.app.id not in self.interfer_index:
+            print "after swap: machine1 cpu(%f) mem(%f), machine2 cpu(%f) mem(%f)" % (
+                self.machines[inst1.machine_id].cpu_score, self.machines[inst1.machine_id].mem_score, self.machines[inst1.machine_id].cpu_score,
+                self.machines[inst1.machine_id].mem_score)
+            print violate1,violate2,violate1a,violate2a
+            return True
+        self.do_swap(inst2, inst1)
+        return False
+
+    def delta_constraint(self, machine1, machine2, inst1, inst2):
+        interfer1 = 0
+        interfer2 = 0
+        app_dict1 = {}
+        for inst in machine1.insts.values():
+            app_dict1[inst.app_id] = app_dict1[inst.app_id] + 1 if inst.app_id in app_dict1 else 0
+        for app, cnt in app_dict1.iteritems():
+            if app == inst1.app.id:
+                continue
+            if app in self.interfer_index:
+                app_b = self.interfer_index[app].app_b
+                if app_b in app_dict1 and app_dict1[app_b] > self.interfer_index[app].num:
+                    interfer1 += app_dict1[app_b]
+        if inst2.app.id in self.app_interfers:
+            app_b = self.interfer_index[app].app_b
+            if app_b in app_dict1 and app_dict1[app_b] > self.interfer_index[app].num:
+                interfer1 += app_dict1[app_b]
+
+        app_dict2 = {}
+        for inst in machine2.insts.values():
+            app_dict2[inst.app_id] = app_dict2[inst.app_id] + 1 if inst.app_id in app_dict2 else 0
+        for app, cnt in app_dict2.iteritems():
+            if app == inst2.app.id:
+                continue
+            if app in self.interfer_index:
+                app_b = self.interfer_index[app].app_b
+                if app_b in app_dict2 and app_dict2[app_b] > self.interfer_index[app].num:
+                    interfer1 += app_dict1[app_b]
+        if inst1.app.id in self.app_interfers:
+            app_b = self.interfer_index[app].app_b
+            if app_b in app_dict2 and app_dict2[app_b] > self.interfer_index[app].num:
+                interfer2 += app_dict1[app_b]
+        return interfer1, interfer2
+
     def step_one_one(self):
         set1 = filter(lambda x: x.cpu_score > 0.5, self.machines)
-        set2 = filter(lambda x: x.cpu_score < 0.47, self.machines)
+        set2 = filter(lambda x: x.cpu_score < 0.49, self.machines)
 
         for i in range(len(set1) - 1, -1, -1):
             if set1[i].id in self.done:
@@ -266,7 +491,8 @@ class Knapsack(object):
                     set2_dic[inst.app.disk] = set()
                 set2_dic[inst.app.disk].add(machine)
 
-        for (disk_set1, disk_set2, set1_num, set2_num) in [(300, 60, 1, 5),(100,40,2,5),(500,100,1,5),(40,60,3,2)]:
+        for (disk_set1, disk_set2, set1_num, set2_num) in [(300, 60, 1, 5), (100, 40, 2, 5), (500, 100, 1, 5),
+                                                           (40, 60, 3, 2)]:
             print "search", disk_set1, disk_set2, set1_num, set2_num
             if disk_set1 not in set1_dic or disk_set2 not in set2_dic:
                 continue
@@ -322,6 +548,8 @@ class Knapsack(object):
         mem_radio2 = max(mem2) / machine2.mem_capacity
         mem_delta = -mem_radio1 ** 2 - mem_radio2 ** 2 + machine1.mem_score ** 2 + machine2.mem_score ** 2
 
+        print cpu_radio1, cpu_radio2, mem_radio1, mem_radio2
+
         if cpu_radio2 <= 0.5 and mem_radio1 <= 1 and mem_radio2 <= 1 and cpu_delta > 0.01:
             self.do_swap_mul(inst1_set, inst2_set)
             return True
@@ -349,7 +577,9 @@ class Knapsack(object):
             self.machines[i].insts[inst.id] = inst
             self.machines[i].insts[inst.id].machine_id = i
 
-        print "after swap: cpu(%f) mem(%f)" % (self.machines[i].cpu_score, self.machines[i].mem_score)
+        print "after swap: machine1 cpu(%f) mem(%f), machine2 cpu(%f) mem(%f)" % (
+            self.machines[i].cpu_score, self.machines[i].mem_score, self.machines[j].cpu_score,
+            self.machines[j].mem_score)
 
     def score_after_swap(self, inst1, inst2):
         machine1 = self.machines[inst1.machine_id]
@@ -368,6 +598,11 @@ class Knapsack(object):
         mem_radio1 = max(mem1) / machine1.mem_capacity
         mem_radio2 = max(mem2) / machine2.mem_capacity
         mem_delta = -mem_radio1 ** 2 - mem_radio2 ** 2 + machine1.mem_score ** 2 + machine2.mem_score ** 2
+
+        if machine1.cpu_score > 1 and machine1.mem_score > 1:
+            if cpu_radio2 <= 0.5 and mem_radio2 <= 1 and cpu_delta > 0.01:
+                self.do_swap(inst1, inst2)
+                return True
 
         if cpu_radio2 <= 0.5 and mem_radio1 <= 1 and mem_radio2 <= 1 and cpu_delta > 0.01:
             self.do_swap(inst1, inst2)
@@ -391,13 +626,32 @@ class Knapsack(object):
         self.machines[i].insts[inst2.id] = inst2
         self.machines[j].insts[inst1.id] = inst1
 
-        print "after swap: cpu(%f) mem(%f)" % (self.machines[i].cpu_score, self.machines[i].mem_score)
+        # print "after swap: machine1 cpu(%f) mem(%f), machine2 cpu(%f) mem(%f)" % (
+        #     self.machines[i].cpu_score, self.machines[i].mem_score, self.machines[j].cpu_score,
+        #     self.machines[j].mem_score)
 
     def output(self):
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
         with open('search', 'w') as f:
             for machine in self.machines:
-                line = "total(%f): {%s} (%s)\n" % (
-                machine.cpu_score, ",".join([str(int(i.app.disk)) for i in machine.insts.values()]),
-                ",".join([i.id for i in machine.insts.values()]))
+                if machine.disk_use == 0:
+                    continue
+                line = "total(%f,%d): {%s} (%s)\n" % (
+                    machine.cpu_score, machine.disk_use,
+                    ",".join([str(int(i.app.disk)) for i in machine.insts.values()]),
+                    ",".join([i.id for i in machine.insts.values()]))
                 f.write(line)
+
+    def write_to_csv(self):
+        result = []
+        for machine in self.machines:
+            for inst in machine.insts.values():
+                result.append((inst, machine))
+
+        # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
+
+        print len(filter(lambda x: x[0].raw_machine_id != "", result))
+
+        with open('data/submit.csv', 'w') as f:
+            for inst, machine in result:
+                f.write("%s,%s\n" % (inst.id, machine.id))

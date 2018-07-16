@@ -15,7 +15,8 @@ class Instance(object):
     def __init__(self, id, app_id, machine_id):
         self.id = id
         self.app_id = app_id
-        self.machine_id = machine_id
+        self.machine_id = ""
+        self.raw_machine_id = machine_id
         self.placed = False
         self.app = None
         self.machine = None
@@ -75,6 +76,9 @@ class Machine(object):
         self.p_capacity = int(p_capacity)
         self.m_capacity = int(m_capacity)
         self.pm_capacity = int(pm_capacity)
+        self.pmp = np.array([0]*3)
+        self.pmp_cap = np.array([0]*3)
+        self.app_interfers = {}
 
         self.cpu = np.full(int(LINE_SIZE), self.cpu_capacity)
         self.mem = np.full(int(LINE_SIZE), self.mem_capacity)
@@ -84,6 +88,7 @@ class Machine(object):
         self.insts = []
         self.apps_id = []
         self.bins = []
+        self.app_inst = {}
 
         self.insts = {}
 
@@ -108,6 +113,34 @@ class Machine(object):
     def mem_score(self):
         return max(self.mem_use / self.mem_capacity)
 
+    @property
+    def inter_inst_num(self):
+        app_dict = {}
+
+        for inst in self.insts.values():
+            app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 0
+        interfer_cnt = 0
+        for app, cnt in app_dict.iteritems():
+            if app in self.app_interfers:
+                app_b = self.app_interfers[app].app_b
+                if app_b in app_dict and app_dict[app_b] > self.app_interfers[app].num:
+                    interfer_cnt += app_dict[app_b]
+        return interfer_cnt
+
+    @property
+    def violate_apps(self):
+        app_dict = {}
+        for inst in self.insts.values():
+            app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 0
+        apps = set()
+        for app, cnt in app_dict.iteritems():
+            if app in self.app_interfers:
+                app_b = self.app_interfers[app].app_b
+                if app_b in app_dict and app_dict[app_b] > self.app_interfers[app].num:
+                    apps.add(app)
+        return apps
+
+
     @staticmethod
     def from_csv_line(line):
         return Machine(*line.strip().split(","))
@@ -122,6 +155,8 @@ class AppInterference(object):
         self.app_a = app_a
         self.app_b = app_b
         self.num = int(num)
+        if app_a == app_b:
+            self.num += 1
 
     @staticmethod
     def from_csv_line(line):
