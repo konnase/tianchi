@@ -1,10 +1,11 @@
 import numpy as np
 
 LINESIZE = 98
-SEARCH_FILE = "machine_tasks.txt"
+SEARCH_FILE = "search"
 
 def start_analyse(insts, instance_index):
 
+    machines = []
     results = []
     machine_count = 0
     with open(SEARCH_FILE, "r") as f:
@@ -35,11 +36,11 @@ def start_analyse(insts, instance_index):
                 avg_cpu_use += np.average(insts[index].app.cpu)
                 avg_mem_use += np.average(insts[index].app.mem)
             if machine_count <= 3000:
-                if avg_cpu_use > 92 or (time_cpu_use > np.full(LINESIZE, 92)).any() or avg_mem_use > 288 or (time_mem_use > np.full(LINESIZE, 288)).any():
+                if avg_cpu_use > 46 or (time_cpu_use > np.full(LINESIZE, 92)).any() or avg_mem_use > 288 or (time_mem_use > np.full(LINESIZE, 288)).any():
                     out_of_capacity = True
             else:
                 # print time_cpu_use
-                if avg_cpu_use > 32 or (time_cpu_use > np.full(LINESIZE, 32)).any() or avg_mem_use > 64 or (time_mem_use > np.full(LINESIZE, 64)).any():
+                if avg_cpu_use > 16 or (time_cpu_use > np.full(LINESIZE, 32)).any() or avg_mem_use > 64 or (time_mem_use > np.full(LINESIZE, 64)).any():
                     out_of_capacity = True
             if count == 0:
                 continue

@@ -1,3 +1,5 @@
+import numpy as np
+
 import models
 import time
 
@@ -58,10 +60,10 @@ class FFD(object):
                         break
                     if inst.app.id == inst_b.app.id:
                         if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                                inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
+                                inst.app.interfer_others[inst_b.app.id] + 1 < machine.apps_id.count(inst_b.app.id):
                             # todo: need to move inst
-                            self.init_deploy_conflict.append("appA:%s, appB:%s, interfer:%d, deployed:%d" %
-                                                             (inst.app.id, inst_b.app.id,
+                            self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                                                             (machine.id, inst.app.id, inst.id, inst_b.app.id, inst_b.id,
                                                               inst.app.interfer_others[inst_b.app.id],
                                                               machine.apps_id.count(inst_b.app.id)))
                             print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
@@ -83,9 +85,9 @@ class FFD(object):
                         if inst.app.interfer_others.has_key(inst_b.app.id) and \
                                 inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
                             # todo: need to move inst
-                            self.init_deploy_conflict.append("appA:%s, appB:%s, interfer:%d, deployed:%d" %
-                                                             (inst.app.id, inst_b.app.id,
-                                                              inst.app.interfer_others[inst_b.app.id],
+                            self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                                                             (machine.id, inst.app.id, inst.id, inst_b.app.id,
+                                                              inst_b.id, inst.app.interfer_others[inst_b.app.id],
                                                               machine.apps_id.count(inst_b.app.id)))
                             print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
                                                              (machine.id, inst.app.id, inst_b.app.id,
@@ -109,9 +111,9 @@ class FFD(object):
                                     inst_interferd.app.interfer_others[inst.app.id] < machine.apps_id.count(inst.app.id):
                                 # print "dgfsdgds"
                                 # todo: need to move inst
-                                self.init_deploy_conflict.append("appA:%s, appB:%s, interfer:%d, deployed:%d" %
-                                                                 (inst_interferd.app.id, inst.app.id,
-                                                                  inst_interferd.app.interfer_others[inst.app.id],
+                                self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                                                                 (machine.id, inst_interferd.app.id, inst_interferd.id, inst.app.id,
+                                                                  inst.id, inst_interferd.app.interfer_others[inst.app.id],
                                                                   machine.apps_id.count(inst.app.id)))
                                 print "%s, inst was interferd appA:%s, appB:%s, interfer:%d, deployed:%d" % \
                                                                  (machine.id, inst_interferd.app.id, inst.app.id,
@@ -222,3 +224,27 @@ class FFD(object):
                     self.submit_result.append((inst.id, machine.id))
                     inst.placed = True
                     break
+
+    def start_analyse(self, insts, instance_index, file_in):
+        LINE_SIZE = 98
+        SEARCH_FILE = file_in
+        machine_count = 0
+        with open(SEARCH_FILE, "r") as f:
+            for line in f:
+                self.machines[machine_count].apps_id[:] = []
+                self.machines[machine_count].mem_use = np.zeros(int(LINE_SIZE))
+                self.machines[machine_count].cpu_use = np.zeros(int(LINE_SIZE))
+                self.machines[machine_count].disk_use = 0
+                self.machines[machine_count].insts[:] = []
+                instances_id = line.split()[2].strip('(').strip(')').split(',')
+                print instances_id
+                for inst_id in instances_id:
+                    index = instance_index[inst_id]
+                    self.machines[machine_count].apps_id.append(insts[index].app.id)
+                    self.machines[machine_count].mem_use += insts[index].app.mem
+                    self.machines[machine_count].cpu_use += insts[index].app.cpu
+                    self.machines[machine_count].disk_use += insts[index].app.disk
+                    self.machines[machine_count].insts.append(insts[index])
+                machine_count += 1
+        self.fit_before()
+
