@@ -29,9 +29,9 @@ class FFD(object):
             self.app_id_index[app_interfer.app_a].interfer_others[app_interfer.app_b] = app_interfer.num
             self.app_id_index[app_interfer.app_b].interfer_by_others.append(app_interfer.app_a)
 
-
     def get_deployed_inst(self):
         for inst in self.instances:
+            # print inst.machine_id
             if inst.machine_id == '':
                 continue
             machine_index = self.machine_index[inst.machine_id]
@@ -44,33 +44,38 @@ class FFD(object):
 
     def fit_before(self):
         print "starting fit_before"
+        # self.submit_result[:] = []
+        # self.init_deploy_conflict[:] = []
         for machine in self.machines:
             # print "\n", machine.id, len(machine.insts)
             # for app in machine.insts:
             #     print app.id,
+            # print len(machine.insts)
             for inst in machine.insts:
-                i = len(machine.insts)
-                while i > 0:
-                    i -= 1
-                    # print i
-                    inst_b = machine.insts[i]
+
+                for inst_b in machine.insts:
                     if machine.apps_id.count(inst.app.id) <= 0:
                         break
                     if inst.app.id == inst_b.app.id:
                         if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                                inst.app.interfer_others[inst_b.app.id] + 1 < machine.apps_id.count(inst.app.id):
+                                inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
                             # todo: need to move inst
                             self.init_deploy_conflict.append("appA:%s, appB:%s, interfer:%d, deployed:%d" %
                                                              (inst.app.id, inst_b.app.id,
                                                               inst.app.interfer_others[inst_b.app.id],
                                                               machine.apps_id.count(inst_b.app.id)))
-
-                            machine.apps_id.remove(inst.app.id)
-                            machine.mem_use -= inst.app.mem
-                            machine.cpu_use -= inst.app.cpu
-                            machine.disk_use -= inst.app.disk
-                            machine.insts.remove(inst)
-                            self.deploy_inst(inst, inst.app)
+                            print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                                                             (machine.id, inst.app.id, inst_b.app.id,
+                                                              inst.app.interfer_others[inst_b.app.id],
+                                                              machine.apps_id.count(inst_b.app.id))
+                            print machine.apps_id
+                            machine.apps_id.remove(inst_b.app.id)
+                            print machine.apps_id
+                            machine.mem_use -= inst_b.app.mem
+                            machine.cpu_use -= inst_b.app.cpu
+                            machine.disk_use -= inst_b.app.disk
+                            machine.insts.remove(inst_b)
+                            self.deploy_inst(inst_b, inst_b.app)
                             continue
                             pass
 
@@ -82,7 +87,10 @@ class FFD(object):
                                                              (inst.app.id, inst_b.app.id,
                                                               inst.app.interfer_others[inst_b.app.id],
                                                               machine.apps_id.count(inst_b.app.id)))
-
+                            print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                                                             (machine.id, inst.app.id, inst_b.app.id,
+                                                              inst.app.interfer_others[inst_b.app.id],
+                                                              machine.apps_id.count(inst_b.app.id))
                             machine.apps_id.remove(inst_b.app.id)
                             machine.mem_use -= inst_b.app.mem
                             machine.cpu_use -= inst_b.app.cpu
@@ -105,7 +113,10 @@ class FFD(object):
                                                                  (inst_interferd.app.id, inst.app.id,
                                                                   inst_interferd.app.interfer_others[inst.app.id],
                                                                   machine.apps_id.count(inst.app.id)))
-
+                                print "%s, inst was interferd appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                                                                 (machine.id, inst_interferd.app.id, inst.app.id,
+                                                                  inst_interferd.app.interfer_others[inst.app.id],
+                                                                  machine.apps_id.count(inst.app.id))
                                 machine.apps_id.remove(inst.app.id)
                                 machine.mem_use -= inst.app.mem
                                 machine.cpu_use -= inst.app.cpu
@@ -121,7 +132,7 @@ class FFD(object):
 
     def fit(self):
         print "starting fit"
-        # time.sleep(3)
+        time.sleep(3)
         for count, app in enumerate(self.applications):
             # print app.id, app.disk, app.interfer_others, app.interfer_by_others
             # if count > 1000:
@@ -148,7 +159,7 @@ class FFD(object):
                 if machine.apps_id.count(app_a) > 0:  # already deployed app_a on machine
                     if app_a == app.id:
                         if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
-                                self.app_id_index[app_a].interfer_others[app.id] + 1 >= machine.apps_id.count(app.id):
+                                self.app_id_index[app_a].interfer_others[app.id] > machine.apps_id.count(app.id):
                             pass
                         else:
                             print "%s %s %s %s interfer:%s deployed:%s" % (
@@ -156,11 +167,8 @@ class FFD(object):
                                 machine.apps_id.count(app_a))
                             break
                     else:
-                        if app_a == "app_7309":
-                            print "%s influence %s %s %d %d" % (app_a, app.id, self.app_id_index[app_a].interfer_others.has_key(app.id),
-                                                          self.app_id_index[app_a].interfer_others[app.id], machine.apps_id.count(app.id))
                         if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
-                                self.app_id_index[app_a].interfer_others[app.id] >= machine.apps_id.count(app.id):
+                                self.app_id_index[app_a].interfer_others[app.id] > machine.apps_id.count(app.id):
 
                             pass
                         # todo: app will influence other applications beside app_a
@@ -187,7 +195,7 @@ class FFD(object):
                 for app_b in app.interfer_others:
                     if machine.apps_id.count(app_b) > 0:  # already deployed app_b on machine
                         if app_b == app.id:
-                            if app.interfer_others[app_b] + 1 >= machine.apps_id.count(app_b):
+                            if app.interfer_others[app_b] > machine.apps_id.count(app_b):
                                 pass
                             else:
                                 print "%s %s %s %s interfer:%s deployed:%s" % (
@@ -195,7 +203,7 @@ class FFD(object):
                                     machine.apps_id.count(app_b))
                                 break
                         else:
-                            if app.interfer_others[app_b] >= machine.apps_id.count(app_b):
+                            if app.interfer_others[app_b] > machine.apps_id.count(app_b):
 
                                 pass
                             else:
@@ -210,6 +218,7 @@ class FFD(object):
                     machine.mem_use += app.mem
                     machine.insts.append(inst)  # record application whose instance was deployed to this machine
                     machine.apps_id.append(app.id)
+                    # print "%s to %s" % (inst.id, machine.id)
                     self.submit_result.append((inst.id, machine.id))
                     inst.placed = True
                     break

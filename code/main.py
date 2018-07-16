@@ -17,10 +17,16 @@ def main():
     get_apps_instances(insts, apps, app_index)
 
     if Method(options.method) == Method.FFD:
+        # for inst in insts:
+        #     print inst
         ffd = FFD(insts, apps, machines, app_interfers, machine_index)
-        for i in range(10):
-            ffd.fit_before()
+        # for i in range(10):
+        ffd.fit_before()
+        with open("init_deploy_conflict.csv", "w") as f:
+            for count, item in enumerate(ffd.init_deploy_conflict):
+                f.write("{0}\n".format(item))
         ffd.fit()
+        ffd.fit_before()
         with open("submit.csv", "w") as f:
             for count, item in enumerate(ffd.submit_result):
                 f.write("{0},{1}\n".format(item[0], item[1]))
@@ -28,17 +34,17 @@ def main():
             for count, machine in enumerate(machines):
                 inst_disk = ""
                 inst_id = ""
+                all_disk_use = 0
                 for inst in machine.insts:
                     inst_disk += "," + str(inst.app.disk)
                     inst_id += "," + str(inst.id)
-                f.write("total{%s}, (%s), (%s)\n" % (machine.disk_capacity, inst_disk.lstrip(','), inst_id.lstrip(',')))
-        with open("init_deploy_conflict.csv", "w") as f:
-            for count, item in enumerate(ffd.init_deploy_conflict):
-                f.write("{0}\n".format(item))
+                    all_disk_use += inst.app.disk
+                f.write("total{%s}, (%s), (%s)\n" % (all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.test:
                 knapsack.test(options.test)
+                knapsack.write_to_csv()
         if options.search:
             try:
                 knapsack.test(options.search)
