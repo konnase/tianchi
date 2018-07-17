@@ -8,9 +8,8 @@ namespace Tianchi {
     public static int Id(this string id) {
       if (string.IsNullOrEmpty(id)
           || !id.Contains('_')
-          || !char.IsDigit(id.Last())) {
+          || !char.IsDigit(id.Last()))
         return int.MinValue;
-      }
 
       return int.Parse(id.Substring(id.IndexOf('_') + 1));
     }
@@ -49,6 +48,20 @@ namespace Tianchi {
       foreach (var i in insts) list.Add(attr(i));
 
       return list.ToMergeStr();
+    }
+
+    public static string ToStr<T>(this T[] array) {
+      if (array.Length == 0) return string.Empty;
+      var s = new StringBuilder();
+
+      foreach (var p in array) {
+        s.Append(p);
+        s.Append(",");
+      }
+
+      return s[s.Length - 1] == ','
+        ? s.ToString(0, s.Length - 1)
+        : s.ToString();
     }
 
     private static string ToMergeStr<T>(this List<T> list) {

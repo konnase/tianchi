@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
@@ -109,8 +108,13 @@ namespace Tianchi {
           //在评价阶段，如果提交的代码中有 inst 的新部署目标，才会将其迁移；
           //在迁移之前，向旧机器放置实例就可能导致资源或亲和性冲突；
           //这里和官方评测代码行为保持一致
+          var needMigrate = m.IsOverCapacity(inst) || m.IsXWithDeployed(inst);
           m.AddInstance(inst, ignoreCheck: true);
-          inst.NeedDeployOrMigrate = m.IsOverCapacity(inst) || m.IsXWithDeployed(inst);
+
+          //因为AddInstance会将NeedDeployOrMigrate置为true，
+          //而且添加inst后会增加资源使用和App个数，造成上面的判断过量，
+          //所以先保存判断结果，添加后再赋值
+          inst.NeedDeployOrMigrate = needMigrate;
         }
       );
     }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -37,9 +36,7 @@ namespace Tianchi {
       var lineNo = 0;
 
       ReadCsv(csvSubmit, line => {
-        if (failedResource + failedX > 0 && !verbose) {
-          return;
-        }
+        if (failedResource + failedX > 0 && !verbose) return;
 
         var fields = line.Split(',');
         var instId = fields[0].Id();
@@ -50,13 +47,9 @@ namespace Tianchi {
         inst.DeployedMachine?.RemoveInstance(inst); //Debug.Assert(inst.IsInitConflict);
 
         if (!m.AddInstance(inst)) {
-          if (m.IsOverCapacity(inst)) {
-            failedResource++;
-          }
+          if (m.IsOverCapacity(inst)) failedResource++;
 
-          if (m.IsXWithDeployed(inst)) {
-            failedX++;
-          }
+          if (m.IsXWithDeployed(inst)) failedX++;
 
           Console.Write($"[{lineNo}] ");
           Console.Write(m.FailedReason(inst));
@@ -74,12 +67,9 @@ namespace Tianchi {
             || m.Avail.Mem.Min < 0
             || m.Avail.Disk < 0
             || m.Avail.P < 0) {
-          Console.Write("Resource over capacity: ");
           Console.WriteLine(m);
 
-          if (!verbose) {
-            return;
-          }
+          if (!verbose) return;
         }
 
         var appCnt = m.AppCount;
@@ -90,12 +80,9 @@ namespace Tianchi {
             var appA = ku.Key;
             //因为遍历了两遍app列表，所以这里只需单向检测即可
             if (appBCnt <= appA.XLimit(appB)) continue;
-            Console.WriteLine($"Error: [app_{appA.Id},app_{appB.Id}, " +
-                              $"{appBCnt} > k={appA.XLimit(appB)}] " +
-                              $" @ m_{m.Id}");
-            if (!verbose) {
-              return;
-            }
+            Console.WriteLine($"m_{m.Id},[app_{appA.Id},app_{appB.Id}, " +
+                              $"{appBCnt} > k={appA.XLimit(appB)}]");
+            if (!verbose) return;
           }
         }
       }

@@ -37,8 +37,7 @@ class Knapsack(object):
             inst_index[inst.app.disk].append(inst)
 
         for interfer in self.app_interfers:
-            self.interfer_index[interfer.app_a] = interfer
-            self.reverse[interfer.app_b] = interfer
+            self.interfer_index[(interfer.app_a, interfer.app_b)] = interfer
 
         for app in self.apps:
             if app.id not in self.interfer_index and app.id not in self.reverse:
@@ -216,6 +215,7 @@ class Knapsack(object):
         interfer_cnt = 0
 
         total_cnt = 0
+        violate_cnt = 0
 
         for machine in self.machines:
             app_dict = {}
@@ -225,8 +225,6 @@ class Knapsack(object):
             p = 0
             m = 0
             pm = 0
-            violate = False
-            violate_cnt = 0
 
             if machine.disk_use > 0:
                 total_cnt += 1
@@ -238,17 +236,22 @@ class Knapsack(object):
                 p += inst.app.p
                 m += inst.app.m
                 pm += inst.app.pm
-                app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 0
+                if inst.app.id not in app_dict:
+                    app_dict[inst.app.id] = []
+                app_dict[inst.app.id].append(inst.id)
 
-            for app, cnt in app_dict.iteritems():
-                if app in self.interfer_index:
-                    app_b = self.interfer_index[app].app_b
-                    if app_b in app_dict and app_dict[app_b] > self.interfer_index[app].num:
-                        interfer_cnt += 1
-                        violate_cnt += app_dict[app_b]
-                        violate = True
-                        print machine
-                        print app, app_b, self.interfer_index[app].num, app_dict[app_b]
+            # if 'app_1778' not in app_dict and machine.disk_use + 100 < machine.disk_capacity and machine.disk_use > 0:
+            #     print machine
+
+            for app_a in app_dict.keys():
+                for app_b in app_dict.keys():
+                    if (app_a, app_b) in self.interfer_index:
+                        if len(app_dict[app_b]) > self.interfer_index[(app_a, app_b)].num:
+                            print "%s: %s and %s -> max(%d) actual(%d)" % (
+                                machine.id, app_a, app_b, self.interfer_index[(app_a, app_b)].num, len(app_dict[app_b]))
+                            print ",".join(app_dict[app_b])
+                            interfer_cnt += 1
+                            violate_cnt += len(app_dict[app_b])
 
             if any(cpu > machine.cpu_capacity):
                 cpu_overload_cnt += 1
@@ -263,13 +266,6 @@ class Knapsack(object):
             if pm > machine.pm_capacity:
                 pm_overload_cnt += 1
 
-            # if machine.disk_use > 0 and machine.disk_capacity - machine.disk_use >= 50:
-                # ddd = set()
-                # for i in machine.insts.values():
-                #     ddd.add(i.app.id)
-                # if 'app_6564' not in ddd:
-                #     print "not use", machine.disk_use, machine
-
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
         print "Half CPU Overload: %f (%d / %d)" % (
@@ -277,7 +273,7 @@ class Knapsack(object):
         print "P Overload %f (%d / %d)" % (float(p_overload_cnt) / total_cnt, p_overload_cnt, total_cnt)
         print "M Overload %f (%d / %d)" % (float(m_overload_cnt) / total_cnt, m_overload_cnt, total_cnt)
         print "PM Overload %f (%d / %d)" % (float(pm_overload_cnt) / total_cnt, pm_overload_cnt, total_cnt)
-        print "Constraint violate: %d" % interfer_cnt
+        print "Constraint violate: %d / %d" % (interfer_cnt, violate_cnt)
 
     def search(self):
         self.machines = filter(lambda x: x.disk_use > 0, self.machines)
@@ -289,6 +285,7 @@ class Knapsack(object):
 
         while True:
             if not self.handle_constraint_violate():
+            # if not self.handle_constraint_by_move():
                 break
 
         self.rating()
@@ -358,20 +355,21 @@ class Knapsack(object):
         set2 = filter(lambda x: x.inter_inst_num == 0, self.machines)
 
         for i, machine1 in enumerate(set1):
+            if set1[i] in self.done:
+                continue
             print "SET1(%d/%d) %s" % (i + 1, len(set1), set1[i])
-            print set1[i].inter_inst_num
             for inst1 in set1[i].insts.values():
                 if inst1.app.id not in set1[i].violate_apps:
                     continue
+                print inst1.id
                 for j, machine2 in enumerate(set2):
                     for inst2 in set2[j].insts.values():
                         if self.can_swap_constraint(inst1, inst2):
                             return True
+            self.done.add(set1[i])
         return False
 
     def can_swap_constraint(self, inst1, inst2):
-        if inst2.app.id not in self.safe_apps:
-            return False
         machine1 = copy.copy(self.machines[inst1.machine_id])
         machine2 = copy.copy(self.machines[inst2.machine_id])
 
@@ -397,6 +395,8 @@ class Knapsack(object):
         if any(machine1.pmp > machine1.pmp_cap) or any(machine2.pmp > machine2.pmp_cap):
             return False
 
+        print inst2.id
+
         violate1 = self.machines[inst1.machine_id].inter_inst_num
         violate2 = self.machines[inst2.machine_id].inter_inst_num
 
@@ -404,52 +404,61 @@ class Knapsack(object):
 
         violate1a = self.machines[inst1.machine_id].inter_inst_num
         violate2a = self.machines[inst2.machine_id].inter_inst_num
-        # print violate1, violate2,violate1a,violate2a
+        # print violate1, violate2, violate1a, violate2a
 
-        # if violate1 > self.machines[inst1.machine_id].inter_inst_num and violate2 >= self.machines[inst2.machine_id].inter_inst_num:
-        if violate1a < violate1 and (violate1a+violate2a) < (violate1+violate2):
-            # if inst2.app.id not in self.interfer_index:
+        # if violate1a < violate1 and violate2a <= violate2:
+        if violate1a < violate1 and (violate1a + violate2a) < (violate1 + violate2):
             print "after swap: machine1 cpu(%f) mem(%f), machine2 cpu(%f) mem(%f)" % (
-                self.machines[inst1.machine_id].cpu_score, self.machines[inst1.machine_id].mem_score, self.machines[inst1.machine_id].cpu_score,
+                self.machines[inst1.machine_id].cpu_score, self.machines[inst1.machine_id].mem_score,
+                self.machines[inst1.machine_id].cpu_score,
                 self.machines[inst1.machine_id].mem_score)
-            print violate1,violate2,violate1a,violate2a
+            # print violate1, violate2, violate1a, violate2a
             return True
         self.do_swap(inst2, inst1)
         return False
 
-    def delta_constraint(self, machine1, machine2, inst1, inst2):
-        interfer1 = 0
-        interfer2 = 0
-        app_dict1 = {}
-        for inst in machine1.insts.values():
-            app_dict1[inst.app_id] = app_dict1[inst.app_id] + 1 if inst.app_id in app_dict1 else 0
-        for app, cnt in app_dict1.iteritems():
-            if app == inst1.app.id:
-                continue
-            if app in self.interfer_index:
-                app_b = self.interfer_index[app].app_b
-                if app_b in app_dict1 and app_dict1[app_b] > self.interfer_index[app].num:
-                    interfer1 += app_dict1[app_b]
-        if inst2.app.id in self.app_interfers:
-            app_b = self.interfer_index[app].app_b
-            if app_b in app_dict1 and app_dict1[app_b] > self.interfer_index[app].num:
-                interfer1 += app_dict1[app_b]
+    def handle_constraint_by_move(self):
+        self.update_pmp()
+        self.update_app_inst()
 
-        app_dict2 = {}
-        for inst in machine2.insts.values():
-            app_dict2[inst.app_id] = app_dict2[inst.app_id] + 1 if inst.app_id in app_dict2 else 0
-        for app, cnt in app_dict2.iteritems():
-            if app == inst2.app.id:
+        set1 = filter(lambda x: x.inter_inst_num > 0, self.machines)
+        set2 = filter(lambda x: x.inter_inst_num == 0, self.machines)
+
+        for i, machine1 in enumerate(set1):
+            if set1[i] in self.done:
                 continue
-            if app in self.interfer_index:
-                app_b = self.interfer_index[app].app_b
-                if app_b in app_dict2 and app_dict2[app_b] > self.interfer_index[app].num:
-                    interfer1 += app_dict1[app_b]
-        if inst1.app.id in self.app_interfers:
-            app_b = self.interfer_index[app].app_b
-            if app_b in app_dict2 and app_dict2[app_b] > self.interfer_index[app].num:
-                interfer2 += app_dict1[app_b]
-        return interfer1, interfer2
+            print "SET1(%d/%d) %s" % (i + 1, len(set1), set1[i])
+            for inst1 in set1[i].insts.values():
+                if inst1.app.id not in set1[i].violate_apps:
+                    continue
+                for machine2 in set2:
+                    if self.can_move_constraint(inst1, machine2):
+                        return True
+
+    def can_move_constraint(self, inst, machine):
+        if machine.disk_use + inst.app.disk > machine.disk_capacity:
+            return False
+        if any((machine.cpu_use + inst.app.cpu) > machine.cpu_capacity / 2):
+            return False
+        if any((machine.mem_use + inst.app.mem) > machine.mem_capacity):
+            return False
+        if any((machine.pmp + np.array([inst.app.p, inst.app.m, inst.app.pm])) > machine.pmp_cap):
+            return False
+
+        app_dic = copy.copy(machine.app_count)
+        app_dic[inst.app.id] = app_dic[inst.app.id] + 1 if inst.app.id in app_dic else 1
+        for app1, cnt2 in app_dic.iteritems():
+            for app2, cnt2 in app_dic.iteritems():
+                if (app1, app2) in self.interfer_index:
+                    if cnt2 > self.interfer_index[(app1, app2)].num:
+                        return False
+
+        print "put %s to %s" % (inst.id, machine.id)
+        for i in range(len(self.machines)):
+            if self.machines[i].id == machine.id:
+                self.machines[i].put_inst(inst)
+                break
+        return True
 
     def step_one_one(self):
         set1 = filter(lambda x: x.cpu_score > 0.5, self.machines)
@@ -643,15 +652,32 @@ class Knapsack(object):
                 f.write(line)
 
     def write_to_csv(self):
-        result = []
-        for machine in self.machines:
-            for inst in machine.insts.values():
-                result.append((inst, machine))
-
-        # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
-
-        print len(filter(lambda x: x[0].raw_machine_id != "", result))
-
         with open('data/submit.csv', 'w') as f:
-            for inst, machine in result:
-                f.write("%s,%s\n" % (inst.id, machine.id))
+            insts = {}
+            for machine in self.machines:
+                for inst in machine.insts.values():
+                    insts[inst.id] = inst
+
+            # size = 0
+            # while size < 68219:
+            #     idle_machine = {}
+            #     for machine in self.machines:
+            #         if machine.disk_use > 0:
+            #             idle_machine[machine.id] = machine
+            #     for inst in insts.values():
+            #         if inst.raw_machine_id != "" and inst.raw_machine_id in idle_machine:
+            #             del (idle_machine[inst.raw_machine_id])
+            #     for machine in idle_machine.values():
+            #         for inst in machine.insts.values():
+            #             if inst.id in insts:
+            #                 print "%s,%s" % (inst.id, machine.id)
+            #                 del (insts[inst.id])
+            #                 size += 1
+            #     print size
+
+            # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
+
+            # print len(filter(lambda x: x[0].raw_machine_id != "", result))
+
+            # for inst, machine in result:
+            #     f.write("%s,%s\n" % (inst.id, machine.id))
