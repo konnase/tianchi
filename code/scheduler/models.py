@@ -85,7 +85,7 @@ class Machine(object):
         self.cpu_use = np.zeros(int(LINE_SIZE))
         self.mem_use = np.zeros(int(LINE_SIZE))
         self.disk_use = 0
-        self.insts = {}
+        self.insts = []
         self.apps_id = []
         self.bins = []
         self.app_inst = {}
@@ -142,7 +142,7 @@ class Machine(object):
             for app_b in app_dict.keys():
                 if (app_a, app_b) in self.app_interfers:
                     if app_dict[app_b] > self.app_interfers[(app_a, app_b)].num:
-                        apps.add(app_a)
+                        apps.add(app_b)
         return apps
 
     @staticmethod
