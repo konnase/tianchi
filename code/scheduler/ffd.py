@@ -58,83 +58,83 @@ class FFD(object):
                 for inst_b in machine.insts:
                     if machine.apps_id.count(inst.app.id) <= 0:
                         break
-                    if inst.app.id == inst_b.app.id:
-                        if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                                inst.app.interfer_others[inst_b.app.id] + 1 < machine.apps_id.count(inst_b.app.id):
+                    # if inst.app.id == inst_b.app.id:
+                    #     if inst.app.interfer_others.has_key(inst_b.app.id) and \
+                    #             inst.app.interfer_others[inst_b.app.id] + 1 < machine.apps_id.count(inst_b.app.id):
+                    #         # todo: need to move inst
+                    #         self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                    #                                          (machine.id, inst.app.id, inst.id, inst_b.app.id, inst_b.id,
+                    #                                           inst.app.interfer_others[inst_b.app.id],
+                    #                                           machine.apps_id.count(inst_b.app.id)))
+                    #         print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                    #                                          (machine.id, inst.app.id, inst_b.app.id,
+                    #                                           inst.app.interfer_others[inst_b.app.id],
+                    #                                           machine.apps_id.count(inst_b.app.id))
+                    #         print machine.apps_id
+                    #         machine.apps_id.remove(inst_b.app.id)
+                    #         print machine.apps_id
+                    #         machine.mem_use -= inst_b.app.mem
+                    #         machine.cpu_use -= inst_b.app.cpu
+                    #         machine.disk_use -= inst_b.app.disk
+                    #         machine.insts.remove(inst_b)
+                    #         self.deploy_inst(inst_b, inst_b.app)
+                    #         continue
+                    #         pass
+                    #
+                    # else:
+                    if inst.app.interfer_others.has_key(inst_b.app.id) and \
+                            inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
+                        # todo: need to move inst
+                        self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                                                         (machine.id, inst.app.id, inst.id, inst_b.app.id,
+                                                          inst_b.id, inst.app.interfer_others[inst_b.app.id],
+                                                          machine.apps_id.count(inst_b.app.id)))
+                        print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                                                         (machine.id, inst.app.id, inst_b.app.id,
+                                                          inst.app.interfer_others[inst_b.app.id],
+                                                          machine.apps_id.count(inst_b.app.id))
+                        machine.apps_id.remove(inst_b.app.id)
+                        machine.mem_use -= inst_b.app.mem
+                        machine.cpu_use -= inst_b.app.cpu
+                        machine.disk_use -= inst_b.app.disk
+                        machine.insts.remove(inst_b)
+                        self.deploy_inst(inst_b, inst_b.app)
+                        # i += 1
+                        # print "after deployed i = %d" % i
+                        continue
+                        pass
+                    for inst_interferd in machine.insts:
+                        if machine.insts.count(inst) < 1:
+                            break
+                        if inst_interferd.app.id != inst.app.id and \
+                                inst_interferd.app.interfer_others.has_key(inst.app.id) and \
+                                inst_interferd.app.interfer_others[inst.app.id] < machine.apps_id.count(inst.app.id):
+                            # print "dgfsdgds"
                             # todo: need to move inst
                             self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
-                                                             (machine.id, inst.app.id, inst.id, inst_b.app.id, inst_b.id,
-                                                              inst.app.interfer_others[inst_b.app.id],
-                                                              machine.apps_id.count(inst_b.app.id)))
-                            print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
-                                                             (machine.id, inst.app.id, inst_b.app.id,
-                                                              inst.app.interfer_others[inst_b.app.id],
-                                                              machine.apps_id.count(inst_b.app.id))
-                            print machine.apps_id
-                            machine.apps_id.remove(inst_b.app.id)
-                            print machine.apps_id
-                            machine.mem_use -= inst_b.app.mem
-                            machine.cpu_use -= inst_b.app.cpu
-                            machine.disk_use -= inst_b.app.disk
-                            machine.insts.remove(inst_b)
-                            self.deploy_inst(inst_b, inst_b.app)
-                            continue
-                            pass
-
-                    else:
-                        if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                                inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
-                            # todo: need to move inst
-                            self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
-                                                             (machine.id, inst.app.id, inst.id, inst_b.app.id,
-                                                              inst_b.id, inst.app.interfer_others[inst_b.app.id],
-                                                              machine.apps_id.count(inst_b.app.id)))
-                            print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
-                                                             (machine.id, inst.app.id, inst_b.app.id,
-                                                              inst.app.interfer_others[inst_b.app.id],
-                                                              machine.apps_id.count(inst_b.app.id))
-                            machine.apps_id.remove(inst_b.app.id)
-                            machine.mem_use -= inst_b.app.mem
-                            machine.cpu_use -= inst_b.app.cpu
-                            machine.disk_use -= inst_b.app.disk
-                            machine.insts.remove(inst_b)
-                            self.deploy_inst(inst_b, inst_b.app)
+                                                             (machine.id, inst_interferd.app.id, inst_interferd.id, inst.app.id,
+                                                              inst.id, inst_interferd.app.interfer_others[inst.app.id],
+                                                              machine.apps_id.count(inst.app.id)))
+                            print "%s, inst was interferd appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+                                                             (machine.id, inst_interferd.app.id, inst.app.id,
+                                                              inst_interferd.app.interfer_others[inst.app.id],
+                                                              machine.apps_id.count(inst.app.id))
+                            machine.apps_id.remove(inst.app.id)
+                            machine.mem_use -= inst.app.mem
+                            machine.cpu_use -= inst.app.cpu
+                            machine.disk_use -= inst.app.disk
+                            machine.insts.remove(inst)
+                            self.deploy_inst(inst, inst.app)
                             # i += 1
                             # print "after deployed i = %d" % i
                             continue
                             pass
-                        for inst_interferd in machine.insts:
-                            if machine.insts.count(inst) < 1:
-                                break
-                            if inst_interferd.app.id != inst.app.id and \
-                                    inst_interferd.app.interfer_others.has_key(inst.app.id) and \
-                                    inst_interferd.app.interfer_others[inst.app.id] < machine.apps_id.count(inst.app.id):
-                                # print "dgfsdgds"
-                                # todo: need to move inst
-                                self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
-                                                                 (machine.id, inst_interferd.app.id, inst_interferd.id, inst.app.id,
-                                                                  inst.id, inst_interferd.app.interfer_others[inst.app.id],
-                                                                  machine.apps_id.count(inst.app.id)))
-                                print "%s, inst was interferd appA:%s, appB:%s, interfer:%d, deployed:%d" % \
-                                                                 (machine.id, inst_interferd.app.id, inst.app.id,
-                                                                  inst_interferd.app.interfer_others[inst.app.id],
-                                                                  machine.apps_id.count(inst.app.id))
-                                machine.apps_id.remove(inst.app.id)
-                                machine.mem_use -= inst.app.mem
-                                machine.cpu_use -= inst.app.cpu
-                                machine.disk_use -= inst.app.disk
-                                machine.insts.remove(inst)
-                                self.deploy_inst(inst, inst.app)
-                                # i += 1
-                                # print "after deployed i = %d" % i
-                                continue
-                                pass
 
             pass
 
     def fit(self):
         print "starting fit"
-        time.sleep(3)
+        # time.sleep(3)
         for count, app in enumerate(self.applications):
             # print app.id, app.disk, app.interfer_others, app.interfer_by_others
             # if count > 1000:
@@ -159,26 +159,26 @@ class FFD(object):
             # this machine can hold the instance in memory view
             for app_a in app.interfer_by_others:
                 if machine.apps_id.count(app_a) > 0:  # already deployed app_a on machine
-                    if app_a == app.id:
-                        if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
-                                self.app_id_index[app_a].interfer_others[app.id] > machine.apps_id.count(app.id):
-                            pass
-                        else:
-                            print "%s %s %s %s interfer:%s deployed:%s" % (
-                                machine.id, app_a, app.id, inst.id, app.interfer_others[app_a],
-                                machine.apps_id.count(app_a))
-                            break
-                    else:
-                        if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
-                                self.app_id_index[app_a].interfer_others[app.id] > machine.apps_id.count(app.id):
+                    # if app_a == app.id:
+                    #     if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
+                    #             self.app_id_index[app_a].interfer_others[app.id] + 1 > machine.apps_id.count(app.id):
+                    #         pass
+                    #     else:
+                    #         print "%s %s %s %s interfer:%s deployed:%s" % (
+                    #             machine.id, app_a, app.id, inst.id, app.interfer_others[app_a],
+                    #             machine.apps_id.count(app_a))
+                    #         break
+                    # else:
+                    if self.app_id_index[app_a].interfer_others.has_key(app.id) and \
+                            self.app_id_index[app_a].interfer_others[app.id] > machine.apps_id.count(app.id):
 
-                            pass
-                        # todo: app will influence other applications beside app_a
-                        else:
-                            print "%s %s %s %s interfer:%s deployed:%s" % (
-                                machine.id, app_a, app.id, inst.id, self.app_id_index[app_a].interfer_others[app.id],
-                                machine.apps_id.count(app.id))
-                            break
+                        pass
+                    # todo: app will influence other applications beside app_a
+                    else:
+                        print "%s %s %s %s interfer:%s deployed:%s" % (
+                            machine.id, app_a, app.id, inst.id, self.app_id_index[app_a].interfer_others[app.id],
+                            machine.apps_id.count(app.id))
+                        break
                             # flag = False
                             # for app_be_interferd in machine.apps_id:
                             #     if app.interfer_others.has_key(app_be_interferd) and \
@@ -196,23 +196,23 @@ class FFD(object):
             else:
                 for app_b in app.interfer_others:
                     if machine.apps_id.count(app_b) > 0:  # already deployed app_b on machine
-                        if app_b == app.id:
-                            if app.interfer_others[app_b] > machine.apps_id.count(app_b):
-                                pass
-                            else:
-                                print "%s %s %s %s interfer:%s deployed:%s" % (
-                                    machine.id, app.id, app_b, inst.id, app.interfer_others[app_b],
-                                    machine.apps_id.count(app_b))
-                                break
-                        else:
-                            if app.interfer_others[app_b] > machine.apps_id.count(app_b):
+                        # if app_b == app.id:
+                        #     if app.interfer_others[app_b] + 1 > machine.apps_id.count(app_b):
+                        #         pass
+                        #     else:
+                        #         print "%s %s %s %s interfer:%s deployed:%s" % (
+                        #             machine.id, app.id, app_b, inst.id, app.interfer_others[app_b],
+                        #             machine.apps_id.count(app_b))
+                        #         break
+                        # else:
+                        if app.interfer_others[app_b] > machine.apps_id.count(app_b):
 
-                                pass
-                            else:
-                                print "%s %s %s %s interfer:%s deployed:%s" % (
-                                    machine.id, app.id, app_b, inst.id, app.interfer_others[app_b],
-                                    machine.apps_id.count(app_b))
-                                break
+                            pass
+                        else:
+                            print "%s %s %s %s interfer:%s deployed:%s" % (
+                                machine.id, app.id, app_b, inst.id, app.interfer_others[app_b],
+                                machine.apps_id.count(app_b))
+                            break
                 else:
                     # print "deploy {0} on {1}, ".format(inst.id, machine.id)
                     machine.disk_use += app.disk
