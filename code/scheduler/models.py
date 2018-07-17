@@ -85,7 +85,7 @@ class Machine(object):
         self.cpu_use = np.zeros(int(LINE_SIZE))
         self.mem_use = np.zeros(int(LINE_SIZE))
         self.disk_use = 0
-        self.insts = []
+        self.insts = {}
         self.apps_id = []
         self.bins = []
         self.app_inst = {}
