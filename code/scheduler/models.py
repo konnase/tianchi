@@ -119,19 +119,11 @@ class Machine(object):
 
         self.apps_id.remove(inst.app.id)
 
-    def can_deploy_inst(self, inst, app_index, apps):
+    def can_deploy_inst(self, inst):
         app = inst.app
-        if self.disk_capacity - self.disk_use < app.disk:
-            return False
-        if (self.cpu - self.cpu_use < app.cpu).any():
-            return False
-        if (self.mem - self.mem_use < app.mem).any():
-            return False
-        if self.p_capacity - self.p_num < app.p:
-            return False
-        if self.m_capacity - self.m_num < app.m:
-            return False
-        if self.pm_capacity - self.pm_num < app.pm:
+        if self.disk_capacity - self.disk_use < app.disk or (self.cpu - self.cpu_use < app.cpu).any() or \
+                (self.mem - self.mem_use < app.mem).any() or self.p_capacity - self.p_num < app.p or \
+                self.m_capacity - self.m_num < app.m or self.pm_capacity - self.pm_num < app.pm:
             return False
         # this machine can hold the instance in memory view
         for app_a in app.interfer_by_others.values():
