@@ -124,6 +124,6 @@ class FFD(object):
                     index = instance_index[inst_id]
                     self.machines[machine_count].put_inst(insts[index])
                 machine_count += 1
-                print self.machines[machine_count].disk_capacity
+                # print self.machines[machine_count].disk_capacity
         self.fit_before()
 
