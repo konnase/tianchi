@@ -1,6 +1,7 @@
 import numpy as np
 import re
 import copy
+import os
 from itertools import combinations
 
 
@@ -8,6 +9,7 @@ class Knapsack(object):
     def __init__(self, insts, apps, machines, app_interfers):
         self.insts = insts
         self.machines = machines
+        self.bak_machines = copy.deepcopy(machines)
         self.apps = apps
         self.app_interfers = app_interfers
 
@@ -24,6 +26,8 @@ class Knapsack(object):
         self.read_lower_bound()
 
         self.done = set()
+        self.machine_dict = {}
+        self.bak_machine_dict = {}
 
     def build_index(self):
         inst_index = {}
@@ -206,6 +210,7 @@ class Knapsack(object):
             self.score_after_swap_mul(insts1, insts2)
 
     def rating(self):
+        disk_overload_cnt = 0
         cpu_overload_cnt = 0
         mem_overload_cnt = 0
         half_cpu_overload_cnt = 0
@@ -252,7 +257,16 @@ class Knapsack(object):
                             print ",".join(app_dict[app_b])
                             interfer_cnt += 1
                             violate_cnt += len(app_dict[app_b])
+                    if (app_b, app_a) in self.interfer_index:
+                        if len(app_dict[app_a]) > self.interfer_index[(app_b, app_a)].num:
+                            print "%s: %s and %s -> max(%d) actual(%d)" % (
+                                machine.id, app_b, app_a, self.interfer_index[(app_b, app_a)].num, len(app_dict[app_a]))
+                            print ",".join(app_dict[app_a])
+                            interfer_cnt += 1
+                            violate_cnt += len(app_dict[app_a])
 
+            if disk > machine.disk_capacity:
+                disk_overload_cnt += 1
             if any(cpu > machine.cpu_capacity):
                 cpu_overload_cnt += 1
             if any(mem > machine.mem_capacity):
@@ -266,6 +280,7 @@ class Knapsack(object):
             if pm > machine.pm_capacity:
                 pm_overload_cnt += 1
 
+        print "Disk Overload: %f (%d / %d)" % (float(disk_overload_cnt) / total_cnt, disk_overload_cnt, total_cnt)
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
         print "Half CPU Overload: %f (%d / %d)" % (
@@ -274,6 +289,20 @@ class Knapsack(object):
         print "M Overload %f (%d / %d)" % (float(m_overload_cnt) / total_cnt, m_overload_cnt, total_cnt)
         print "PM Overload %f (%d / %d)" % (float(pm_overload_cnt) / total_cnt, pm_overload_cnt, total_cnt)
         print "Constraint violate: %d / %d" % (interfer_cnt, violate_cnt)
+
+    def fix_bug(self):
+        for i in range(len(self.machines)):
+            if self.machines[i].disk_use <= self.machines[i].disk_capacity:
+                continue
+            while self.machines[i].disk_use > self.machines[i].disk_capacity:
+                for j in range(len(self.machines)):
+                    for inst in self.machines[i].insts.values():
+                        if self.machines[i].id == self.machines[j].id or self.machines[j].disk_use == 0:
+                            continue
+                        if self.machines[j].can_put_inst(inst):
+                            print "%s %s -> %s" % (inst.id, self.machines[i], self.machines[j])
+                            self.machines[i].take_out(inst)
+                            self.machines[j].put_inst(inst)
 
     def search(self):
         self.machines = filter(lambda x: x.disk_use > 0, self.machines)
@@ -653,10 +682,39 @@ class Knapsack(object):
 
     def write_to_csv(self):
         with open('data/submit.csv', 'w') as f:
-            insts = {}
+            for machine in self.machines:
+                self.machine_dict[machine.id] = machine
+            for machine in self.bak_machines:
+                self.bak_machine_dict[machine.id] = machine
+
             for machine in self.machines:
                 for inst in machine.insts.values():
-                    insts[inst.id] = inst
+                    if inst.raw_machine_id != "":
+                        self.bak_machine_dict[inst.raw_machine_id].put_inst(inst)
+
+            while self.deploy_stage1(f):
+                pass
+
+    def deploy_stage1(self, f):
+        for i in range(len(self.machines)):
+            for inst in self.machines[i].insts.values():
+                if inst.raw_machine_id != "":
+                    if not inst.done and self.bak_machine_dict[self.machines[i].id].can_put_inst(inst):
+                        self.bak_machine_dict[inst.raw_machine_id].take_out(inst)
+                        self.bak_machine_dict[self.machines[i].id].put_inst(inst)
+                        self.machines[i].take_out(inst)
+                        inst.done = True
+                        print self.machines[i]
+                        f.write("%s,%s\n" %(inst.id, self.machines[i].id))
+                        return True
+                else:
+                    if not inst.done and self.bak_machine_dict[self.machines[i].id].can_put_inst(inst):
+                        self.bak_machine_dict[self.machines[i].id].put_inst(inst)
+                        self.machines[i].take_out(inst)
+                        print self.machines[i]
+                        f.write("%s,%s\n" %(inst.id, self.machines[i].id))
+                        inst.done = True
+        return False
 
             # size = 0
             # while size < 68219:

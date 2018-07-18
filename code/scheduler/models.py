@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import copy
 from enum import Enum
 
 from constant import *
@@ -20,6 +21,7 @@ class Instance(object):
         self.placed = False
         self.app = None
         self.machine = None
+        self.done = False
 
         self._score = -1
 
@@ -102,6 +104,42 @@ class Machine(object):
         self.p_num += inst.app.p
         self.m_num += inst.app.m
         self.pm_num += inst.app.pm
+
+    def take_out(self, inst):
+        del(self.insts[inst.id])
+        self.cpu_use -= inst.app.cpu
+        self.mem_use -= inst.app.mem
+        self.disk_use -= inst.app.disk
+        self.p_num -= inst.app.p
+        self.m_num -= inst.app.m
+        self.pm_num -= inst.app.pm
+
+    def can_put_inst(self, inst):
+        if self.disk_use + inst.app.disk > self.disk_capacity:
+            return False
+        if any((self.cpu_use + inst.app.cpu) > self.cpu_capacity / 2):
+            return False
+        if any((self.mem_use + inst.app.mem) > self.mem_capacity):
+            return False
+        if any((self.pmp + np.array([inst.app.p, inst.app.m, inst.app.pm])) > self.pmp_cap):
+            return False
+
+        app_dic = copy.copy(self.app_count)
+        has = app_dic[inst.app.id] if inst.app.id in app_dic else 0
+        for app, cnt in app_dic.iteritems():
+            if (app, inst.app.id) in self.app_interfers:
+                if has + 1 > self.app_interfers[(app, inst.app.id)].num:
+                    return False
+        for app, cnt in app_dic.iteritems():
+            if (inst.app.id, app) in self.app_interfers:
+                if cnt > self.app_interfers[(inst.app.id, app)].num:
+                    return False
+        # for app1, cnt2 in app_dic.iteritems():
+        #     for app2, cnt2 in app_dic.iteritems():
+        #         if (app1, app2) in self.app_interfers:
+        #             if cnt2 > self.app_interfers[(app1, app2)].num:
+        #                 return False
+        return True
 
     @property
     def cpu_score(self):

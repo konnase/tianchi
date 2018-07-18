@@ -51,7 +51,9 @@ def main():
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.test:
                 knapsack.test(options.test)
-                knapsack.write_to_csv()
+                # knapsack.fix_bug()
+                # knapsack.output()
+                # knapsack.write_to_csv()
         if options.search:
             try:
                 knapsack.test(options.search)
