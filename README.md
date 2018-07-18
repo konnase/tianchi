@@ -25,6 +25,7 @@ class Method(Enum):
     FFD = 1
     Knapsack = 2
     Analyse = 3
+    If_Search_Has_Init_Conflict = 4
 ```
 
 ### Offcial Judger 

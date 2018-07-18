@@ -3,6 +3,7 @@ from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import start_analyse
+from scheduler.models import prepare_apps_interfers
 
 
 def main():
@@ -16,37 +17,35 @@ def main():
     insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
     get_apps_instances(insts, apps, app_index)
 
-    if Method(options.method) == Method.FFD:
-        # for inst in insts:
-        #     print inst
-        ffd = FFD(insts, apps, machines, app_interfers, machine_index)
+    prepare_apps_interfers(app_interfers, app_index, apps)
+    # for app in apps:
+    #     print app.id, app.interfer_by_others
 
-        # analyse search file
-        ffd.start_analyse(insts, instance_index, "search")
-        with open("knapsack_deploy_conflict.csv", "w") as f:
+    if Method(options.method) == Method.FFD:
+        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
+        # ffd algorithm
+        ffd.fit_before()
+        # ffd.fit_before()
+        with open("init_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(ffd.init_deploy_conflict):
                 f.write("{0}\n".format(item))
-
-        # ffd algorithm
-        # ffd.fit_before()
-        # with open("init_deploy_conflict.csv", "w") as f:
-        #     for count, item in enumerate(ffd.init_deploy_conflict):
-        #         f.write("{0}\n".format(item))
-        # ffd.fit()
-        # ffd.fit_before()
-        # with open("submit.csv", "w") as f:
-        #     for count, item in enumerate(ffd.submit_result):
-        #         f.write("{0},{1}\n".format(item[0], item[1]))
-        # with open("machine_tasks.txt", "w") as f:
-        #     for count, machine in enumerate(machines):
-        #         inst_disk = ""
-        #         inst_id = ""
-        #         all_disk_use = 0
-        #         for inst in machine.insts:
-        #             inst_disk += "," + str(inst.app.disk)
-        #             inst_id += "," + str(inst.id)
-        #             all_disk_use += inst.app.disk
-        #         f.write("total{%s}, (%s), (%s)\n" % (all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
+        ffd.fit()
+        ffd.fit_before()
+        with open("submit.csv", "w") as f:
+            for count, item in enumerate(ffd.submit_result):
+                f.write("{0},{1}\n".format(item[0], item[1]))
+        with open("machine_tasks", "w") as f:
+            for count, machine in enumerate(machines):
+                inst_disk = ""
+                inst_id = ""
+                all_disk_use = 0
+                for inst in machine.insts.values():
+                    inst_disk += "," + str(inst.app.disk)
+                    inst_id += "," + str(inst.id)
+                    all_disk_use += inst.app.disk
+                if all_disk_use == 0:
+                    continue
+                f.write("total{%s}, (%s), (%s)\n" % (all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.test:
@@ -63,16 +62,20 @@ def main():
                 print "write to file."
                 knapsack.output()
     elif Method(options.method) == Method.Analyse:
-        results = start_analyse(insts, instance_index)
+        search_file = "machine_tasks"
+        results = start_analyse(insts, instance_index, search_file)
         with open("analyse.csv", "w") as f:
             for line in results:
                 f.write(line)
-# for count, machine in enumerate(machines):
-    #     print machine.cpu_capacity, machine.cpu, machine.cpu_use
-    #     if count > 20:
-    #         break
-    # for app in applications:
-    #     print app.instances
+    elif Method(options.method) == Method.If_Search_Has_Init_Conflict:
+        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
+        # analyse search file
+        search_file1 = "machine_tasks"
+        search_file2 = "search"
+        ffd.start_analyse(insts, instance_index, search_file1)
+        with open("knapsack_deploy_conflict.csv", "w") as f:
+            for count, item in enumerate(ffd.init_deploy_conflict):
+                f.write("{0}\n".format(item))
 
 if __name__ == '__main__':
     main()
