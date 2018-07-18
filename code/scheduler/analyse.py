@@ -1,9 +1,9 @@
 import numpy as np
 
 LINESIZE = 98
-SEARCH_FILE = "search"
 
-def start_analyse(insts, instance_index):
+
+def start_analyse(insts, instance_index, SEARCH_FILE):
 
     machines = []
     results = []
