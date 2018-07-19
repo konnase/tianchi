@@ -135,9 +135,9 @@ class Machine(object):
 
     def can_deploy_inst(self, inst):
         app = inst.app
-        if self.disk_capacity - self.disk_use < app.disk or (self.cpu - self.cpu_use < app.cpu).any() or \
-                (self.mem - self.mem_use < app.mem).any() or self.p_capacity - self.p_num < app.p or \
-                self.m_capacity - self.m_num < app.m or self.pm_capacity - self.pm_num < app.pm:
+        if self.disk_capacity - self.disk_use <= app.disk or (self.cpu / 2 - self.cpu_use <= app.cpu).any() or \
+                (self.mem - self.mem_use <= app.mem).any() or self.p_capacity - self.p_num <= app.p or \
+                self.m_capacity - self.m_num <= app.m or self.pm_capacity - self.pm_num <= app.pm:
             return False
         # this machine can hold the instance in memory view
         for app_a in app.interfer_by_others.values():
