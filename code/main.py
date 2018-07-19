@@ -60,18 +60,15 @@ def main():
                 knapsack.output()
     elif Method(options.method) == Method.Analyse:
         search_file = options.search
-        results = start_analyse(insts, instance_index, search_file)
+        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
+        results = start_analyse(instance_index, ffd, search_file)
         with open("analyse.csv", "w") as f:
             for line in results:
                 f.write(line)
-    elif Method(options.method) == Method.If_Search_Has_Init_Conflict:
-        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
-        # analyse search file
-        search_file = options.search
-        ffd.start_analyse(insts, instance_index, search_file)
         with open("knapsack_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(ffd.init_deploy_conflict):
                 f.write("{0}\n".format(item))
+
 
 if __name__ == '__main__':
     main()

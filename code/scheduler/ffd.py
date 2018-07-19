@@ -125,30 +125,4 @@ class FFD(object):
                 print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                 break
 
-    def start_analyse(self, insts, instance_index, file_in):
-        SEARCH_FILE = file_in
-        machine_count = 0
-        with open(SEARCH_FILE, "r") as f:
-            for line in f:
-                self.machines[machine_count].apps_id[:] = []
-                self.machines[machine_count].mem_use = np.zeros(int(LINE_SIZE))
-                self.machines[machine_count].cpu_use = np.zeros(int(LINE_SIZE))
-                self.machines[machine_count].disk_use = 0
-                self.machines[machine_count].p_num = 0
-                self.machines[machine_count].m_num = 0
-                self.machines[machine_count].pm_num = 0
-                self.machines[machine_count].insts.clear()
-                instances_id = line.split()[2].strip('(').strip(')').split(',')
-                # print instances_id
-                for inst_id in instances_id:
-
-                    index = instance_index[inst_id]
-                    self.machines[machine_count].put_inst(insts[index])
-                machine_count += 1
-        # for count, machine in enumerate(self.machines[0:machine_count]):
-        #     for inst in machine.insts.values():
-        #         if inst.id == 'inst_28696' or inst.id == 'inst_60036':
-        #             print count
-                # print self.machines[machine_count].disk_capacity
-        self.fit_before(self.machines[0:machine_count])
 
