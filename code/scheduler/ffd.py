@@ -3,6 +3,9 @@ import numpy as np
 import models
 import time
 
+from constant import *
+
+
 class FFD(object):
     def __init__(self, instances, applications, machines, app_interfers, machine_index, app_index):
         self.instances = instances
@@ -84,13 +87,30 @@ class FFD(object):
 
             pass
 
+    def fit_large_inst(self):
+        print "starting fit_large_inst"
+        time.sleep(2)
+        for app in self.applications:
+            for inst in app.instances:
+                if app.disk >= LARGE_DISK_INST or (app.cpu >= np.full(int(LINE_SIZE), LARGE_CPU_INST)).any() \
+                        or (app.mem >= np.full(int(LINE_SIZE), LARGE_MEM_INST)).any() and not inst.placed:
+                    for machine in self.machines:
+                        if machine.disk_capacity >= 1024 and machine.disk_use == 0:
+                            machine.put_inst(inst)
+                            self.submit_result.append((inst.id, machine.id))
+                            inst.placed = True
+                            break
+
     def fit(self):
+        self.fit_before()
+        self.fit_large_inst()
         print "starting fit"
         time.sleep(2)
         for app in self.applications:
             for inst in app.instances:
                 if not inst.placed:
                     self.deploy_inst(inst)
+        self.fit_before()
         # for count, machine in enumerate(self.machines):
         #     print machine.id, machine.disk_capacity
 
@@ -100,10 +120,10 @@ class FFD(object):
                 machine.put_inst(inst)
                 self.submit_result.append((inst.id, machine.id))
                 inst.placed = True
+                print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                 break
 
     def start_analyse(self, insts, instance_index, file_in):
-        LINE_SIZE = 98
         SEARCH_FILE = file_in
         machine_count = 0
         with open(SEARCH_FILE, "r") as f:

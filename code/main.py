@@ -24,13 +24,10 @@ def main():
     if Method(options.method) == Method.FFD:
         ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
         # ffd algorithm
-        ffd.fit_before()
-        # ffd.fit_before()
+        ffd.fit()
         with open("init_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(ffd.init_deploy_conflict):
                 f.write("{0}\n".format(item))
-        ffd.fit()
-        ffd.fit_before()
         with open("submit.csv", "w") as f:
             for count, item in enumerate(ffd.submit_result):
                 f.write("{0},{1}\n".format(item[0], item[1]))
@@ -62,7 +59,7 @@ def main():
                 print "write to file."
                 knapsack.output()
     elif Method(options.method) == Method.Analyse:
-        search_file = "machine_tasks"
+        search_file = options.search
         results = start_analyse(insts, instance_index, search_file)
         with open("analyse.csv", "w") as f:
             for line in results:
@@ -70,9 +67,8 @@ def main():
     elif Method(options.method) == Method.If_Search_Has_Init_Conflict:
         ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
         # analyse search file
-        search_file1 = "machine_tasks"
-        search_file2 = "search"
-        ffd.start_analyse(insts, instance_index, search_file1)
+        search_file = options.search
+        ffd.start_analyse(insts, instance_index, search_file)
         with open("knapsack_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(ffd.init_deploy_conflict):
                 f.write("{0}\n".format(item))
