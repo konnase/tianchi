@@ -314,7 +314,7 @@ class Knapsack(object):
 
         while True:
             if not self.handle_constraint_violate():
-            # if not self.handle_constraint_by_move():
+                # if not self.handle_constraint_by_move():
                 break
 
         self.rating()
@@ -696,46 +696,42 @@ class Knapsack(object):
                 pass
 
     def deploy_stage1(self, f):
-        for i in range(len(self.machines)):
-            for inst in self.machines[i].insts.values():
-                if inst.raw_machine_id != "":
-                    if not inst.done and self.bak_machine_dict[self.machines[i].id].can_put_inst(inst):
+        for machine in self.machine_dict.values():
+            for inst in machine.insts.values():
+                if inst.id == 'inst_3430' and machine.id == 'machine_4201':
+                    print self.bak_machine_dict[machine.id].can_put_inst(inst)
+                    print self.bak_machine_dict[machine.id].app_count
+                    return False
+                if self.bak_machine_dict[machine.id].can_put_inst(inst):
+                    print inst.id, machine.id
+                    self.bak_machine_dict[machine.id].put_inst(inst)
+                    self.machine_dict[machine.id].take_out(inst)
+                    if inst.raw_machine_id != "":
                         self.bak_machine_dict[inst.raw_machine_id].take_out(inst)
-                        self.bak_machine_dict[self.machines[i].id].put_inst(inst)
-                        self.machines[i].take_out(inst)
-                        inst.done = True
-                        print self.machines[i]
-                        f.write("%s,%s\n" %(inst.id, self.machines[i].id))
-                        return True
-                else:
-                    if not inst.done and self.bak_machine_dict[self.machines[i].id].can_put_inst(inst):
-                        self.bak_machine_dict[self.machines[i].id].put_inst(inst)
-                        self.machines[i].take_out(inst)
-                        print self.machines[i]
-                        f.write("%s,%s\n" %(inst.id, self.machines[i].id))
-                        inst.done = True
+                    f.write("%s,%s\n" % (inst.id, machine.id))
+                    return True
         return False
 
-            # size = 0
-            # while size < 68219:
-            #     idle_machine = {}
-            #     for machine in self.machines:
-            #         if machine.disk_use > 0:
-            #             idle_machine[machine.id] = machine
-            #     for inst in insts.values():
-            #         if inst.raw_machine_id != "" and inst.raw_machine_id in idle_machine:
-            #             del (idle_machine[inst.raw_machine_id])
-            #     for machine in idle_machine.values():
-            #         for inst in machine.insts.values():
-            #             if inst.id in insts:
-            #                 print "%s,%s" % (inst.id, machine.id)
-            #                 del (insts[inst.id])
-            #                 size += 1
-            #     print size
+        # size = 0
+        # while size < 68219:
+        #     idle_machine = {}
+        #     for machine in self.machines:
+        #         if machine.disk_use > 0:
+        #             idle_machine[machine.id] = machine
+        #     for inst in insts.values():
+        #         if inst.raw_machine_id != "" and inst.raw_machine_id in idle_machine:
+        #             del (idle_machine[inst.raw_machine_id])
+        #     for machine in idle_machine.values():
+        #         for inst in machine.insts.values():
+        #             if inst.id in insts:
+        #                 print "%s,%s" % (inst.id, machine.id)
+        #                 del (insts[inst.id])
+        #                 size += 1
+        #     print size
 
-            # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
+        # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
 
-            # print len(filter(lambda x: x[0].raw_machine_id != "", result))
+        # print len(filter(lambda x: x[0].raw_machine_id != "", result))
 
-            # for inst, machine in result:
-            #     f.write("%s,%s\n" % (inst.id, machine.id))
+        # for inst, machine in result:
+        #     f.write("%s,%s\n" % (inst.id, machine.id))

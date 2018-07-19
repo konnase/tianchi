@@ -161,9 +161,10 @@ class Machine(object):
         if any((self.pmp + np.array([inst.app.p, inst.app.m, inst.app.pm])) > self.pmp_cap):
             return False
 
-        app_dic = copy.copy(self.app_count)
+        app_dic = copy.deepcopy(self.app_count)
         has = app_dic[inst.app.id] if inst.app.id in app_dic else 0
         for app, cnt in app_dic.iteritems():
+            # print app, inst.app.id
             if (app, inst.app.id) in self.app_interfers:
                 if has + 1 > self.app_interfers[(app, inst.app.id)].num:
                     return False

@@ -49,7 +49,7 @@ def main():
                 knapsack.test(options.test)
                 # knapsack.fix_bug()
                 # knapsack.output()
-                # knapsack.write_to_csv()
+                knapsack.write_to_csv()
         if options.search:
             try:
                 knapsack.test(options.search)
