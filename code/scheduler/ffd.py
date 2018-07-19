@@ -38,10 +38,11 @@ class FFD(object):
             self.machines[machine_index].put_inst(inst)
             inst.placed = True
 
-    def fit_before(self):
+    def fit_before(self, machines):
         print "starting fit_before"
         time.sleep(2)
-        for machine in self.machines:
+
+        for machine in machines:
             # print "\n", machine.id, len(machine.insts)
             # for app in machine.insts:
             #     print app.id,
@@ -99,10 +100,11 @@ class FFD(object):
                             machine.put_inst(inst)
                             self.submit_result.append((inst.id, machine.id))
                             inst.placed = True
+                            print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                             break
 
     def fit(self):
-        self.fit_before()
+        self.fit_before(self.machines)
         self.fit_large_inst()
         print "starting fit"
         time.sleep(2)
@@ -110,7 +112,7 @@ class FFD(object):
             for inst in app.instances:
                 if not inst.placed:
                     self.deploy_inst(inst)
-        self.fit_before()
+        self.fit_before(self.machines)
         # for count, machine in enumerate(self.machines):
         #     print machine.id, machine.disk_capacity
 
@@ -135,15 +137,18 @@ class FFD(object):
                 self.machines[machine_count].p_num = 0
                 self.machines[machine_count].m_num = 0
                 self.machines[machine_count].pm_num = 0
-                self.machines[machine_count].insts.clear()
+                self.machines[machine_count].insts = {}
                 instances_id = line.split()[2].strip('(').strip(')').split(',')
                 # print instances_id
                 for inst_id in instances_id:
-                    if inst_id == '':
-                        continue
+
                     index = instance_index[inst_id]
                     self.machines[machine_count].put_inst(insts[index])
                 machine_count += 1
+        # for count, machine in enumerate(self.machines[0:machine_count]):
+        #     for inst in machine.insts.values():
+        #         if inst.id == 'inst_28696' or inst.id == 'inst_60036':
+        #             print count
                 # print self.machines[machine_count].disk_capacity
-        self.fit_before()
+        self.fit_before(self.machines[0:machine_count])
 
