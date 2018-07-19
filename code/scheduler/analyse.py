@@ -1,6 +1,6 @@
 import numpy as np
 
-LINESIZE = 98
+from constant import *
 
 
 def start_analyse(insts, instance_index, SEARCH_FILE):
@@ -15,10 +15,10 @@ def start_analyse(insts, instance_index, SEARCH_FILE):
             out_of_capacity = False
             max_cpu_use = 0.0
             avg_cpu_use = 0.0
-            time_cpu_use = np.zeros(LINESIZE)
+            time_cpu_use = np.zeros(LINE_SIZE)
             max_mem_use = 0.0
             avg_mem_use = 0.0
-            time_mem_use = np.zeros(LINESIZE)
+            time_mem_use = np.zeros(LINE_SIZE)
             count = 0
 
             machine_count += 1
@@ -36,11 +36,11 @@ def start_analyse(insts, instance_index, SEARCH_FILE):
                 avg_cpu_use += np.average(insts[index].app.cpu)
                 avg_mem_use += np.average(insts[index].app.mem)
             if machine_count <= 3000:
-                if avg_cpu_use > 46 or (time_cpu_use > np.full(LINESIZE, 92)).any() or avg_mem_use > 288 or (time_mem_use > np.full(LINESIZE, 288)).any():
+                if avg_cpu_use > 46 or (time_cpu_use > np.full(LINE_SIZE, 92)).any() or avg_mem_use > 288 or (time_mem_use > np.full(LINE_SIZE, 288)).any():
                     out_of_capacity = True
             else:
                 # print time_cpu_use
-                if avg_cpu_use > 16 or (time_cpu_use > np.full(LINESIZE, 32)).any() or avg_mem_use > 64 or (time_mem_use > np.full(LINESIZE, 64)).any():
+                if avg_cpu_use > 16 or (time_cpu_use > np.full(LINE_SIZE, 32)).any() or avg_mem_use > 64 or (time_mem_use > np.full(LINE_SIZE, 64)).any():
                     out_of_capacity = True
             if count == 0:
                 continue

@@ -137,7 +137,7 @@ class FFD(object):
                 self.machines[machine_count].p_num = 0
                 self.machines[machine_count].m_num = 0
                 self.machines[machine_count].pm_num = 0
-                self.machines[machine_count].insts = {}
+                self.machines[machine_count].insts.clear()
                 instances_id = line.split()[2].strip('(').strip(')').split(',')
                 # print instances_id
                 for inst_id in instances_id:
