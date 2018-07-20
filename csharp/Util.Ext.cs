@@ -22,7 +22,7 @@ namespace Tianchi {
       return result;
     }
 
-    public static List<Instance> CsvToInstanceList(this string csv) {
+    public static List<Instance> CsvToInstList(this string csv) {
       var fields = csv.Split(',');
       var result = new List<Instance>(fields.Length);
       for (var i = 0; i < fields.Length; i++) {

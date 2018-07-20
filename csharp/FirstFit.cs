@@ -1,25 +1,26 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
-    // ReSharper disable once ParameterTypeCanBeEnumerable.Local
     private static void FirstFit(IEnumerable<Instance> instances, bool onlyIdleMachine = false) {
-      foreach (var inst in instances)
+      foreach (var inst in instances) 
+        //对需要放置到空闲机器的vip实例，
+        //不管它初始是否已经放置了，都将其移至新的机器上
         if (onlyIdleMachine || inst.NeedDeployOrMigrate)
           foreach (var m in Machines) {
             if (onlyIdleMachine && !m.IsIdle) continue;
+            
+            // 针对初始部署就违反约束的实例，需将其迁移到其它机器上
+            if (inst.DeployedMachine == m) continue;
 
-            if (m.AddInstance(inst, _writer)) break;
+            if (m.AddInstance(inst, w)) break; //FirstFit
           }
     }
 
-    private static void RunFf() {
-      Console.WriteLine("==Deploy==");
-
-      _writer = File.CreateText(CsvSubmit);
+    private static void RunFirstFit() {
+      Console.WriteLine("==FirstFit==");
 
       var vips = from i in Instances
         where i.NeedDeployOrMigrate &&
@@ -33,12 +34,12 @@ namespace Tianchi {
 
       FirstFit(Instances);
 
-      if (!AllInstDeployed)
+      if (!AllInstDeployed) {
+        Console.WriteLine("Failed, Not all instances are depoyed");
         PrintUndeployedInst();
-      else
+      } else {
         PrintScore();
-
-      _writer.Close();
+      }
     }
   }
 }

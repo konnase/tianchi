@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 
 namespace Tianchi {
@@ -22,6 +23,7 @@ namespace Tianchi {
 
     public readonly int Id;
 
+    //用Set更合适，但仍要保证添加实例的幂等性
     public readonly List<Instance> InstList = new List<Instance>();
 
     private double _score = double.MinValue;
@@ -43,12 +45,8 @@ namespace Tianchi {
       IsIdle = true;
     }
 
-    public double UtilCpuAvg => _accum.Cpu.Avg / CapCpu;
     public double UtilCpuMax => _accum.Cpu.Max / CapCpu;
-
-    public double UtilMemAvg => _accum.Mem.Avg / CapMem;
     public double UtilMemMax => _accum.Mem.Max / CapMem;
-
     public double UtilDisk => _accum.Disk * 1.0 / CapDisk;
 
     public Resource Avail {
@@ -61,10 +59,6 @@ namespace Tianchi {
     public bool IsFull => Avail.Disk < 40.0
                           || Avail.Mem.Max < 1.0
                           || Avail.Cpu.Max < 0.5; //出现的最小的资源值
-
-    public bool IsFullHalfCpu => Avail.Disk < 40.0
-                                 || Avail.Mem.Max < 1.0
-                                 || Avail.Cpu.Max < CapCpu * 0.5;
 
     public bool IsIdle { get; private set; }
 
@@ -93,10 +87,13 @@ namespace Tianchi {
       _score = sum / TsCount;
     }
 
-    /// <summary>
-    ///   如果添加成功，会自动从旧机器上迁移过来（如果有的话）
-    /// </summary>
+    // 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
     public bool AddInstance(Instance inst, StreamWriter w = null, bool ignoreCheck = false) {
+      if (InstList.Contains(inst)) { //幂等
+        Debug.Assert(inst.DeployedMachine == this);
+        return true;
+      }
+
       if (!ignoreCheck && (IsOverCapacity(inst) || IsXWithDeployed(inst))) return false;
 
       InstList.Add(inst);
@@ -185,9 +182,9 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"m_{Id}|{CapDisk}, Sc={Score:0.0}, " +
-             $"{Avail.Cpu.Min:0}/{100 * UtilCpuAvg:0}%, " + //cpu
-             $"{Avail.Mem.Min:0}/{100 * UtilMemAvg:0}%, " + //mem
+      return $"{CapDisk}|m_{Id}, Sc={Score:0.0}, " +
+             $"{Avail.Cpu.Min:0}/{100 * UtilCpuMax:0}%, " + //cpu
+             $"{Avail.Mem.Min:0}/{100 * UtilMemMax:0}%, " + //mem
              $"{Avail.Disk:0}/{100 * UtilDisk:0}%, " + //disk
              $"{Avail.P:0}, " + //P
              $"{InstList.Count}#, [{InstList.ToStr(i => i.R.Disk)}]";

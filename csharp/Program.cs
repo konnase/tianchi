@@ -4,28 +4,26 @@ using System.IO;
 namespace Tianchi {
   public static partial class Program {
     private static string _projectPath = "D:/tianchi/";
-    //submit_{DateTime.Now:yyyyMMdd_hhmmss}.csv";
 
-    private static StreamWriter _writer;
+    // ReSharper disable once InconsistentNaming
+    private static readonly StreamWriter w = File.CreateText(CsvSubmit);
 
     //这里使用固定的文件名，覆盖旧数据
+    //submit_{DateTime.Now:yyyyMMdd_hhmmss}.csv";
     private static string CsvSubmit => $"{_projectPath}/submit.csv";
 
     private static void Main(string[] args) {
       if (args.Length == 1) _projectPath = args[0];
 
       ReadAllData();
+      //RunFirstFit();
 
-      VerifySearchResult($"{_projectPath}/search");
+      GenDeploy($"{_projectPath}/search");
 
-      //ParseBins($"{_projectPath}/bins_wx_uniq.txt");
-      //SetInstDiskKv();
-
-      /*
-      RunFf();
-
+      w.Close();
+      //*
       Console.WriteLine("==Judge==");
-      JudgeSubmit(CsvSubmit);//*/
+      JudgeSubmit(CsvSubmit); //*/
 
       Console.WriteLine("==End==");
     }
