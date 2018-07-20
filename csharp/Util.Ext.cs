@@ -59,9 +59,7 @@ namespace Tianchi {
         s.Append(",");
       }
 
-      return s[s.Length - 1] == ','
-        ? s.ToString(0, s.Length - 1)
-        : s.ToString();
+      return s.Length > 1 ? s.ToString(0, s.Length - 1) : string.Empty;
     }
 
     private static string ToMergeStr<T>(this List<T> list) {
@@ -91,9 +89,13 @@ namespace Tianchi {
         s.Append(",");
       }
 
-      return s[s.Length - 1] == ','
-        ? s.ToString(0, s.Length - 1)
-        : s.ToString();
+      return s.Length > 1 ? s.ToString(0, s.Length - 1) : string.Empty;
+    }
+
+    public static void Each<T>(this IEnumerable<T> iter, Action<T> action) {
+      foreach (var i in iter) {
+        action(i);
+      }
     }
   }
 }

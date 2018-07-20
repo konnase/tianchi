@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
@@ -18,10 +19,13 @@ namespace Tianchi {
       ReadAllData();
       //RunFirstFit();
 
+      //输出初始部署的机器资源占用情况
+      //Machines.Where(m => !m.IsIdle).Each(Console.WriteLine);
+
       GenDeploy($"{_projectPath}/search");
 
       w.Close();
-      //*
+      /*
       Console.WriteLine("==Judge==");
       JudgeSubmit(CsvSubmit); //*/
 

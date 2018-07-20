@@ -5,7 +5,4 @@
     <AssemblyName>tianchi</AssemblyName>
     <RootNamespace>Tianchi</RootNamespace>
   </PropertyGroup>
-  <ItemGroup>
-    <None Remove="gurobi80.netstandard20.dll" />
-  </ItemGroup>
 </Project>

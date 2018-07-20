@@ -5,6 +5,8 @@ using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
+    //这里bin是指最终的某个机器放置方案，即要放置到同一台机器的实例列表
+    //绝大部分bin在初始状态还没有关联到某台机器
     private static readonly List<Instance>[] Bins = new List<Instance>[5506];
 
     private static int DeployedBinsCount => Bins.Sum(bin => IsDeployed(bin) ? 1 : 0);
@@ -63,7 +65,7 @@ namespace Tianchi {
     }
 
     //将某机器上原有的实例清空，迁移到其它若干机器上去
-    private static bool DrainMachine(Machine m, List<Instance> bin){
+    private static bool DrainMachine(Machine m, List<Instance> bin) {
       var instList = m.InstList;
       var instCnt = instList.Count;
       var migratedInstCnt = 0;
@@ -110,6 +112,7 @@ namespace Tianchi {
       return bins;
     }
 
+    //对（初始状态）占用的机器按大小类型分类，并按cpu.avg排序
     private static List<Machine> OccupiedMachines(int capDisk) {
       return (from m in Machines
         where m.InstList.Count > 0 && m.CapDisk == capDisk
@@ -121,24 +124,24 @@ namespace Tianchi {
       return Machines.Where(m => m.IsIdle && m.CapDisk == capDisk).ToList();
     }
 
-    private static void DeployBin(Machine m, List<Instance> instList) {
-      foreach (var inst in instList)
+    private static void DeployBin(Machine m, List<Instance> bin) {
+      foreach (var inst in bin)
         if (!m.AddInstance(inst, w))
           throw new Exception($"Unkown Error, Deployed Failed!{m}");
     }
 
-    private static void DeployBinWithoutCheck(Machine m, List<Instance> instList) {
-      foreach (var inst in instList)
+    private static void DeployBinWithoutCheck(Machine m, List<Instance> bin) {
+      foreach (var inst in bin)
         m.AddInstance(inst, ignoreCheck: true);
     }
 
     //列表中所有实例是否都部署到了同一台机器上，而且都没有违反亲和性约束    
-    private static bool IsDeployed(List<Instance> instList) {
-      var m = instList[0].DeployedMachine;
+    private static bool IsDeployed(List<Instance> bin) {
+      var m = bin[0].DeployedMachine;
       if (m == null) return false;
 
       var sameMachine = true;
-      foreach (var inst in instList)
+      foreach (var inst in bin)
         if (inst.DeployedMachine != m || inst.NeedDeployOrMigrate) {
           sameMachine = false;
           break;

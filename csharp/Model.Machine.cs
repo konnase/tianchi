@@ -45,7 +45,9 @@ namespace Tianchi {
       IsIdle = true;
     }
 
+    public double UtilCpuAvg => _accum.Cpu.Avg / CapCpu;
     public double UtilCpuMax => _accum.Cpu.Max / CapCpu;
+    public double UtilMemAvg => _accum.Mem.Avg / CapMem;
     public double UtilMemMax => _accum.Mem.Max / CapMem;
     public double UtilDisk => _accum.Disk * 1.0 / CapDisk;
 
@@ -182,12 +184,12 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"{CapDisk}|m_{Id}, Sc={Score:0.0}, " +
-             $"{Avail.Cpu.Min:0}/{100 * UtilCpuMax:0}%, " + //cpu
-             $"{Avail.Mem.Min:0}/{100 * UtilMemMax:0}%, " + //mem
-             $"{Avail.Disk:0}/{100 * UtilDisk:0}%, " + //disk
-             $"{Avail.P:0}, " + //P
-             $"{InstList.Count}#, [{InstList.ToStr(i => i.R.Disk)}]";
+      return $"{CapDisk},{Id},{Score:0.0}," +
+             $"{Avail.Cpu.Min:0},{100 * UtilCpuMax:0}%,{100 * UtilCpuAvg:0}%," + //cpu
+             $"{Avail.Mem.Min:0},{100 * UtilMemMax:0}%,{100 * UtilMemAvg:0}%," + //mem
+             $"{Avail.Disk:0},{100 * UtilDisk:0}%," + //disk
+             $"{Avail.P:0}," + //P
+             $"{InstList.Count},\"[{InstList.ToStr(i => i.R.Disk)}]\"";
     }
 
     public string InstListToStr() {
