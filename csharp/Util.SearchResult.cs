@@ -30,14 +30,13 @@ namespace Tianchi {
       idx1024 = MigrateAndDeploy(idx1024, bins1024, initOccupied1024);
 
       Console.WriteLine($"i600={idx600},i1024={idx1024}");
+      Console.WriteLine(DeployedBinsCount);
 
       //期望的最终状态：600的机器共占用2506台，1024的机器共占用3000台
       //Console.WriteLine($"Occupied600={OccupiedMachines(600).Count}," +
       //                  $"Occupied1024={OccupiedMachines(1024).Count}");
 
-      Console.WriteLine(DeployedBinsCount);
-
-      //foreach (var m in Machines) Console.WriteLine(o);
+      //foreach (var m in Machines) Console.WriteLine(m);
     }
 
     private static int DeployOnIdle(List<List<Instance>> bins, List<Machine> idleList) {
@@ -50,45 +49,50 @@ namespace Tianchi {
       return i;
     }
 
-    private static int MigrateAndDeploy(int binIdx,
-      List<List<Instance>> bins,
-      List<Machine> migrateList) {
-      var occIdx = 0;
-      while (binIdx < bins.Count && occIdx < migrateList.Count) {
-        var instList = bins[binIdx++];
-        var migrate = migrateList[occIdx++];
+    private static int MigrateAndDeploy(int binIdx, List<List<Instance>> bins, List<Machine> mList) {
+      var mIdx = 0;
+      while (binIdx < bins.Count && mIdx < mList.Count) {
+        var bin = bins[binIdx++];
+        var m = mList[mIdx++];
 
-        var existInstList = migrate.InstList;
-        var existInstCnt = existInstList.Count;
-        var migratedInstCnt = 0;
-        //类似Firstfit Desc,将原有实例迁移到若干台机器上去
-        for (var n = existInstList.Count - 1; n >= 0; n--) {
-          var inst = existInstList[n];
-          //实例本来就在方案中，不需要迁移，概率很小
-          if (instList.Contains(inst)) {
-            migratedInstCnt++;
-            continue;
-          }
-
-          foreach (var m in Machines) {
-            if (m == migrate) continue;
-
-            if (m.AddInstance(inst, w)) { //FirstFit
-              migratedInstCnt++;
-              break;
-            }
-          }
-        }
-
-        if (migratedInstCnt != existInstCnt) {
-          Console.WriteLine($"Can not migrate existing instances at m_{migrate.Id}!");
-          break;
-        }
-
-        DeployBin(migrate, instList);
+        if (!DrainMachine(m, bin)) break;
+        DeployBin(m, bin);
       }
 
       return binIdx;
+    }
+
+    //将某机器上原有的实例清空，迁移到其它若干机器上去
+    private static bool DrainMachine(Machine m, List<Instance> bin){
+      var instList = m.InstList;
+      var instCnt = instList.Count;
+      var migratedInstCnt = 0;
+      //类似Firstfit Desc,将原有实例迁移到若干台机器上去
+      for (var i = instList.Count - 1; i >= 0; i--) {
+        var inst = instList[i];
+        //实例本来就在方案中，不需要迁移，概率很小
+        //若跳过此检查，不影响最终成本分数，但会多迁移几次
+        if (bin.Contains(inst)) {
+          migratedInstCnt++; //计数还是要增加的
+          continue;
+        }
+
+        foreach (var n in Machines) {
+          if (m == n) continue;
+
+          if (n.AddInstance(inst, w)) {
+            migratedInstCnt++;
+            break; //FirstFit
+          }
+        }
+      }
+
+      if (migratedInstCnt != instCnt) {
+        Console.WriteLine($"Can not migrate existing instances at m_{m.Id}!");
+        return false;
+      }
+
+      return true;
     }
 
     private static List<List<Instance>> GetBins(int capDisk) {
