@@ -82,7 +82,7 @@ namespace Tianchi {
         foreach (var n in Machines) {
           if (m == n) continue;
 
-          if (n.AddInstance(inst, w)) {
+          if (n.AddInstance(inst, _w)) {
             migratedInstCnt++;
             break; //FirstFit
           }
@@ -126,7 +126,7 @@ namespace Tianchi {
 
     private static void DeployBin(Machine m, List<Instance> bin) {
       foreach (var inst in bin)
-        if (!m.AddInstance(inst, w))
+        if (!m.AddInstance(inst, _w))
           throw new Exception($"Unkown Error, Deployed Failed!{m}");
     }
 

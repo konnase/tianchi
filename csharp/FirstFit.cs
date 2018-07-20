@@ -15,7 +15,7 @@ namespace Tianchi {
             // 针对初始部署就违反约束的实例，需将其迁移到其它机器上
             if (inst.DeployedMachine == m) continue;
 
-            if (m.AddInstance(inst, w)) break; //FirstFit
+            if (m.AddInstance(inst, _w)) break; //FirstFit
           }
     }
 

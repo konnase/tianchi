@@ -25,10 +25,7 @@ namespace Tianchi {
     public static List<Instance> CsvToInstList(this string csv) {
       var fields = csv.Split(',');
       var result = new List<Instance>(fields.Length);
-      for (var i = 0; i < fields.Length; i++) {
-        var id = fields[i].Id();
-        result.Add(Program.InstanceKv[id]);
-      }
+      result.AddRange(fields.Select(s => Program.InstanceKv[s.Id()]));
 
       return result;
     }
@@ -93,9 +90,7 @@ namespace Tianchi {
     }
 
     public static void Each<T>(this IEnumerable<T> iter, Action<T> action) {
-      foreach (var i in iter) {
-        action(i);
-      }
+      foreach (var i in iter) action(i);
     }
   }
 }

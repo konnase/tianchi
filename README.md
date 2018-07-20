@@ -27,7 +27,7 @@ class Method(Enum):
     Analyse = 3
 ```
 
-### Offcial Judger 
+### 官方评分 
 ```bash
 
 java -jar judge/judge.jar data/problem.csv submit.csv
@@ -35,6 +35,18 @@ java -jar judge/judge.jar data/problem.csv submit.csv
 # suppose there is the submit.csv file at project root
 ```
 
+
+### 导出最终提交文件 submit.csv
+```bash
+dotnet run --project csharp/tianchi.csproj  ./
+# 终端输出结束后，提交文件保存在了 submit.csv
+
+# 或者在 cssharp 目录执行
+cd csharp
+dotnet run ../
+```
+> 注意： `.gitignore`中忽略了 `submit*` ；如果需要添加 `submit.csv` 到仓库，请使用 `git add -f submit.csv`
+> 
 -----
 
 阿里巴巴全球调度算法大赛
@@ -59,6 +71,19 @@ https://tianchi.aliyun.com/competition/information.htm?raceId=231663
 
 资源总量为：
 CPU  ：  372,000 个核 ； Mem  ： 1,056,000 GB ； Disk ： 4,872,000 GB
+
+### 初始部署
+初始有 2515 台机器已经部署了实例，分别为： 占用 600 GB 硬盘的机器 1276 台，空闲 1724 台，占用 1024 GB 硬盘的机器 1239 台，空闲 1761 台。
+其中，有 117 台机器存在一两个实例违反了亲和约束，这些都是 600 GB 硬盘的机器；好在没有实例违反资源约束。
+
+需要注意的是，
++ **初始部署的装箱效率还是很高的，特别是最紧张的 disk 资源，利用率基本都在 90% 以上，甚至 100% ；**
++ 分机器类型看，**600 GB 硬盘的机器装箱存在过量，即有 423 台此类型机器的成本分数 > 1.0；而 1024 GB 硬盘的机器只有 1 台成本分数 > 1.0。**
+
+统计详情可见 [init_deploy_machine_util_stat.csv] 和 [init_deploy_machine_util.xlsx]
+
+这也许就是 **比赛官方比较希望改进的地方吧。**
+**也许大部分初始部署可以按兵不动，但需要对 600 GB硬盘的机器特殊处理。**
 
 ## 应用和实例
 
