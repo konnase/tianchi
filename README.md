@@ -3,7 +3,7 @@
 ### Lower Bound
 
 ```bash
-g++ code/lower_bound.cpp -o lb && ./lb < request > lower_bound
+g++ code/lower_bound.cpp -o lb && ./lb < request > search
 ```
 
 rating for this lower_bound:
