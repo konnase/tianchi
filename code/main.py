@@ -12,6 +12,7 @@ def main():
     parser.add_option("-m", "--method", dest="method", type="int", help="method to solve this prolem")
     parser.add_option("-t", "--test_output", dest="test", help="output to test")
     parser.add_option("-s", "--search", dest="search", help="file to search")
+    parser.add_option("-p", "--request", dest="request", help="print request file")
     (options, args) = parser.parse_args()
 
     insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
@@ -45,13 +46,17 @@ def main():
                 f.write("total{%s}, (%s), (%s)\n" % (all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
+        if options.request:
+            knapsack.print_request()
         if options.test:
+                knapsack.read_lower_bound()
                 knapsack.test(options.test)
                 # knapsack.fix_bug()
                 # knapsack.output()
                 knapsack.write_to_csv()
         if options.search:
             try:
+                knapsack.read_lower_bound()
                 knapsack.test(options.search)
                 knapsack.search()
                 knapsack.output()
