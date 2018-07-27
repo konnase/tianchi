@@ -1,14 +1,12 @@
-using System;
 using System.IO;
 
 namespace Tianchi {
   public static partial class Program {
-    private static string _projectPath = "D:/tianchi/";
-
-    private static StreamWriter _w = null;
-
     public const double CpuUtilH = 0.695;
     public const double CpuUtilL = 0.58;
+    private static string _projectPath = "D:/tianchi/";
+
+    private static readonly StreamWriter _w = null;
 
     // ReSharper disable once ConvertToAutoProperty
     private static string[] DataSet => DataSetB;
@@ -23,14 +21,15 @@ namespace Tianchi {
 
       ReadAllData(DataSet);
 
-      _w = File.CreateText(CsvSubmit);
+      //_w = File.CreateText(CsvSubmit);
 
-      RunFirstFit();
+      //RunFirstFit();
 
+      VerifySearchResult($"{_projectPath}/search-result/search6991");
       //GenDeploy($"{_projectPath}/search");
-      
+
       //Console.WriteLine("==Judge==");
-      JudgeSubmit(CsvSubmit);
+      //JudgeSubmit(CsvSubmit);
       //PrintSearch();
 
       //Console.WriteLine("==End==");

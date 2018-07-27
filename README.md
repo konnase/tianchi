@@ -27,6 +27,12 @@ class Method(Enum):
     Analyse = 3
 ```
 
+### Verify Search
+
+```
+dotnet judge/verifysearch.dll . search-result/search6991
+```
+
 ### 官方评分 
 ```bash
 

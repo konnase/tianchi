@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
@@ -29,8 +28,9 @@ namespace Tianchi {
         Console.WriteLine("Failed, Not all instances are depoyed");
         Console.WriteLine($"{DeployedInstCount}/{InstCount}");
         //PrintUndeployedInst();
-      } else
+      } else {
         PrintScore();
+      }
 
       _w?.Close();
     }

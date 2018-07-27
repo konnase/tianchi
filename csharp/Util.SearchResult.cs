@@ -7,11 +7,12 @@ namespace Tianchi {
   public static partial class Program {
     //这里bin是指最终的某个机器放置方案，即要放置到同一台机器的实例列表
     //绝大部分bin在初始状态还没有关联到某台机器
-    private static readonly List<Instance>[] Bins = new List<Instance>[5506];
+    private const int BinCount = 5128; //b //5506; //a
+    private static readonly List<Instance>[] Bins = new List<Instance>[BinCount];
 
     private static int DeployedBinsCount => Bins.Sum(bin => IsDeployed(bin) ? 1 : 0);
 
-    private static void GenDeploy(string searchResultFile) {
+    private static void GenDeployDataSetA(string searchResultFile) {
       ParseSearchResult(searchResultFile);
 
       var bins600 = GetBins(600);
@@ -157,6 +158,7 @@ namespace Tianchi {
       for (var i = 0; i < Bins.Length; i++) //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
         DeployBinWithoutCheck(Machines[i], Bins[i]);
 
+      PrintScore();
       FinalCheck(true);
     }
 
