@@ -2,7 +2,7 @@
 .idea
 .DS_Store
 .swap
-machine_tasks.txt
+machine_tasks*
 Thumbs.db
 bin/
 obj/
