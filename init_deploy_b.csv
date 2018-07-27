@@ -1,4 +1,4 @@
-cap.disk,mid,score,avl.cpu.min,util.cpu.max,util.cpu.avg,avl.mem.min,util.mem.max,util.mem.avg,avl.disk,util.disk,alv.p,inst.cnt,inst.list
+cap_disk,mid,score,avl_cpu_min,util_cpu_max,util_cpu_avg,avl_mem_min,util_mem_max,util_mem_avg,avl_disk,util_disk,avl_p,inst_cnt,inst_list
 2457,machine_3003,1.5,29,68%,53%,32,89%,89%,637,74%,6,29,"[40,60*25,80,100*2]"
 2457,machine_3004,3.5,1,99%,72%,30,90%,89%,837,66%,7,24,"[40*4,60*16,100*3,200]"
 2457,machine_3005,1.2,35,62%,46%,68,76%,75%,757,69%,7,27,"[40*3,60*20,80,100*3]"

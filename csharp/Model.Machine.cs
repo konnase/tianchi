@@ -141,15 +141,21 @@ namespace Tianchi {
       for (var i = InstList.Count - 1; i >= 0; i--) RemoveInstance(InstList[i]);
     }
 
+    public bool IsFit(Instance inst) {
+      return !IsOverCapacity(inst) && !IsXWithDeployed(inst);
+    }
+
     // 检查当前累积使用的资源量 _accum **加上r之后** 是否会超出 capacity，
     // 不会修改当前资源量
     public bool IsOverCapacity(Instance inst) {
+      var f = Math.Abs(CapCpu - 92) < 0.01 ? 0.75 : 0.65;
       var r = inst.R;
+
       return _accum.Disk + r.Disk > CapDisk
              || _accum.P + r.P > Cap.P
              || _accum.Pm + r.Pm > Cap.Pm //所有App的PM都等于P
              || _accum.M + r.M > Cap.M //所有App的M都是0
-             || _accum.Cpu.MaxWith(r.Cpu) > CapCpu
+             || _accum.Cpu.MaxWith(r.Cpu) > f * CapCpu
              || _accum.Mem.MaxWith(r.Mem) > CapMem;
     }
 
@@ -184,7 +190,7 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"{CapDisk},{Id},{Score:0.0}," +
+      return $"{CapDisk},machine_{Id},{Score:0.0}," +
              $"{Avail.Cpu.Min:0},{100 * UtilCpuMax:0}%,{100 * UtilCpuAvg:0}%," + //cpu
              $"{Avail.Mem.Min:0},{100 * UtilMemMax:0}%,{100 * UtilMemAvg:0}%," + //mem
              $"{Avail.Disk:0},{100 * UtilDisk:0}%," + //disk

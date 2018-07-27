@@ -28,7 +28,7 @@ namespace Tianchi {
       }
 
       ClearMachineDeployment();
-      ReadInitDeployment(); //恢复初始状态
+      ReadInitDeployment(CsvDeploy); //恢复初始状态
 
       var failedResource = 0;
       var failedX = 0;

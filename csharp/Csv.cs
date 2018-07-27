@@ -5,26 +5,40 @@ using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
-    public static readonly Dictionary<int, App> AppKv = new Dictionary<int, App>(9338);
+    private const int AppCount = 9338;
+    private const int InstCount = 68224; //b //68219; a
+    private const int MachineCount = 6000;
+    public static readonly Dictionary<int, App> AppKv = new Dictionary<int, App>(AppCount);
 
-    public static readonly Dictionary<int, Machine> MachineKv = new Dictionary<int, Machine>(6000);
+    public static readonly Dictionary<int, Machine> MachineKv = new Dictionary<int, Machine>(MachineCount);
     public static readonly List<Machine> Machines = new List<Machine>(6000);
 
-    public static readonly Instance[] Instances = new Instance[68219];
-    public static readonly Dictionary<int, Instance> InstanceKv = new Dictionary<int, Instance>(68219);
+    public static readonly Instance[] Instances = new Instance[InstCount];
+
+    public static readonly Dictionary<int, Instance> InstanceKv = new Dictionary<int, Instance>(InstCount);
 
     private static string DataPath => $"{_projectPath}/data/";
-    private static string CsvApp => $"{DataPath}/scheduling_preliminary_app_resources_20180606.csv";
-    private static string CsvDeploy => $"{DataPath}/scheduling_preliminary_instance_deploy_20180606.csv";
-    private static string CsvInterference => $"{DataPath}/scheduling_preliminary_app_interference_20180606.csv";
-    private static string CsvMachine => $"{DataPath}/scheduling_preliminary_machine_resources_20180606.csv";
 
-    private static void ReadAllData() {
-      ReadApp();
-      ReadInterference();
-      ReadMachine();
-      ReadInstance();
-      ReadInitDeployment();
+    private static readonly string[] DataSetA = new[] {
+      "scheduling_preliminary_app_resources_20180606.csv",
+      "scheduling_preliminary_app_interference_20180606.csv",
+      "scheduling_preliminary_machine_resources_20180606.csv",
+      "scheduling_preliminary_instance_deploy_20180606.csv"
+    };
+
+    private static readonly string[] DataSetB = new[] {
+      "scheduling_preliminary_b_app_resources_20180726.csv",
+      "scheduling_preliminary_b_app_interference_20180726.csv",
+      "scheduling_preliminary_b_machine_resources_20180726.csv",
+      "scheduling_preliminary_b_instance_deploy_20180726.csv"
+    };
+
+    private static void ReadAllData(string[] dataSet) {
+      ReadApp(DataPath + dataSet[0]);
+      ReadInterference(DataPath + dataSet[1]);
+      ReadMachine(DataPath + dataSet[2]);
+      ReadInstance(DataPath + dataSet[3]);
+      ReadInitDeployment(DataPath + dataSet[3]);
     }
 
     private static void ReadCsv(string csvFile, Action<string> action) {
@@ -34,8 +48,8 @@ namespace Tianchi {
       }
     }
 
-    private static void ReadApp() {
-      ReadCsv(CsvApp,
+    private static void ReadApp(string csv) {
+      ReadCsv(csv,
         line => {
           var fields = line.Split(',');
           var appId = fields[0].Id();
@@ -43,8 +57,8 @@ namespace Tianchi {
         });
     }
 
-    private static void ReadInterference() {
-      ReadCsv(CsvInterference, line => {
+    private static void ReadInterference(string csv) {
+      ReadCsv(csv, line => {
         var fields = line.Split(',');
 
         var app = AppKv[fields[0].Id()];
@@ -56,9 +70,9 @@ namespace Tianchi {
     }
 
     // 读取实例，并按磁盘大小和Id排序
-    private static void ReadMachine() {
+    private static void ReadMachine(string csv) {
       var list = new List<Machine>(68300);
-      ReadCsv(CsvMachine, line => {
+      ReadCsv(csv, line => {
         var fields = line.Split(',');
         var machineId = fields[0].Id();
         var m = Machine.Parse(fields);
@@ -73,9 +87,9 @@ namespace Tianchi {
     }
 
     // 读取实例，保持原有顺序！
-    private static void ReadInstance() {
+    private static void ReadInstance(string csv) {
       var i = 0;
-      ReadCsv(CsvDeploy, line => {
+      ReadCsv(csv, line => {
           var fields = line.Split(',');
           var instId = fields[0].Id();
           var appId = fields[1].Id();
@@ -91,8 +105,8 @@ namespace Tianchi {
       );
     }
 
-    private static void ReadInitDeployment() {
-      ReadCsv(CsvDeploy, line => {
+    private static void ReadInitDeployment(string csv) {
+      ReadCsv(csv, line => {
           var fields = line.Split(',');
           var mId = fields[2].Id();
 
