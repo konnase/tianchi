@@ -7,6 +7,9 @@ namespace Tianchi {
 
     private static StreamWriter _w = null;
 
+    public const double CpuUtilH = 0.695;
+    public const double CpuUtilL = 0.58;
+
     // ReSharper disable once ConvertToAutoProperty
     private static string[] DataSet => DataSetB;
     private static string CsvDeploy => DataPath + DataSet[3];
@@ -19,15 +22,16 @@ namespace Tianchi {
       if (args.Length == 1) _projectPath = args[0];
 
       ReadAllData(DataSet);
-      //_w = ;
+
+      _w = File.CreateText(CsvSubmit);
+
       RunFirstFit();
-      //_w.Close();
-      PrintSearch();
 
       //GenDeploy($"{_projectPath}/search");
-
+      
       //Console.WriteLine("==Judge==");
-      FinalCheck();
+      JudgeSubmit(CsvSubmit);
+      //PrintSearch();
 
       //Console.WriteLine("==End==");
     }

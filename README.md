@@ -3,7 +3,7 @@
 ### Lower Bound
 
 ```bash
-g++ code/lower_bound.cpp -o lb && ./lb < request > search
+g++ code/lower_bound.cpp -O2 -o lb && ./lb < request > search
 ```
 
 rating for this lower_bound:
@@ -30,13 +30,11 @@ class Method(Enum):
 ### 官方评分 
 ```bash
 
-java -jar judge/judge.jar data/problem.csv submit.csv
+java -jar judge/judge.jar data/b.csv submit.csv # Decompress the data/b.csv.tgz first !!!
 
-# suppose there is the submit.csv file at project root
 ```
 
-
-### 导出最终提交文件 submit.csv
+### 运行dotnet
 ```bash
 dotnet run --project csharp/tianchi.csproj  ./
 # 终端输出结束后，提交文件保存在了 submit.csv

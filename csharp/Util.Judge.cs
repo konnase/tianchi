@@ -36,7 +36,9 @@ namespace Tianchi {
       PrintScore();
     }
 
-    private static void ReadSubmit(string csvSubmit, bool verbose) {
+    private static void ReadSubmit(string csvSubmit, bool verbose = false) {
+      _w?.Close();
+
       var failedResource = 0;
       var failedX = 0;
 
