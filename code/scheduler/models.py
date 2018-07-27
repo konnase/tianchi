@@ -164,7 +164,6 @@ class Machine(object):
         app_dic = copy.deepcopy(self.app_count)
         has = app_dic[inst.app.id] if inst.app.id in app_dic else 0
         for app, cnt in app_dic.iteritems():
-            # print app, inst.app.id
             if (app, inst.app.id) in self.app_interfers:
                 if has + 1 > self.app_interfers[(app, inst.app.id)].num:
                     return False
@@ -172,11 +171,6 @@ class Machine(object):
             if (inst.app.id, app) in self.app_interfers:
                 if cnt > self.app_interfers[(inst.app.id, app)].num:
                     return False
-        # for app1, cnt2 in app_dic.iteritems():
-        #     for app2, cnt2 in app_dic.iteritems():
-        #         if (app1, app2) in self.app_interfers:
-        #             if cnt2 > self.app_interfers[(app1, app2)].num:
-        #                 return False
         return True
 
     @property

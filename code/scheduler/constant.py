@@ -1,7 +1,7 @@
-MACHINE_INPUT_FILE = "scheduling_preliminary_machine_resources_20180606.csv"
-APP_INPUT_FILE = "scheduling_preliminary_app_resources_20180606.csv"
-INSTANCE_INPUT_FILE = "scheduling_preliminary_instance_deploy_20180606.csv"
-APP_INTERFER_FILE = "scheduling_preliminary_app_interference_20180606.csv"
+MACHINE_INPUT_FILE = "scheduling_preliminary_b_machine_resources_20180726.csv"
+APP_INPUT_FILE = "scheduling_preliminary_b_app_resources_20180726.csv"
+INSTANCE_INPUT_FILE = "scheduling_preliminary_b_instance_deploy_20180726.csv"
+APP_INTERFER_FILE = "scheduling_preliminary_b_app_interference_20180726.csv"
 
 LINE_SIZE = 98
 

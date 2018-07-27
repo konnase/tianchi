@@ -20,13 +20,13 @@ bool cmp(inst x, inst y) {
 double value(int cpu, int mem, int disk) {
     double w_cpu, w_mem, w_disk;
     if (disk > 600) {
-        w_cpu = -0.1;
-        w_mem = 0.1;
-        w_disk = 7;
+        w_cpu = 0;
+        w_mem = 0;
+        w_disk = 1;
     } else {
-        w_cpu = -0.5;
-        w_mem = 0.3;
-        w_disk = 4;
+        w_cpu = 0;
+        w_mem = 0;
+        w_disk = 1;
     }
     return w_cpu * cpu + w_mem * mem + w_disk * disk;
 }

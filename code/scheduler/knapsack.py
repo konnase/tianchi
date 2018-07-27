@@ -1,7 +1,7 @@
 import numpy as np
 import re
 import copy
-import os
+import math
 from itertools import combinations
 
 
@@ -23,11 +23,19 @@ class Knapsack(object):
 
         self.pre_process_machine()
         self.build_index()
-        self.read_lower_bound()
 
         self.done = set()
         self.machine_dict = {}
         self.bak_machine_dict = {}
+        self.done = 0
+
+    def print_request(self):
+        with open('request', 'w') as f:
+            f.write("%d\n" % len(self.insts))
+            for inst in self.insts:
+                line = "%d %d %d %s\n" % (
+                int(math.ceil(max(inst.app.cpu))), int(math.ceil(max(inst.app.mem))), inst.app.disk, inst.id)
+                f.write(line)
 
     def build_index(self):
         inst_index = {}
@@ -686,52 +694,28 @@ class Knapsack(object):
                 self.machine_dict[machine.id] = machine
             for machine in self.bak_machines:
                 self.bak_machine_dict[machine.id] = machine
+            for i in range(len(self.bak_machines)):
+                self.bak_machines[i].app_interfers = self.interfer_index
 
             for machine in self.machines:
                 for inst in machine.insts.values():
                     if inst.raw_machine_id != "":
                         self.bak_machine_dict[inst.raw_machine_id].put_inst(inst)
 
-            while self.deploy_stage1(f):
-                pass
+            # while True:
+            # print self.interfer_index[('app_6421', 'app_2530')]
+
+            while self.done < 68219:
+                self.deploy_stage1(f)
 
     def deploy_stage1(self, f):
         for machine in self.machine_dict.values():
             for inst in machine.insts.values():
-                if inst.id == 'inst_3430' and machine.id == 'machine_4201':
-                    print self.bak_machine_dict[machine.id].can_put_inst(inst)
-                    print self.bak_machine_dict[machine.id].app_count
-                    return False
                 if self.bak_machine_dict[machine.id].can_put_inst(inst):
-                    print inst.id, machine.id
                     self.bak_machine_dict[machine.id].put_inst(inst)
                     self.machine_dict[machine.id].take_out(inst)
                     if inst.raw_machine_id != "":
                         self.bak_machine_dict[inst.raw_machine_id].take_out(inst)
                     f.write("%s,%s\n" % (inst.id, machine.id))
-                    return True
-        return False
-
-        # size = 0
-        # while size < 68219:
-        #     idle_machine = {}
-        #     for machine in self.machines:
-        #         if machine.disk_use > 0:
-        #             idle_machine[machine.id] = machine
-        #     for inst in insts.values():
-        #         if inst.raw_machine_id != "" and inst.raw_machine_id in idle_machine:
-        #             del (idle_machine[inst.raw_machine_id])
-        #     for machine in idle_machine.values():
-        #         for inst in machine.insts.values():
-        #             if inst.id in insts:
-        #                 print "%s,%s" % (inst.id, machine.id)
-        #                 del (insts[inst.id])
-        #                 size += 1
-        #     print size
-
-        # result.sort(key=lambda x: x[0].raw_machine_id, reverse=True)
-
-        # print len(filter(lambda x: x[0].raw_machine_id != "", result))
-
-        # for inst, machine in result:
-        #     f.write("%s,%s\n" % (inst.id, machine.id))
+                    self.done += 1
+                    print self.done

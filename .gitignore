@@ -16,3 +16,6 @@ knapsack_deploy*
 init_deploy*
 machine*
 analyse*
+
+data/scheduling_preliminary_b*
+./lower_bound
