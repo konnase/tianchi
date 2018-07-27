@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace Tianchi {
@@ -18,7 +19,7 @@ namespace Tianchi {
       R = new Resource(
         Series.Parse(fields[1].Split('|')),
         Series.Parse(fields[2].Split('|')),
-        int.Parse(fields[3]),
+        Convert.ToInt32(double.Parse(fields[3])),
         int.Parse(fields[4]),
         int.Parse(fields[5]),
         int.Parse(fields[6])

@@ -28,8 +28,15 @@ namespace Tianchi {
       }
 
       ClearMachineDeployment();
-      ReadInitDeployment(); //恢复初始状态
+      ReadInitDeployment(CsvDeploy); //恢复初始状态
 
+      ReadSubmit(csvSubmit, verbose);
+
+      FinalCheck(verbose);
+      PrintScore();
+    }
+
+    private static void ReadSubmit(string csvSubmit, bool verbose) {
       var failedResource = 0;
       var failedX = 0;
 
@@ -56,9 +63,6 @@ namespace Tianchi {
           Console.WriteLine($"\t{inst}  {m}");
         }
       });
-
-      FinalCheck(verbose);
-      PrintScore();
     }
 
     private static void FinalCheck(bool verbose = false) {

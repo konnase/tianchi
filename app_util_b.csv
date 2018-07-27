@@ -1,4 +1,4 @@
-aid,inst.cntcpu.max,cpu.avg.cpu.min,cpu.stdev,mem.max,mem.avg.mem.min,mem.stedv,disk,p,m,pm
+aid,inst_cnt,cpu_max,cpu_avg,cpu_min,cpu_stdev,mem_max,mem_avg,mem_min,mem_stedv,disk,p,m,pm
 app_1,1,0.7,0.5,0.5,0.1,8.0,8.0,8.0,0.0,60,0,0,0
 app_2,1,0.5,0.5,0.5,0.0,8.0,8.0,8.0,0.0,60,0,0,0
 app_3,4,0.5,0.5,0.5,0.0,8.0,8.0,8.0,0.0,60,0,0,0

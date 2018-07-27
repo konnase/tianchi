@@ -5,7 +5,11 @@ namespace Tianchi {
   public static partial class Program {
     private static string _projectPath = "D:/tianchi/";
 
-    private static StreamWriter _w;
+    private static StreamWriter _w = null;
+
+    // ReSharper disable once ConvertToAutoProperty
+    private static string[] DataSet => DataSetB;
+    private static string CsvDeploy => DataPath + DataSet[3];
 
     //这里使用固定的文件名，覆盖旧数据
     //submit_{DateTime.Now:yyyyMMdd_hhmmss}.csv";
@@ -14,22 +18,18 @@ namespace Tianchi {
     private static void Main(string[] args) {
       if (args.Length == 1) _projectPath = args[0];
 
-      ReadAllData();
+      ReadAllData(DataSet);
+      //_w = ;
+      RunFirstFit();
+      //_w.Close();
+      PrintSearch();
 
-      _w = File.CreateText(CsvSubmit);
-      //RunFirstFit();
+      //GenDeploy($"{_projectPath}/search");
 
-      //输出初始部署的机器资源占用情况
-      //Machines.Where(m => !m.IsIdle).Each(Console.WriteLine);
+      //Console.WriteLine("==Judge==");
+      FinalCheck();
 
-      GenDeploy($"{_projectPath}/search");
-
-      _w.Close();
-      /*
-      Console.WriteLine("==Judge==");
-      JudgeSubmit(CsvSubmit); //*/
-
-      Console.WriteLine("==End==");
+      //Console.WriteLine("==End==");
     }
   }
 }
