@@ -7,16 +7,15 @@ namespace Tianchi {
   public static partial class Program {
     //这里bin是指最终的某个机器放置方案，即要放置到同一台机器的实例列表
     //绝大部分bin在初始状态还没有关联到某台机器
-    private const int BinCount = 5128; //b //5506; //a
-    private static readonly List<Instance>[] Bins = new List<Instance>[BinCount];
+    private static readonly List<List<Instance>> Bins = new List<List<Instance>>(6000);
 
     private static int DeployedBinsCount => Bins.Sum(bin => IsDeployed(bin) ? 1 : 0);
 
     private static void GenDeployDataSetA(string searchResultFile) {
       ParseSearchResult(searchResultFile);
 
-      var bins600 = GetBins(600);
-      var bins1024 = GetBins(1024);
+      var bins600 = GetBinsDataSetA(600);
+      var bins1024 = GetBinsDataSetA(1024);
 
       //预先保存这些机器，否则下面分配了空机器后就不好区分了
       var initOccupied600 = OccupiedMachines(600);
@@ -98,14 +97,14 @@ namespace Tianchi {
       return true;
     }
 
-    private static List<List<Instance>> GetBins(int capDisk) {
+    private static List<List<Instance>> GetBinsDataSetA(int capDisk) {
       var bins = new List<List<Instance>>(3000);
       var start = 0;
       var end = 3000;
       if (capDisk == 600) {
         //search文件中3000行之后的方案是600 GB硬盘的机器的
         start = 3000;
-        end = Bins.Length;
+        end = Bins.Count;
       }
 
       for (var i = start; i < end; i++) bins.Add(Bins[i]);
@@ -154,18 +153,18 @@ namespace Tianchi {
     private static void VerifySearchResult(string searchResultFile) {
       ClearMachineDeployment(); //reset to a clean state
       ParseSearchResult(searchResultFile);
+      //Machines.Sort((m, n) => n.CapDisk.CompareTo(m.CapDisk));
 
-      for (var i = 0; i < Bins.Length; i++) //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
+      for (var i = 0; i < Bins.Count; i++) //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
         DeployBinWithoutCheck(Machines[i], Bins[i]);
 
       PrintScore();
-      FinalCheck(true);
+      FinalCheck();
     }
 
     private static void ParseSearchResult(string searchResultFile) {
       //格式为
       //total(0.500000,600): {80,100,80,100,80,80,80} (inst_6297,inst_20827,...)
-      var i = 0;
       var f = File.OpenText(searchResultFile);
       string line;
       while (null != (line = f.ReadLine())) {
@@ -173,7 +172,7 @@ namespace Tianchi {
         var s = line.IndexOf("inst_");
         if (s < 0) continue;
 
-        Bins[i++] = line.Substring(s, line.Length - s - 1).CsvToInstList();
+        Bins.Add(line.Substring(s, line.Length - s - 1).CsvToInstList());
       }
 
       f.Close();
