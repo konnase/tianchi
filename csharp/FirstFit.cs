@@ -16,34 +16,16 @@ namespace Tianchi {
             if (inst.DeployedMachine == m) continue;
 
             //if (m.AddInstance(inst, _w)) break; //FirstFit
-            if (m.AddInstance(inst)) break; //FirstFit
+            if (m.AddInstance(inst)) break; //先不输出到文件了
           }
     }
 
     private static void RunFirstFit() {
       Console.WriteLine("==FirstFit==");
 
-//      var vips = from i in Instances
-//        where i.NeedDeployOrMigrate &&
-//              (i.R.Disk >= 300
-//               || i.R.Mem.Avg >= 12
-//               || i.R.Cpu.Avg >= 7 //5871: 300,12,7
-//              )
-//        select i;
-//
-//      FirstFit(vips, true);
-
-      var overLoaded = Machines.Where(m => m.Score > 3);
-      foreach (var m in overLoaded) {
-        m.ClearInstances();
-      }
-
-      var instList = Instances.OrderByDescending(inst => inst.R.Cpu.Avg); //Cpu[45]
+      var instList = Instances.OrderBy(inst => inst.R.Cpu.Avg); //Cpu[45]
 
       FirstFit(instList);
-
-      var outlier = Instances.Where(i => i.NeedDeployOrMigrate);
-      Console.WriteLine(outlier.ToList()[0]);
 
       if (!AllInstDeployed) {
         Console.WriteLine("Failed, Not all instances are depoyed");
@@ -56,5 +38,6 @@ namespace Tianchi {
 
     //TODO: SigComm14 Tetris 中按app.R与m.avil.R点积之后 BFD
     //TODO: [X] 从机器的角度，挑选合适的app; [Y] 还是从app角度，挑选合适的机器？
+    //TODO: TPDS00 - An Opportunity Cost （Borg引用的E-PVM）编辑成本
   }
 }

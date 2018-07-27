@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Tianchi {
@@ -35,7 +36,7 @@ namespace Tianchi {
       foreach (var inst in xInstList)
         //inst可能存在多个冲突，这里不再一一找出，只输出机器上的应用计数列表
         Console.WriteLine($"m_{inst.DeployedMachine.Id},app_{inst.App.Id}," +
-                          $"inst_{inst.Id},{inst.DeployedMachine.AppListToStr()}");
+                          $"inst_{inst.Id},[{inst.DeployedMachine.AppListToStr()}]");
     }
 
     //注意：这里cpu输出合计最大时刻的值，mem则是平均值
@@ -47,13 +48,13 @@ namespace Tianchi {
     }
 
     //输出有实例部署的机器资源占用情况
-    private static void PrintMachineDeployment() {
+    private static void PrintMachine(IEnumerable<Machine> machines) {
       Console.WriteLine("cap_disk,mid,score," +
                         "avl_cpu_min,util_cpu_max,util_cpu_avg," +
                         "avl_mem_min,util_mem_max,util_mem_avg," +
                         "avl_disk,util_disk,avl_p," +
                         "inst_cnt,inst_list");
-      Machines.Where(m => !m.IsIdle).Each(Console.WriteLine);
+      machines.Each(Console.WriteLine);
     }
 
     private static void PrintAppUtilStat() {
@@ -101,6 +102,27 @@ namespace Tianchi {
       }
     }
 
+    private static void PrintSearch() {
+      //格式
+      //total(0.204543,1020):
+      //{650,60,60,40,150,60}
+      //(inst_68485,inst_96520,inst_8627,inst_69755,inst_84710,inst_56168)
+      var list = from m in Machines
+        orderby m.CapDisk descending,
+          m.CapDisk - m.Avail.Disk descending, // used disk
+          m.Score descending,
+          m.InstList.Count
+        select m;
+
+      foreach (var m in list) {
+        if (m.IsIdle) continue;
+        m.InstList.Sort((i, j) => j.R.Disk.CompareTo(i.R.Disk));
+        Console.WriteLine($"total({m.Score:0.00},{m.CapDisk - m.Avail.Disk}): " +
+                          $"{{{m.InstList.ToStr(i => i.R.Disk)}}} " +
+                          $"({m.InstListToStr()})");
+      }
+    }
+
     private static void PrintInitStats() {
       PrintCsvInitInfo();
       Console.WriteLine();
@@ -108,7 +130,7 @@ namespace Tianchi {
       Console.WriteLine();
       PrintAppUtilStat();
       Console.WriteLine();
-      PrintMachineDeployment();
+      PrintMachine(Machines.Where(m => !m.IsIdle));
       Console.WriteLine();
       //PrintUtilTs();
     }

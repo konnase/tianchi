@@ -5,7 +5,7 @@ namespace Tianchi {
   public static partial class Program {
     private static string _projectPath = "D:/tianchi/";
 
-    private static StreamWriter _w;
+    private static StreamWriter _w = null;
 
     // ReSharper disable once ConvertToAutoProperty
     private static string[] DataSet => DataSetB;
@@ -19,17 +19,17 @@ namespace Tianchi {
       if (args.Length == 1) _projectPath = args[0];
 
       ReadAllData(DataSet);
-
       //_w = ;
       RunFirstFit();
       //_w.Close();
+      PrintSearch();
 
       //GenDeploy($"{_projectPath}/search");
 
-      Console.WriteLine("==Judge==");
+      //Console.WriteLine("==Judge==");
       FinalCheck();
 
-      Console.WriteLine("==End==");
+      //Console.WriteLine("==End==");
     }
   }
 }

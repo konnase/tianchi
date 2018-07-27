@@ -40,15 +40,22 @@ namespace Tianchi {
         array[i, j] = v;
     }
 
-    public static string ToStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
+    public static string ToMergeStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
       var list = new List<T>(insts.Count);
       foreach (var i in insts) list.Add(attr(i));
 
       return list.ToMergeStr();
     }
 
-    public static string ToStr<T>(this T[] array) {
-      if (array.Length == 0) return string.Empty;
+    public static string ToStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
+      var list = new List<T>(insts.Count);
+      foreach (var i in insts) list.Add(attr(i));
+
+      return list.ToStr();
+    }
+
+    public static string ToStr<T>(this ICollection<T> array) {
+      if (array.Count == 0) return string.Empty;
       var s = new StringBuilder();
 
       foreach (var p in array) {

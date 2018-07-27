@@ -11,7 +11,7 @@ namespace Tianchi {
     public static readonly Dictionary<int, App> AppKv = new Dictionary<int, App>(AppCount);
 
     public static readonly Dictionary<int, Machine> MachineKv = new Dictionary<int, Machine>(MachineCount);
-    public static readonly List<Machine> Machines = new List<Machine>(6000);
+    public static readonly List<Machine> Machines = new List<Machine>(MachineCount);
 
     public static readonly Instance[] Instances = new Instance[InstCount];
 

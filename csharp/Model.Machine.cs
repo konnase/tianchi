@@ -148,7 +148,7 @@ namespace Tianchi {
     // 检查当前累积使用的资源量 _accum **加上r之后** 是否会超出 capacity，
     // 不会修改当前资源量
     public bool IsOverCapacity(Instance inst) {
-      var f = Math.Abs(CapCpu - 92) < 0.01 ? 0.75 : 0.65;
+      var f = Math.Abs(CapCpu - 92) < 0.01 ? 0.746 : 0.694;
       var r = inst.R;
 
       return _accum.Disk + r.Disk > CapDisk
@@ -199,11 +199,11 @@ namespace Tianchi {
     }
 
     public string InstListToStr() {
-      return $"[{InstList.ToStr(i => $"inst_{i.Id}")}]";
+      return $"{InstList.ToStr(i => $"inst_{i.Id}")}";
     }
 
     public string AppListToStr() {
-      return $"[{InstList.ToStr(i => $"app_{i.App.Id}")}]";
+      return $"{InstList.ToStr(i => $"app_{i.App.Id}")}";
     }
 
     public string FailedReason(Instance inst) {
