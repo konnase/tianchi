@@ -48,6 +48,12 @@ class FFD(object):
             #     print app.id,
             # print len(machine.insts)
             for inst in machine.insts.values():
+                if machine.disk_capacity > 2400 and (machine.cpu_use > machine.cpu_capacity * 0.7).any():
+                    machine.remove_inst(inst)
+                    self.deploy_inst(inst)
+                if machine.disk_capacity < 2400 and (machine.cpu_use > machine.cpu_capacity * 0.6).any():
+                    machine.remove_inst(inst)
+                    self.deploy_inst(inst)
 
                 for inst_b in machine.insts.values():
                     if machine.apps_id.count(inst.app.id) <= 0:
@@ -96,7 +102,7 @@ class FFD(object):
                 if app.disk >= LARGE_DISK_INST or (app.cpu >= np.full(int(LINE_SIZE), LARGE_CPU_INST)).any() \
                         or (app.mem >= np.full(int(LINE_SIZE), LARGE_MEM_INST)).any() and not inst.placed:
                     for machine in self.machines:
-                        if machine.disk_capacity >= 1024 and machine.disk_use == 0:
+                        if machine.disk_capacity >= 2400 and machine.disk_use == 0:
                             machine.put_inst(inst)
                             self.submit_result.append((inst.id, machine.id))
                             inst.placed = True
