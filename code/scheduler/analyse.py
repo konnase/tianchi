@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 
 from constant import *
@@ -7,6 +9,7 @@ def start_analyse(instance_index, ffd, SEARCH_FILE):
     ffd.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
     results = []
     machine_count = 0
+    final_score = 0
     with open(SEARCH_FILE, "r") as f:
         for line in f:
             instances_id = line.split()[2].strip('(').strip(')').split(',')
@@ -53,6 +56,12 @@ def start_analyse(instance_index, ffd, SEARCH_FILE):
             avg_mem_use /= inst_count
             result = "%s\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\n" % (out_of_capacity, max_cpu_use, avg_cpu_use, max_mem_use, avg_mem_use)
             results.append(result)
+
+            score = 0
+            for i in range(LINE_SIZE):
+                score += (1 + 10 * (math.exp(max(0, (ffd.machines[machine_count].cpu_use[i] / ffd.machines[machine_count].cpu_capacity) - 0.5)) - 1))
+            final_score += score / LINE_SIZE
             machine_count += 1
-        ffd.fit_before(ffd.machines[0:machine_count])
+    print final_score
+    ffd.fit_before(ffd.machines[0:machine_count])
     return results

@@ -48,10 +48,10 @@ class FFD(object):
             #     print app.id,
             # print len(machine.insts)
             for inst in machine.insts.values():
-                if machine.disk_capacity > 2400 and (machine.cpu_use > machine.cpu_capacity * 0.7).any():
+                if machine.disk_capacity > 2400 and (machine.cpu_use > machine.cpu_capacity * 0.68).any():
                     machine.remove_inst(inst)
                     self.deploy_inst(inst)
-                if machine.disk_capacity < 2400 and (machine.cpu_use > machine.cpu_capacity * 0.6).any():
+                if machine.disk_capacity < 2400 and (machine.cpu_use > machine.cpu_capacity * 0.58).any():
                     machine.remove_inst(inst)
                     self.deploy_inst(inst)
 
