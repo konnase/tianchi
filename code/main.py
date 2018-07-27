@@ -1,10 +1,13 @@
 from scheduler.search import Search
+import math
 from scheduler.knapsack import Knapsack
 from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import start_analyse
 from scheduler.models import prepare_apps_interfers
+import datetime
+import numpy as np
 
 
 def main():
@@ -33,18 +36,25 @@ def main():
         with open("submit.csv", "w") as f:
             for count, item in enumerate(ffd.submit_result):
                 f.write("{0},{1}\n".format(item[0], item[1]))
-        with open("search", "w") as f:
+        z = datetime.datetime.now()
+        final_score = 0
+        with open("search-result/search_%s%s_%s%s" % (z.month, z.day, z.hour, z.minute), "w") as f:
             for count, machine in enumerate(machines):
                 inst_disk = ""
                 inst_id = ""
                 all_disk_use = 0
+                score = 0
+                for i in range(98):
+                    score += (1 + 10 * (math.exp(max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
                 for inst in machine.insts.values():
                     inst_disk += "," + str(inst.app.disk)
                     inst_id += "," + str(inst.id)
                     all_disk_use += inst.app.disk
                 if all_disk_use == 0:
                     continue
-                f.write("total{%s}, (%s), (%s)\n" % (all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
+                final_score += score / 98
+                f.write("total(%s,%s): {%s}, (%s)\n" % (score / 98, all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
+        print final_score
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
         if options.request:

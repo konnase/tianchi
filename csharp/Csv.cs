@@ -17,21 +17,21 @@ namespace Tianchi {
 
     public static readonly Dictionary<int, Instance> InstanceKv = new Dictionary<int, Instance>(InstCount);
 
-    private static string DataPath => $"{_projectPath}/data/";
-
-    private static readonly string[] DataSetA = new[] {
+    private static readonly string[] DataSetA = {
       "scheduling_preliminary_app_resources_20180606.csv",
       "scheduling_preliminary_app_interference_20180606.csv",
       "scheduling_preliminary_machine_resources_20180606.csv",
       "scheduling_preliminary_instance_deploy_20180606.csv"
     };
 
-    private static readonly string[] DataSetB = new[] {
+    private static readonly string[] DataSetB = {
       "scheduling_preliminary_b_app_resources_20180726.csv",
       "scheduling_preliminary_b_app_interference_20180726.csv",
       "scheduling_preliminary_b_machine_resources_20180726.csv",
       "scheduling_preliminary_b_instance_deploy_20180726.csv"
     };
+
+    private static string DataPath => $"{_projectPath}/data/";
 
     private static void ReadAllData(string[] dataSet) {
       ReadApp(DataPath + dataSet[0]);

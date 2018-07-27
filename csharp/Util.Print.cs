@@ -64,22 +64,19 @@ namespace Tianchi {
                         "mem_max,mem_avg,mem_min,mem_stedv," +
                         "disk,p,m,pm");
 
-      foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {
+      foreach (var a in AppKv.Values.OrderBy(a => a.Id))
         Console.WriteLine($"app_{a.Id},{a.InstanceCount}," +
                           $"{a.R.Cpu.Max:0.0},{a.R.Cpu.Avg:0.0}," +
                           $"{a.R.Cpu.Min:0.0},{a.R.Cpu.Stdev:0.0}," +
                           $"{a.R.Mem.Max:0.0},{a.R.Mem.Avg:0.0}," +
                           $"{a.R.Mem.Min:0.0},{a.R.Mem.Stdev:0.0}," +
                           $"{a.R.Disk},{a.R.P},{a.R.M},{a.R.Pm}");
-      }
     }
 
     private static void PrintRequestUtil() {
       var r = new Resource();
 
-      foreach (var inst in Instances) {
-        r.Add(inst.R);
-      }
+      foreach (var inst in Instances) r.Add(inst.R);
 
       var totalCpuCap = Machines.Sum(m => m.CapCpu);
       var totalMemCap = Machines.Sum(m => m.CapMem);
@@ -95,11 +92,10 @@ namespace Tianchi {
 
       Console.WriteLine();
       Console.WriteLine("ts,cpu,mem,util_cpu,util_mem");
-      for (var i = 0; i < Resource.TsCount; i++) {
+      for (var i = 0; i < Resource.TsCount; i++)
         Console.WriteLine($"{i + 1},{r.Cpu[i]:0.0},{r.Mem[i]:0.0}," +
                           $"{r.Cpu[i] * 100 / totalCpuCap:0.000}%," +
                           $"{r.Mem[i] * 100 / totalMemCap:0.000}%");
-      }
     }
 
     private static void PrintSearch() {
