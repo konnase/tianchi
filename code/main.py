@@ -1,3 +1,4 @@
+from scheduler.search import Search
 from scheduler.knapsack import Knapsack
 from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
@@ -49,14 +50,14 @@ def main():
         if options.request:
             knapsack.print_request()
         if options.test:
-                knapsack.read_lower_bound()
+                # knapsack.read_lower_bound()
                 knapsack.test(options.test)
                 # knapsack.fix_bug()
                 # knapsack.output()
-                knapsack.write_to_csv()
+                # knapsack.write_to_csv()
         if options.search:
             try:
-                knapsack.read_lower_bound()
+                # knapsack.read_lower_bound()
                 knapsack.test(options.search)
                 knapsack.search()
                 knapsack.output()
@@ -73,6 +74,14 @@ def main():
         with open("knapsack_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(ffd.init_deploy_conflict):
                 f.write("{0}\n".format(item))
+    elif Method(options.method) == Method.Search:
+        search = Search(insts, apps, machines, app_interfers)
+        search.rating(options.search)
+        try:
+            search.search()
+        except KeyboardInterrupt:
+            print "write to file."
+            search.output()
 
 
 if __name__ == '__main__':
