@@ -32,7 +32,7 @@ def main():
         with open("submit.csv", "w") as f:
             for count, item in enumerate(ffd.submit_result):
                 f.write("{0},{1}\n".format(item[0], item[1]))
-        with open("machine_tasks", "w") as f:
+        with open("search", "w") as f:
             for count, machine in enumerate(machines):
                 inst_disk = ""
                 inst_id = ""
