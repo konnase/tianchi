@@ -1,11 +1,12 @@
 
+from scheduler.search import Search
+
 from scheduler.knapsack import Knapsack
 from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import Analyse
 from scheduler.models import prepare_apps_interfers
-
 
 
 def main():
@@ -44,7 +45,7 @@ def main():
             knapsack.write_to_csv()
         if options.search:
             try:
-                knapsack.read_lower_bound()
+                # knapsack.read_lower_bound()
                 knapsack.test(options.search)
                 knapsack.search()
                 knapsack.output()
@@ -58,6 +59,15 @@ def main():
         smaller_cpu_util = options.smaller_cpu_util
         analyse.start_analyse(search_file, larger_cpu_util, smaller_cpu_util)
         analyse.write_to_csv()
+
+    elif Method(options.method) == Method.Search:
+        search = Search(insts, apps, machines, app_interfers)
+        search.rating(options.search)
+        try:
+            search.search()
+        except KeyboardInterrupt:
+            print "write to file."
+            search.output()
 
 
 if __name__ == '__main__':

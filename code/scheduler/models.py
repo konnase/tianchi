@@ -1,5 +1,6 @@
 import os
 import numpy as np
+import math
 import copy
 from enum import Enum
 
@@ -11,6 +12,7 @@ class Method(Enum):
     Knapsack = 2
     Analyse = 3
     If_Search_Has_Init_Conflict = 4
+    Search = 5
 
 
 class Instance(object):
@@ -58,6 +60,7 @@ class Application(object):
         self.p = int(p)
         self.m = int(m)
         self.pm = int(pm)
+        self.resource = np.hstack((self.cpu, self.mem, np.array([self.disk, self.p, self.m, self.pm])))
 
         self.instances = []
         self.interfer_others = {}
@@ -83,6 +86,10 @@ class Machine(object):
         self.pm_capacity = int(pm_capacity)
         self.pmp = np.array([0] * 3)
         self.pmp_cap = np.array([0] * 3)
+        self.resource_capacity = np.hstack((np.full(int(LINE_SIZE), self.mem_capacity),
+                                            np.full(int(LINE_SIZE), self.mem_capacity), np.array(
+            [self.disk_capacity, self.p_capacity, self.m_capacity, self.pm_capacity])))
+        self.resource_use = np.zeros(200)
         self.app_interfers = {}
 
         self.cpu = np.full(int(LINE_SIZE), self.cpu_capacity)
@@ -108,6 +115,8 @@ class Machine(object):
         self.m_num += inst.app.m
         self.pm_num += inst.app.pm
 
+        self.resource_use += inst.app.resource
+
         self.apps_id.append(inst.app.id)
 
     def remove_inst(self, inst):
@@ -119,10 +128,12 @@ class Machine(object):
         self.m_num -= inst.app.m
         self.pm_num -= inst.app.pm
 
+        self.resource_use -= inst.app.resource
+
         self.apps_id.remove(inst.app.id)
 
     def take_out(self, inst):
-        del(self.insts[inst.id])
+        del (self.insts[inst.id])
 
         self.cpu_use -= inst.app.cpu
         self.mem_use -= inst.app.mem
@@ -130,6 +141,8 @@ class Machine(object):
         self.p_num -= inst.app.p
         self.m_num -= inst.app.m
         self.pm_num -= inst.app.pm
+
+        self.resource_use -= inst.app.resource
 
         self.apps_id.remove(inst.app.id)
 
@@ -208,11 +221,23 @@ class Machine(object):
         self.insts.clear()
 
     @property
-    def cpu_score(self):
+    def cpu_usage(self):
         return max(self.cpu_use / self.cpu_capacity)
 
     @property
-    def mem_score(self):
+    def cpu_score(self):
+        # return max(self.cpu_use / self.cpu_capacity)
+        if self.disk_use == 0:
+            return 0
+        score = 0
+        for i in self.cpu_use / self.cpu_capacity:
+            # print i
+            score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
+            # print 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
+        return score / 98.0
+
+    @property
+    def mem_usage(self):
         return max(self.mem_use / self.mem_capacity)
 
     @property
@@ -254,8 +279,8 @@ class Machine(object):
         return Machine(*line.strip().split(","))
 
     def __str__(self):
-        return "Machine id(%s) disk(%d/%d) cpu_score(%f) mem_score(%f) bins(%s)" % (
-            self.id, self.disk_use, self.disk_capacity, self.cpu_score, self.mem_score,
+        return "Machine id(%s) cpu_score(%f) disk(%d/%d) cpu_usage(%f) mem_usage(%f) bins(%s)" % (
+            self.id, self.cpu_score, self.disk_use, self.disk_capacity, self.cpu_usage, self.mem_usage,
             ",".join([str(i.app.disk) for i in self.insts.values()]))
 
 

@@ -65,46 +65,6 @@ class Knapsack(object):
         for i, line in enumerate(open("lower_bound")):
             self.machines[i].bins = map(int, re.findall(r'[^{}]+', line)[1].split(','))
 
-    def fit(self):
-        for i, machine in enumerate(self.machines):
-            if len(machine.bins) == 0:
-                continue
-
-            cpu_cap = copy.copy(machine.cpu / 2)
-            mem_cap = copy.copy(machine.mem)
-
-            result = []
-            bin_candidate = []
-
-            for bin in machine.bins:
-                candidates = filter(lambda x: not x.placed, self.inst_index[bin])
-                bin_candidate.append(candidates)
-
-            bin_candidate.sort(key=lambda x: max(x, key=lambda y: y.score).score, reverse=True)
-
-            for bin in bin_candidate:
-                for item in bin:
-                    print item.app.mem
-                    # print item.app.disk, "score", item.score
-                    if all(item.app.cpu < cpu_cap) and all(item.app.mem < mem_cap):
-                        item.machine_id = machine.id
-                        item.placed = True
-
-                        cpu_cap -= item.app.cpu
-                        mem_cap -= item.app.mem
-
-                        result.append(item)
-
-                        break
-
-            assert (len(result) == len(machine.bins))
-
-            cpu_usage, mem_usage = self.place_score(result, machine)
-            print cpu_usage, mem_usage
-            assert cpu_usage <= 0.5
-            print "bin(%d) placed(%d)" % (len(machine.bins), len(result))
-            print "%d: machine(%s) %s %s" % (i, machine.id, machine.bins, ",".join([str(i.score) for i in result]))
-
     @staticmethod
     def place_score(result, machine):
         size = len(result[0].app.cpu)
@@ -116,40 +76,6 @@ class Knapsack(object):
             mem += item.app.mem
 
         return np.linalg.norm(cpu / machine.cpu, ord=1) / size, np.linalg.norm(mem / machine.mem, ord=1) / size
-
-    def knapsack(self):
-        unplaced = len(self.insts)
-        machine_num = 0
-
-        while unplaced > 0:
-            self._knapsack(self.machines[machine_num])
-
-            machine_num += 1
-            unplaced = len(filter(lambda x: not x.placed, self.insts))
-
-    def _knapsack(self, machine):
-        disk_cap = machine.disk_capacity
-        dp = np.zeros((int(disk_cap) + 1, 1))
-        g = np.zeros((len(self.insts) + 1, int(disk_cap) + 1))
-
-        for i in range(len(self.insts)):
-            if self.insts[i].placed:
-                continue
-            for j in range(int(disk_cap), int(self.insts[i].app.disk) + 1, -1):
-                if dp[j - int(self.insts[i].app.disk)][0] + int(self.insts[i].app.disk) > dp[j][0]:
-                    dp[j][0] = dp[j - int(self.insts[i].app.disk)][0] + int(self.insts[i].app.disk)
-                    g[i][j] = 1
-
-        x = copy.copy(disk_cap)
-        bin = []
-        for i in range(len(self.insts) - 1, -1, -1):
-            if x < 0:
-                break
-            if g[i][x]:
-                x -= self.insts[i].disk
-                self.insts[i].placed = True
-                bin.append(self.insts[i])
-        print "machine(%s): %d, %s" % (machine.id, dp[disk_cap], ",".join([item.id for item in bin]))
 
     @staticmethod
     def score(weight):
@@ -226,6 +152,7 @@ class Knapsack(object):
         m_overload_cnt = 0
         pm_overload_cnt = 0
         interfer_cnt = 0
+        cpu_score = 0
 
         total_cnt = 0
         violate_cnt = 0
@@ -241,6 +168,8 @@ class Knapsack(object):
 
             if machine.disk_use > 0:
                 total_cnt += 1
+
+            cpu_score += machine.cpu_score
 
             for inst in machine.insts.values():
                 cpu += inst.app.cpu
@@ -288,6 +217,7 @@ class Knapsack(object):
             if pm > machine.pm_capacity:
                 pm_overload_cnt += 1
 
+        print "CPU Score: %d" % cpu_score
         print "Disk Overload: %f (%d / %d)" % (float(disk_overload_cnt) / total_cnt, disk_overload_cnt, total_cnt)
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
@@ -321,7 +251,7 @@ class Knapsack(object):
                 self.machines[i].insts[inst_id].machine_id = i
 
         while True:
-            if not self.handle_constraint_violate():
+            if not self.handle_disk():
                 # if not self.handle_constraint_by_move():
                 break
 
@@ -471,6 +401,31 @@ class Knapsack(object):
                 for machine2 in set2:
                     if self.can_move_constraint(inst1, machine2):
                         return True
+
+    def handle_disk(self):
+        set1 = filter(lambda x: x.disk_use > x.disk_capacity, self.machines)
+        set2 = filter(lambda x: x.disk_use <= x.disk_capacity, self.machines)
+
+        for i, machine1 in enumerate(set1):
+            print "SET1(%d/%d) %s" % (i + 1, len(set1), set1[i])
+            for inst1 in set1[i].insts.values():
+                for j, machine2 in enumerate(set2):
+                    for inst2 in set2[j].insts.values():
+                        if self.can_swap_disk(inst1, inst2):
+                            return True
+        return False
+
+    def can_swap_disk(self, inst1, inst2):
+        machine1 = self.machines[inst1.machine_id]
+        machine2 = self.machines[inst2.machine_id]
+        disk1 = machine1.disk_use - inst1.app.disk + inst2.app.disk
+        disk2 = machine2.disk_use - inst2.app.disk + inst1.app.disk
+        delta = machine1.disk_use ** 2 + machine2.disk_use ** 2 - disk1**2 - disk2**2
+        if disk2 < machine2.disk_capacity and delta > 0:
+            print machine1.disk_use, machine2.disk_use, disk1, disk2, delta
+            self.do_swap(inst1, inst2)
+            return True
+        return False
 
     def can_move_constraint(self, inst, machine):
         if machine.disk_use + inst.app.disk > machine.disk_capacity:
@@ -637,6 +592,9 @@ class Knapsack(object):
         mem1 = machine1.mem_use + inst2.app.mem - inst1.app.mem
         mem2 = machine2.mem_use + inst1.app.mem - inst2.app.mem
 
+        disk1 = machine1.disk_use + inst2.app.disk - inst1.app.disk
+        disk2 = machine2.disk_use + inst1.app.disk - inst2.app.disk
+
         cpu_radio1 = max(cpu1) / machine1.cpu_capacity
         cpu_radio2 = max(cpu2) / machine2.cpu_capacity
         cpu_delta = -cpu_radio1 ** 2 - cpu_radio2 ** 2 + machine1.cpu_score ** 2 + machine2.cpu_score ** 2
@@ -664,6 +622,8 @@ class Knapsack(object):
         self.machines[j].cpu_use = self.machines[j].cpu_use + inst1.app.cpu - inst2.app.cpu
         self.machines[i].mem_use = self.machines[i].mem_use + inst2.app.mem - inst1.app.mem
         self.machines[j].mem_use = self.machines[j].mem_use + inst1.app.mem - inst2.app.mem
+        self.machines[i].disk_use = self.machines[i].disk_use + inst2.app.disk - inst1.app.disk
+        self.machines[j].disk_use = self.machines[j].disk_use + inst1.app.disk - inst2.app.disk
 
         self.machines[i].insts.pop(inst1.id)
         self.machines[j].insts.pop(inst2.id)

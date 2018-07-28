@@ -4,19 +4,19 @@
 
 ```
 java -jar judge.jar \
-../data/scheduling_preliminary_app_resources_20180606.csv \
-../data/scheduling_preliminary_machine_resources_20180606.csv \
-../data/scheduling_preliminary_instance_deploy_20180606.csv \
-../data/scheduling_preliminary_app_interference_20180606.csv \
+../data/scheduling_preliminary_b_app_resources_20180726.csv \
+../data/scheduling_preliminary_b_machine_resources_20180726.csv \
+../data/scheduling_preliminary_b_instance_deploy_20180726.csv \
+../data/scheduling_preliminary_b_app_interference_20180726.csv \
 ../submit.csv
 ```
 
 或
 ```
-java -jar judge.jar ../data/problem.csv ../submit.csv
+java -jar judge.jar ../data/b.csv ../submit.csv
 ```
 
-> 其中 `problem.csv` 是按评分程序格式合并的数据。
+> 其中 `b.csv` 是按评分程序格式合并的数据。
 
 # 参考官方评分程序，修改的Bugs
 1. 官方程序对初始部署中不满足约束的那些实例的处理措施是：
