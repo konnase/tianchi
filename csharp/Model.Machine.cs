@@ -9,10 +9,15 @@ namespace Tianchi {
 
     private const double Alpha = 10, Beta = 0.5;
 
+    private static double _f;
+
+    private static Func<double, double> Exp => Math.Exp;
+    private static Func<double, double, double> Max => Math.Max;
+
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
     private readonly Resource _accum = new Resource();
-    private readonly Resource _avail = new Resource();
+    private readonly Resource _avail = new Resource().Invalid();
 
     // 分应用汇总的实例个数
     public readonly Dictionary<App, int> AppCount = new Dictionary<App, int>();
@@ -43,6 +48,7 @@ namespace Tianchi {
         int.Parse(fields[6])
       );
       IsIdle = true;
+      _f = Math.Abs(CapCpu - 92) < 0.01 ? Program.UtilCpuH : Program.UtilCpuL;
     }
 
     public double UtilCpuAvg => _accum.Cpu.Avg / CapCpu;
@@ -53,14 +59,15 @@ namespace Tianchi {
 
     public Resource Avail {
       get {
-        _avail.SubtractByCap(Cap, _accum);
+        if (!_avail.IsValid) _avail.SubtractByCapacity(Cap, _accum);
+
         return _avail;
       }
     }
 
     public bool IsFull => Avail.Disk < 40.0
                           || Avail.Mem.Max < 1.0
-                          || Avail.Cpu.Max < 0.5; //出现的最小的资源值
+                          || Avail.Cpu.Max < 0.5; //出现的最小的资源值，同适用于DataSet A和B
 
     public bool IsIdle { get; private set; }
 
@@ -68,25 +75,17 @@ namespace Tianchi {
     public double Score {
       get {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
-        if (_score == double.MinValue) _calcScore();
+        if (_score == double.MinValue) {
+          if (IsIdle) {
+            _score = 0.0;
+            return _score;
+          }
+
+          _score = _accum.Cpu.Average(u => 1 + Alpha * (Exp(Max(0, u / CapCpu - Beta)) - 1));
+        }
 
         return _score;
       }
-    }
-
-    private void _calcScore() {
-      if (IsIdle) {
-        _score = 0.0;
-        return;
-      }
-
-      var sum = 0.0;
-      for (var ts = 0; ts < TsCount; ts++) {
-        var c = _accum.Cpu[ts] / CapCpu;
-        sum += c <= Beta ? 1.0 : Alpha * Math.Exp(c - Beta) - Alpha + 1.0;
-      }
-
-      _score = sum / TsCount;
     }
 
     // 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
@@ -103,11 +102,9 @@ namespace Tianchi {
       _accum.Add(inst.R);
 
       _score = double.MinValue;
+      _avail.Invalid();
 
-      if (!AppCount.ContainsKey(inst.App))
-        AppCount[inst.App] = 1;
-      else
-        AppCount[inst.App] += 1;
+      AppCount[inst.App] = AppCount.GetValueOrDefault(inst.App, 0) + 1;
 
       //inst之前已经部署到某台机器上了，需要迁移
       inst.DeployedMachine?.RemoveInstance(inst);
@@ -129,6 +126,7 @@ namespace Tianchi {
       _accum.Subtract(inst.R);
 
       _score = double.MinValue;
+      _avail.Invalid();
 
       AppCount[inst.App] -= 1;
       if (AppCount[inst.App] == 0) AppCount.Remove(inst.App);
@@ -145,17 +143,18 @@ namespace Tianchi {
       return !IsOverCapacity(inst) && !IsXWithDeployed(inst);
     }
 
+
     // 检查当前累积使用的资源量 _accum **加上r之后** 是否会超出 capacity，
     // 不会修改当前资源量
     public bool IsOverCapacity(Instance inst) {
-      var f = Math.Abs(CapCpu - 92) < 0.01 ? Program.CpuUtilH : Program.CpuUtilL;
+      //DataSetB only!!!
       var r = inst.R;
 
       return _accum.Disk + r.Disk > CapDisk
-             || _accum.P + r.P > Cap.P
-             || _accum.Pm + r.Pm > Cap.Pm //所有App的PM都等于P
-             || _accum.M + r.M > Cap.M //所有App的M都是0
-             || _accum.Cpu.MaxWith(r.Cpu) > f * CapCpu
+             || _accum.P > Cap.P
+             || _accum.Pm + r.Pm > Cap.Pm
+             || _accum.M > Cap.M
+             || _accum.Cpu.MaxWith(r.Cpu) > _f * CapCpu
              || _accum.Mem.MaxWith(r.Mem) > CapMem;
     }
 

@@ -14,14 +14,6 @@ namespace Tianchi {
       return int.Parse(id.Substring(id.IndexOf('_') + 1));
     }
 
-    public static int[] CsvToIntArray(this string csv) {
-      var fields = csv.Split(',');
-      var result = new int[fields.Length];
-      for (var i = 0; i < fields.Length; i++) result[i] = int.Parse(fields[i]);
-
-      return result;
-    }
-
     public static List<Instance> CsvToInstList(this string csv) {
       var fields = csv.Split(',');
       var result = new List<Instance>(fields.Length);
@@ -40,25 +32,18 @@ namespace Tianchi {
         array[i, j] = v;
     }
 
-    public static string ToMergeStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
-      var list = new List<T>(insts.Count);
-      foreach (var i in insts) list.Add(attr(i));
+    public static string ToStr<TS, T>(this IList<TS> list, Func<TS, T> func) {
+      var result = new List<T>(list.Count);
+      foreach (var i in list) result.Add(func(i));
 
-      return list.ToMergeStr();
+      return result.ToStr();
     }
 
-    public static string ToStr<T>(this List<Instance> insts, Func<Instance, T> attr) {
-      var list = new List<T>(insts.Count);
-      foreach (var i in insts) list.Add(attr(i));
-
-      return list.ToStr();
-    }
-
-    public static string ToStr<T>(this ICollection<T> array) {
-      if (array.Count == 0) return string.Empty;
+    public static string ToStr<T>(this ICollection<T> list) {
+      if (list.Count == 0) return string.Empty;
       var s = new StringBuilder();
 
-      foreach (var p in array) {
+      foreach (var p in list) {
         s.Append(p);
         s.Append(",");
       }
@@ -66,20 +51,12 @@ namespace Tianchi {
       return s.Length > 1 ? s.ToString(0, s.Length - 1) : string.Empty;
     }
 
-    private static string ToMergeStr<T>(this List<T> list) {
+    private static string ToMergeStr<T>(this ICollection<T> list) {
       if (list.Count == 0) return string.Empty;
-
-      var arr = new T[list.Count];
-      list.CopyTo(arr);
-
-      Array.Sort(arr);
-
       var kv = new Dictionary<T, int>(list.Count);
-      foreach (var i in arr)
-        if (kv.ContainsKey(i))
-          kv[i]++;
-        else
-          kv[i] = 1;
+
+      list.OrderBy(k => k)
+        .ForEach(k => kv[k] = kv.GetValueOrDefault(k, 0) + 1);
 
       var s = new StringBuilder();
 
@@ -96,8 +73,12 @@ namespace Tianchi {
       return s.Length > 1 ? s.ToString(0, s.Length - 1) : string.Empty;
     }
 
-    public static void Each<T>(this IEnumerable<T> iter, Action<T> action) {
+    public static void ForEach<T>(this IEnumerable<T> iter, Action<T> action) {
       foreach (var i in iter) action(i);
+    }
+
+    public static void ForEach<T>(this IList<T> collection, Action<T, int> action) {
+      for (var i = 0; i < collection.Count; i++) action(collection[i], i);
     }
   }
 }

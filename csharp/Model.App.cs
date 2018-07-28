@@ -32,9 +32,8 @@ namespace Tianchi {
     }
 
     public int XLimit(App otherApp) {
-      if (_xRules.Count == 0
-          || !_xRules.ContainsKey(otherApp.Id))
-        return int.MaxValue;
+      if (_xRules.Count == 0 || !_xRules.ContainsKey(otherApp.Id))
+        return int.MaxValue; //MaxValue即没有限制
 
       return _xRules[otherApp.Id];
     }

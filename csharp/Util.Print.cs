@@ -22,14 +22,18 @@ namespace Tianchi {
                         $"Instance#: {Instances.Length}, " +
                         $"Machine#: {Machines.Count}");
 
-      //FinalCheck(true); //DataSetA: 151;
-      var xInstList = (from i in Instances
-        where i.DeployedMachine != null && i.NeedDeployOrMigrate
-        select i).ToList(); //初始被忽略约束，强制部署到机器上的实例
+      //以下输出初始数据中违反约束的情况
+      //FinalCheck(verbose:true); //DataSetA: 151
+
+      //初始数据中，忽略了约束，被强制部署到机器上的实例
+      var xInstList = Instances
+        .Where(i => i.DeployedMachine != null && i.NeedDeployOrMigrate)
+        .ToList();
 
       if (xInstList.Count > 0)
-        Console.WriteLine(xInstList.Count); //DataSetA: 143; 没有资源超限的初始部署实例；
+        Console.WriteLine(xInstList.Count); //DataSetA: 143
 
+      //DataSetA
       //注意：与上述FinalCheck结果不同，但这是合理的；
       //一台机器上可能有多个实例发生冲突，导致计数出入。
       //共117台机器上存在约束冲突
@@ -39,12 +43,15 @@ namespace Tianchi {
                           $"inst_{inst.Id},[{inst.DeployedMachine.AppListToStr()}]");
     }
 
-    //注意：这里cpu输出合计最大时刻的值，mem则是平均值
+    //DataSetB
+    //注意：这里cpu输出合计最大时刻ts=45的值，mem则是平均值
     private static void PrintInstRequest() {
       Console.WriteLine(InstCount);
       foreach (var inst in Instances)
-        Console.WriteLine($"{Math.Ceiling(inst.R.Cpu[45])} {Math.Ceiling(inst.R.Mem.Avg)} " +
-                          $"{inst.R.Disk} inst_{inst.Id}");
+        Console.WriteLine($"{Math.Ceiling(inst.R.Cpu[45])} " +
+                          $"{Math.Ceiling(inst.R.Mem.Avg)} " +
+                          $"{inst.R.Disk} " +
+                          $"inst_{inst.Id}");
     }
 
     //输出有实例部署的机器资源占用情况
@@ -54,23 +61,24 @@ namespace Tianchi {
                         "avl_mem_min,util_mem_max,util_mem_avg," +
                         "avl_disk,util_disk,avl_p," +
                         "inst_cnt,inst_list");
-      machines.Each(Console.WriteLine);
+      machines.ForEach(Console.WriteLine);
     }
 
     private static void PrintAppUtilStat() {
-      var r = new Resource();
       Console.WriteLine("aid,inst_cnt," +
                         "cpu_max,cpu_avg,cpu_min,cpu_stdev," +
                         "mem_max,mem_avg,mem_min,mem_stedv," +
                         "disk,p,m,pm");
 
-      foreach (var a in AppKv.Values.OrderBy(a => a.Id))
+      foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {
+        var r = a.R;
         Console.WriteLine($"app_{a.Id},{a.InstanceCount}," +
-                          $"{a.R.Cpu.Max:0.0},{a.R.Cpu.Avg:0.0}," +
-                          $"{a.R.Cpu.Min:0.0},{a.R.Cpu.Stdev:0.0}," +
-                          $"{a.R.Mem.Max:0.0},{a.R.Mem.Avg:0.0}," +
-                          $"{a.R.Mem.Min:0.0},{a.R.Mem.Stdev:0.0}," +
-                          $"{a.R.Disk},{a.R.P},{a.R.M},{a.R.Pm}");
+                          $"{r.Cpu.Max:0.0},{r.Cpu.Avg:0.0}," +
+                          $"{r.Cpu.Min:0.0},{r.Cpu.Stdev:0.0}," +
+                          $"{r.Mem.Max:0.0},{r.Mem.Avg:0.0}," +
+                          $"{r.Mem.Min:0.0},{r.Mem.Stdev:0.0}," +
+                          $"{r.Disk},{r.P},{r.M},{r.Pm}");
+      }
     }
 
     private static void PrintRequestUtil() {
@@ -78,24 +86,24 @@ namespace Tianchi {
 
       foreach (var inst in Instances) r.Add(inst.R);
 
-      var totalCpuCap = Machines.Sum(m => m.CapCpu);
-      var totalMemCap = Machines.Sum(m => m.CapMem);
-      var totalDiskCap = Machines.Sum(m => m.CapDisk);
-      var totalPCap = Machines.Sum(m => m.Cap.P);
-      var totalMCap = Machines.Sum(m => m.Cap.M);
-      var totalPmCap = Machines.Sum(m => m.Cap.Pm);
+      var totalCapCpu = Machines.Sum(m => m.CapCpu);
+      var totalCapMem = Machines.Sum(m => m.CapMem);
+      var totalCapDisk = Machines.Sum(m => m.CapDisk);
+      var totalCapP = Machines.Sum(m => m.Cap.P);
+      var totalCapM = Machines.Sum(m => m.Cap.M);
+      var totalCapPm = Machines.Sum(m => m.Cap.Pm);
 
-      Console.WriteLine($"Disk: {r.Disk},{r.Disk * 100.0 / totalDiskCap:0.00}%");
-      Console.WriteLine($"P: {r.P},{r.P * 100.0 / totalPCap:0.00}%");
-      Console.WriteLine($"M: {r.M},{r.M * 100.0 / totalMCap:0.00}%");
-      Console.WriteLine($"PM: {r.Pm},{r.Pm * 100.0 / totalPmCap:0.00}%");
+      Console.WriteLine($"Disk: {r.Disk},{r.Disk * 100.0 / totalCapDisk:0.00}%");
+      Console.WriteLine($"P: {r.P},{r.P * 100.0 / totalCapP:0.00}%");
+      Console.WriteLine($"M: {r.M},{r.M * 100.0 / totalCapM:0.00}%");
+      Console.WriteLine($"PM: {r.Pm},{r.Pm * 100.0 / totalCapPm:0.00}%");
 
       Console.WriteLine();
       Console.WriteLine("ts,cpu,mem,util_cpu,util_mem");
       for (var i = 0; i < Resource.TsCount; i++)
         Console.WriteLine($"{i + 1},{r.Cpu[i]:0.0},{r.Mem[i]:0.0}," +
-                          $"{r.Cpu[i] * 100 / totalCpuCap:0.000}%," +
-                          $"{r.Mem[i] * 100 / totalMemCap:0.000}%");
+                          $"{r.Cpu[i] * 100 / totalCapCpu:0.000}%," +
+                          $"{r.Mem[i] * 100 / totalCapMem:0.000}%");
     }
 
     private static void PrintSearch() {
@@ -104,6 +112,7 @@ namespace Tianchi {
       //{650,60,60,40,150,60}
       //(inst_68485,inst_96520,inst_8627,inst_69755,inst_84710,inst_56168)
       var list = from m in Machines
+        where !m.IsIdle
         orderby m.CapDisk descending,
           m.CapDisk - m.Avail.Disk descending, // used disk
           m.Score descending,
@@ -111,7 +120,6 @@ namespace Tianchi {
         select m;
 
       foreach (var m in list) {
-        if (m.IsIdle) continue;
         m.InstList.Sort((i, j) => j.R.Disk.CompareTo(i.R.Disk));
         Console.WriteLine($"total({m.Score:0.00},{m.CapDisk - m.Avail.Disk}): " +
                           $"{{{m.InstList.ToStr(i => i.R.Disk)}}} " +
