@@ -6,14 +6,19 @@ namespace Tianchi {
   public static partial class Program {
     private static void PrintScore() {
       Console.WriteLine($"TotalScore: " +
-                        $"{TotalCostScore:0.00} / {UsedMachineCount}" +
-                        $" = [{TotalCostScore / UsedMachineCount:0.00}]");
+                        $"{TotalCostScore:0.00} on {UsedMachineCount} Machines; " +
+                        $"Score/Machines = [{TotalCostScore / UsedMachineCount:0.00}]");
     }
 
     private static void PrintUndeployedInst() {
-      foreach (var inst in Instances)
-        if (inst.NeedDeployOrMigrate)
-          Console.WriteLine(inst);
+      var undeployedInsts = Instances.Where(inst => inst.NeedDeployOrMigrate).ToList();
+      if (undeployedInsts.Count > 0) {
+        Console.WriteLine($"\nUndeployed Instances: {undeployedInsts.Count}");
+        if (undeployedInsts.Count <= 10) {
+          Console.WriteLine("inst_id,app_id,cpu_max,mem_max,disk,p");
+          undeployedInsts.ForEach(Console.WriteLine);
+        }
+      }
     }
 
     private static void PrintCsvInitInfo() {
