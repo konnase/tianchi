@@ -21,3 +21,5 @@ data/scheduling_preliminary_b*
 data/b.csv
 
 ./lower_bound
+search-result/search_*
+search
