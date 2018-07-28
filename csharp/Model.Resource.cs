@@ -16,12 +16,19 @@ namespace Tianchi {
       Pm = pm;
     }
 
+    public bool IsValid => Disk != int.MinValue;
+
     public Series Cpu { get; }
     public Series Mem { get; }
     public int Disk { get; private set; }
     public int P { get; private set; }
     public int M { get; private set; }
     public int Pm { get; private set; }
+
+    public Resource Invalid() {
+      Disk = int.MinValue;
+      return this;
+    }
 
     public void Add(Resource r) {
       Cpu.Add(r.Cpu);
@@ -32,7 +39,7 @@ namespace Tianchi {
       Pm += r.Pm;
     }
 
-    // 从当前资源中扣除 r ，
+    // 从当前资源中扣除 r ,
     // 这里不做超限检查
     public void Subtract(Resource r) {
       Cpu.Subtract(r.Cpu);
@@ -44,7 +51,7 @@ namespace Tianchi {
     }
 
     // 计算总容量 capacity 与 r 的差值，分别赋给 this 对应的维度
-    public void SubtractByCap(Resource capacity, Resource r) {
+    public void SubtractByCapacity(Resource capacity, Resource r) {
       Cpu.SubtractByCapacity(capacity.Cpu, r.Cpu);
       Mem.SubtractByCapacity(capacity.Mem, r.Mem);
       Disk = capacity.Disk - r.Disk;
@@ -54,7 +61,7 @@ namespace Tianchi {
     }
 
     public override string ToString() {
-      return $"{Cpu.Max:0}, {Mem.Max:0}, {Disk}, {P}";
+      return $"{Cpu.Max:0.0}, {Mem.Max:0.0}, {Disk}, {P}";
     }
   }
 }

@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
@@ -9,6 +7,8 @@ namespace Tianchi {
     //绝大部分bin在初始状态还没有关联到某台机器
     private static readonly List<List<Instance>> Bins = new List<List<Instance>>(6000);
 
+    /*
+    //用于 DataSetA 的代码
     private static int DeployedBinsCount => Bins.Sum(bin => IsDeployed(bin) ? 1 : 0);
 
     private static void GenDeployDataSetA(string searchResultFile) {
@@ -130,11 +130,6 @@ namespace Tianchi {
           throw new Exception($"Unkown Error, Deployed Failed!{m}");
     }
 
-    private static void DeployBinWithoutCheck(Machine m, List<Instance> bin) {
-      foreach (var inst in bin)
-        m.AddInstance(inst, ignoreCheck: true);
-    }
-
     //列表中所有实例是否都部署到了同一台机器上，而且都没有违反亲和性约束    
     private static bool IsDeployed(List<Instance> bin) {
       var m = bin[0].DeployedMachine;
@@ -149,21 +144,28 @@ namespace Tianchi {
 
       return sameMachine;
     }
+    //*/
 
+    private static void DeployBinNoCheck(Machine m, List<Instance> bin) {
+      bin.ForEach(inst => m.AddInstance(inst, ignoreCheck: true));
+    }
+
+    //验证装箱搜索结果，需要先读取初始的csv数据
     private static void VerifySearchResult(string searchResultFile) {
       ClearMachineDeployment(); //reset to a clean state
       ParseSearchResult(searchResultFile);
+
       //Machines.Sort((m, n) => n.CapDisk.CompareTo(m.CapDisk));
 
-      for (var i = 0; i < Bins.Count; i++) //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
-        DeployBinWithoutCheck(Machines[i], Bins[i]);
+      //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
+      Bins.ForEach((bin, i) => DeployBinNoCheck(Machines[i], Bins[i]));
 
       PrintScore();
       FinalCheck();
     }
 
     private static void ParseSearchResult(string searchResultFile) {
-      //格式为
+      //格式
       //total(0.500000,600): {80,100,80,100,80,80,80} (inst_6297,inst_20827,...)
       var f = File.OpenText(searchResultFile);
       string line;
