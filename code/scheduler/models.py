@@ -133,13 +133,13 @@ class Machine(object):
 
         self.apps_id.remove(inst.app.id)
 
-    def can_deploy_inst(self, inst):
+    def can_deploy_inst(self, inst, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
         app = inst.app
-        if self.disk_capacity - self.disk_use <= app.disk or \
-                (self.disk_capacity > 2400 and (self.cpu * 0.68 - self.cpu_use <= app.cpu).any()) or \
-                (self.disk_capacity < 2400 and (self.cpu * 0.58 - self.cpu_use <= app.cpu).any()) or \
-                (self.mem - self.mem_use <= app.mem).any() or self.p_capacity - self.p_num <= app.p or \
-                self.m_capacity - self.m_num <= app.m or self.pm_capacity - self.pm_num <= app.pm:
+        if self.disk_capacity - self.disk_use < app.disk or \
+                (self.disk_capacity == larger_disk_capacity and (self.cpu * larger_cpu_util - self.cpu_use < app.cpu).any()) or \
+                (self.disk_capacity == smaller_disk_capacity and (self.cpu * smaller_cpu_util - self.cpu_use < app.cpu).any()) or \
+                (self.mem - self.mem_use < app.mem).any() or self.p_capacity - self.p_num < app.p or \
+                self.m_capacity - self.m_num < app.m or self.pm_capacity - self.pm_num < app.pm:
             return False
         # this machine can hold the instance in memory view
         for app_a in app.interfer_by_others.values():
@@ -174,6 +174,38 @@ class Machine(object):
                 if cnt > self.app_interfers[(inst.app.id, app)].num:
                     return False
         return True
+
+    def has_init_conflict(self, inst, inst_b):
+        if inst.app.interfer_others.has_key(inst_b.app.id) and \
+                inst.app.interfer_others[inst_b.app.id] < self.apps_id.count(inst_b.app.id):
+            return True
+        return False
+
+    def is_cpu_util_too_high(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
+        if self.disk_capacity == larger_disk_capacity and (
+                self.cpu_use > self.cpu_capacity * larger_cpu_util).any():
+            return True
+        if self.disk_capacity == smaller_disk_capacity and (
+                self.cpu_use > self.cpu_capacity * smaller_cpu_util).any():
+            return True
+        return False
+
+    def out_of_capacity(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
+        if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity) or \
+                (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any() or \
+                self.p_num > self.p_capacity or self.m_num > self.m_capacity or self.pm_num > self.pm_capacity:
+            return True
+        return False
+
+    def clean_machine_status(self):
+        self.apps_id[:] = []
+        self.mem_use = np.zeros(int(LINE_SIZE))
+        self.cpu_use = np.zeros(int(LINE_SIZE))
+        self.disk_use = 0
+        self.p_num = 0
+        self.m_num = 0
+        self.pm_num = 0
+        self.insts.clear()
 
     @property
     def cpu_score(self):

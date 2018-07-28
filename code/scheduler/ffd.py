@@ -1,3 +1,6 @@
+import datetime
+import math
+
 import numpy as np
 
 import models
@@ -24,6 +27,10 @@ class FFD(object):
 
         self.applications.sort(key=lambda x: x.disk, reverse=True)
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
+        self.larger_disk_capacity = self.machines[0].disk_capacity
+        self.smaller_disk_capacity = self.machines[5999].disk_capacity
+        self.larger_cpu_util = 0.0
+        self.smaller_cpu_util = 0.0
 
     def get_app_id_index(self):
         for app in self.applications:
@@ -31,86 +38,59 @@ class FFD(object):
 
     def get_deployed_inst(self):
         for inst in self.instances:
-            # print inst.machine_id
             if inst.machine_id == '':
                 continue
             machine_index = self.machine_index[inst.machine_id]
             self.machines[machine_index].put_inst(inst)
             inst.placed = True
 
-    def fit_before(self, machines):
-        print "starting fit_before"
+    def resolve_init_conflict(self, machines):
+        print "starting resolve_init_conflict"
         time.sleep(2)
 
         for machine in machines:
-            # print "\n", machine.id, len(machine.insts)
-            # for app in machine.insts:
-            #     print app.id,
-            # print len(machine.insts)
             for inst in machine.insts.values():
-                if machine.disk_capacity > 2400 and (machine.cpu_use > machine.cpu_capacity * 0.68).any():
+                if machine.is_cpu_util_too_high(self.larger_cpu_util, self.smaller_cpu_util, self.larger_disk_capacity,
+                                                self.smaller_disk_capacity):
                     machine.remove_inst(inst)
                     self.deploy_inst(inst)
-                if machine.disk_capacity < 2400 and (machine.cpu_use > machine.cpu_capacity * 0.58).any():
-                    machine.remove_inst(inst)
-                    self.deploy_inst(inst)
-
+                    continue
                 for inst_b in machine.insts.values():
                     if machine.apps_id.count(inst.app.id) <= 0:
                         break
-                    if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                            inst.app.interfer_others[inst_b.app.id] < machine.apps_id.count(inst_b.app.id):
-                        # todo: need to move inst
-                        self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
-                                                         (machine.id, inst.app.id, inst.id, inst_b.app.id,
-                                                          inst_b.id, inst.app.interfer_others[inst_b.app.id],
-                                                          machine.apps_id.count(inst_b.app.id)))
-                        print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
-                                                         (machine.id, inst.app.id, inst_b.app.id,
-                                                          inst.app.interfer_others[inst_b.app.id],
-                                                          machine.apps_id.count(inst_b.app.id))
+                    if machine.has_init_conflict(inst, inst_b):
+                        self.record_init_conflict(machine, inst, inst_b)
                         machine.remove_inst(inst_b)
                         self.deploy_inst(inst_b)
-                        # i += 1
-                        # print "after deployed i = %d" % i
-                        pass
                 for inst_interferd in machine.insts.values():
                     if not machine.insts.has_key(inst):
                         break
-                    if inst_interferd.app.interfer_others.has_key(inst.app.id) and \
-                            inst_interferd.app.interfer_others[inst.app.id] < machine.apps_id.count(inst.app.id):
-                        # todo: need to move inst
-                        self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
-                                                         (machine.id, inst_interferd.app.id, inst_interferd.id, inst.app.id,
-                                                          inst.id, inst_interferd.app.interfer_others[inst.app.id],
-                                                          machine.apps_id.count(inst.app.id)))
-                        print "%s, inst was interferd appA:%s, appB:%s, interfer:%d, deployed:%d" % \
-                                                         (machine.id, inst_interferd.app.id, inst.app.id,
-                                                          inst_interferd.app.interfer_others[inst.app.id],
-                                                          machine.apps_id.count(inst.app.id))
+                    if machine.has_init_conflict(inst_interferd, inst):
+                        self.record_init_conflict(machine, inst_interferd, inst)
                         machine.remove_inst(inst)
                         self.deploy_inst(inst)
-                        pass
-
-            pass
 
     def fit_large_inst(self):
         print "starting fit_large_inst"
         time.sleep(2)
         for app in self.applications:
             for inst in app.instances:
-                if app.disk >= LARGE_DISK_INST or (app.cpu >= np.full(int(LINE_SIZE), LARGE_CPU_INST)).any() \
-                        or (app.mem >= np.full(int(LINE_SIZE), LARGE_MEM_INST)).any() and not inst.placed:
-                    for machine in self.machines:
-                        if machine.disk_capacity >= 2400 and machine.disk_use == 0:
-                            machine.put_inst(inst)
-                            self.submit_result.append((inst.id, machine.id))
-                            inst.placed = True
-                            print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
-                            break
 
-    def fit(self):
-        self.fit_before(self.machines)
+                if not inst.placed and (
+                        app.disk >= LARGE_DISK_INST or (app.cpu >= np.full(int(LINE_SIZE), LARGE_CPU_INST)).any()
+                        or (app.mem >= np.full(int(LINE_SIZE), LARGE_MEM_INST)).any()):
+                    for machine in self.machines:
+                        if machine.disk_capacity == self.larger_disk_capacity and machine.disk_use <= 200:
+                            if machine.can_deploy_inst(inst, self.larger_cpu_util, self.smaller_cpu_util,
+                                                       self.larger_disk_capacity, self.smaller_disk_capacity):
+                                self.deploy_inst_on_machine(machine, inst)
+                                print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
+                                break
+
+    def fit(self, larger_cpu_util=1, smaller_cpu_util=1):
+        self.larger_cpu_util = larger_cpu_util
+        self.smaller_cpu_util = smaller_cpu_util
+        self.resolve_init_conflict(self.machines)
         self.fit_large_inst()
         print "starting fit"
         time.sleep(2)
@@ -118,17 +98,56 @@ class FFD(object):
             for inst in app.instances:
                 if not inst.placed:
                     self.deploy_inst(inst)
-        self.fit_before(self.machines)
-        # for count, machine in enumerate(self.machines):
-        #     print machine.id, machine.disk_capacity
+        self.resolve_init_conflict(self.machines)
 
     def deploy_inst(self, inst):
         for machine in self.machines:
-            if machine.can_deploy_inst(inst):
-                machine.put_inst(inst)
-                self.submit_result.append((inst.id, machine.id))
-                inst.placed = True
+            if machine.can_deploy_inst(inst, self.larger_cpu_util, self.smaller_cpu_util, self.larger_disk_capacity,
+                                       self.smaller_disk_capacity):
+                self.deploy_inst_on_machine(machine, inst)
                 print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                 break
+        else:
+            raise Exception("%s is not deployed" % inst)
 
+    def deploy_inst_on_machine(self, machine, inst):
+        machine.put_inst(inst)
+        self.submit_result.append((inst.id, machine.id))
+        inst.placed = True
 
+    def record_init_conflict(self, machine, inst, inst_b):
+        self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
+                                         (machine.id, inst.app.id, inst.id, inst_b.app.id, inst_b.id,
+                                          inst.app.interfer_others[inst_b.app.id],
+                                          machine.apps_id.count(inst_b.app.id)))
+        print "%s, appA:%s, appB:%s, interfer:%d, deployed:%d" % \
+              (machine.id, inst.app.id, inst_b.app.id, inst.app.interfer_others[inst_b.app.id],
+               machine.apps_id.count(inst_b.app.id))
+
+    def write_to_csv(self):
+        with open("init_deploy_conflict.csv", "w") as f:
+            for count, item in enumerate(self.init_deploy_conflict):
+                f.write("{0}\n".format(item))
+        with open("submit.csv", "w") as f:
+            for count, item in enumerate(self.submit_result):
+                f.write("{0},{1}\n".format(item[0], item[1]))
+        z = datetime.datetime.now()
+        final_score = 0
+        with open("search-result/search_%s%s_%s%s" % (z.month, z.day, z.hour, z.minute), "w") as f:
+            for count, machine in enumerate(self.machines):
+                inst_disk = ""
+                inst_id = ""
+                all_disk_use = 0
+                score = 0
+                for i in range(98):
+                    score += (1 + 10 * (math.exp(max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
+                for inst in machine.insts.values():
+                    inst_disk += "," + str(inst.app.disk)
+                    inst_id += "," + str(inst.id)
+                    all_disk_use += inst.app.disk
+                if all_disk_use == 0:
+                    continue
+                final_score += score / 98
+                f.write("total(%s,%s): {%s}, (%s)\n" % (
+                    score / 98, all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
+        print final_score
