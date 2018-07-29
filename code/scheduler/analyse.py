@@ -75,7 +75,7 @@ class Analyse(object):
         self.m_overload += m
         self.pm_overload += pm
         out_of_capacity = False
-        if cpu == 1 or mem == 1 or p == 1 or m == 1 or pm == 1:
+        if cpu == 1 or mem == 1 or disk == 1or p == 1 or m == 1 or pm == 1:
             out_of_capacity = True
         self.append_result(machine, out_of_capacity)
 
@@ -91,12 +91,10 @@ class Analyse(object):
             inst_count += 1
             index = self.instance_index[inst_id]
             machine.put_inst(self.instances[index])
-            if np.max(self.instances[index].app.cpu) > self.max_cpu_use:
-                self.max_cpu_use = np.max(self.instances[index].app.cpu)
-            if np.max(self.instances[index].app.mem) > self.max_mem_use:
-                self.max_mem_use = np.max(self.instances[index].app.mem)
             self.avg_cpu_use += np.average(self.instances[index].app.cpu)
             self.avg_mem_use += np.average(self.instances[index].app.mem)
+        self.max_cpu_use = np.max(machine.cpu_use)
+        self.max_mem_use = np.max(machine.mem_use)
         return inst_count
 
     @staticmethod
