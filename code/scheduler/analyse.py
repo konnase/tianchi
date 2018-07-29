@@ -31,6 +31,7 @@ class Analyse(object):
         self.p_overload = 0
         self.m_overload = 0
         self.pm_overload = 0
+        self.disk_overload = 0
 
     def start_analyse(self, search_file, larger_cpu_util, smaller_cpu_util):
         self.larger_cpu_util = larger_cpu_util
@@ -57,7 +58,7 @@ class Analyse(object):
                 #                                              self.larger_disk_capacity, self.smaller_disk_capacity)
                 self.avg_cpu_use /= inst_count
                 self.avg_mem_use /= inst_count
-                self.append_result(machine, out_of_capacity)
+
                 final_score += self.get_final_score(machine)
                 all_inst += len(instances_id)
                 machine_count += 1
@@ -65,13 +66,18 @@ class Analyse(object):
         self.resolve_init_conflict(self.machines[0:machine_count])
 
     def record_overload_machine(self, machine):
-        cpu, mem, p, m, pm = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
-                                                     self.larger_disk_capacity, self.smaller_disk_capacity)
+        cpu, mem, disk, p, m, pm = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
+                                                           self.larger_disk_capacity, self.smaller_disk_capacity)
         self.cpu_overload += cpu
         self.mem_overload += mem
+        self.disk_overload += disk
         self.p_overload += p
         self.m_overload += m
         self.pm_overload += pm
+        out_of_capacity = False
+        if cpu == 1 or mem == 1 or p == 1 or m == 1 or pm == 1:
+            out_of_capacity = True
+        self.append_result(machine, out_of_capacity)
 
     def deploy_inst(self, instances_id, machine):
         inst_count = 0
@@ -135,6 +141,12 @@ class Analyse(object):
 
     def print_watch_message(self, final_score, all_inst):
         print "score:%4.3f,insts_num:%d" % (final_score, all_inst)
+        print "cpu overload machine num:%d" % self.cpu_overload
+        print "mem overload machine num:%d" % self.mem_overload
+        print "disk overload machine num:%d" % self.disk_overload
+        print "p overload machine num:%d" % self.p_overload
+        print "m overload machine num:%d" % self.m_overload
+        print "pm overload machine num:%d" % self.pm_overload
         print "Insts below are multi-deployed:"
         multi_deployed_insts_num = 0
         for inst, count in self.single_inst_count.items():

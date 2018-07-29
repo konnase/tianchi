@@ -199,18 +199,20 @@ class Machine(object):
         return False
 
     def out_of_capacity(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        cpu = mem = p = m = pm = 0
+        cpu = mem = disk = p = m = pm = 0
         if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity):
             cpu = 1
         if (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any():
             mem = 1
+        if self.disk_use > self.disk_capacity:
+            disk = 1
         if self.p_num > self.p_capacity:
             p = 1
         if self.m_num > self.m_capacity:
             m = 1
         if self.pm_num > self.pm_capacity:
             pm = 1
-        return cpu, mem, p, m, pm
+        return cpu, mem, disk, p, m, pm
 
     def clean_machine_status(self):
         self.apps_id[:] = []
