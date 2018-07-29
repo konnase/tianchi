@@ -38,9 +38,8 @@ def main():
         if options.request:
             knapsack.print_request()
         if options.test:
-            knapsack.read_lower_bound()
             knapsack.test(options.test)
-            knapsack.write_to_csv()
+            # knapsack.write_to_csv()
         if options.search:
             try:
                 # knapsack.read_lower_bound()
@@ -64,7 +63,7 @@ def main():
         try:
             search.search()
         except KeyboardInterrupt:
-            print "write to file."
+            search._rating()
             search.output()
 
 

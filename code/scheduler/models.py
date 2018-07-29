@@ -101,6 +101,7 @@ class Machine(object):
         self.apps_id = []
         self.bins = []
         self.app_inst = {}
+        self.apps_count = {}
 
         self.p_num = 0
         self.m_num = 0
@@ -119,6 +120,9 @@ class Machine(object):
 
         self.apps_id.append(inst.app.id)
 
+        # save app count
+        self.apps_count[inst.app.id] = self.apps_count[inst.app.id] + 1 if inst.app.id in self.apps_count else 1
+
     def remove_inst(self, inst):
         self.insts.pop(inst.id)
         self.cpu_use -= inst.app.cpu
@@ -132,20 +136,10 @@ class Machine(object):
 
         self.apps_id.remove(inst.app.id)
 
-    # we should deprecate this
-    def take_out(self, inst):
-        del (self.insts[inst.id])
-
-        self.cpu_use -= inst.app.cpu
-        self.mem_use -= inst.app.mem
-        self.disk_use -= inst.app.disk
-        self.p_num -= inst.app.p
-        self.m_num -= inst.app.m
-        self.pm_num -= inst.app.pm
-
-        self.resource_use -= inst.app.resource
-
-        self.apps_id.remove(inst.app.id)
+        # remove app
+        self.apps_count[inst.app.id] -= 1
+        if self.apps_count[inst.app.id] == 0:
+            self.apps_count.pop(inst.app.id)
 
     def can_deploy_inst(self, inst, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
         app = inst.app
@@ -241,6 +235,13 @@ class Machine(object):
             score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
         return score / 98.0
 
+    @staticmethod
+    def calc_cpu_score(usage, capacity):
+        score = 0
+        for i in usage / capacity:
+            score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
+        return score / len(usage)
+
     @property
     def mem_usage(self):
         return max(self.mem_use / self.mem_capacity)
@@ -251,6 +252,18 @@ class Machine(object):
         for inst in self.insts.values():
             dic[inst.app.id] = dic[inst.app.id] + 1 if inst.app.id in dic else 1
         return dic
+
+    def has_conflict(self):
+        interfer_cnt = 0
+        for app_a, cnt1 in self.apps_count.iteritems():
+            for app_b, cnt2 in self.apps_count.iteritems():
+                if (app_a, app_b) in self.app_interfers:
+                    if cnt2 > self.app_interfers[(app_a, app_b)].num:
+                        interfer_cnt += 1
+                if (app_b, app_a) in self.app_interfers:
+                    if cnt1 > self.app_interfers[(app_b, app_a)].num:
+                        interfer_cnt += 1
+        return interfer_cnt > 0
 
     @property
     def inter_inst_num(self):
@@ -264,6 +277,9 @@ class Machine(object):
                 if (app_a, app_b) in self.app_interfers:
                     if app_dict[app_b] > self.app_interfers[(app_a, app_b)].num:
                         interfer_cnt += app_dict[app_b]
+                if (app_b, app_a) in self.app_interfers:
+                    if app_dict[app_a] > self.app_interfers[(app_b, app_a)].num:
+                        interfer_cnt += app_dict[app_a]
         return interfer_cnt
 
     @property
@@ -277,7 +293,13 @@ class Machine(object):
                 if (app_a, app_b) in self.app_interfers:
                     if app_dict[app_b] > self.app_interfers[(app_a, app_b)].num:
                         apps.add(app_b)
+                if (app_b, app_a) in self.app_interfers:
+                    if app_dict[app_a] > self.app_interfers[(app_b, app_a)].num:
+                        apps.add(app_a)
         return apps
+
+    def resource_overload(self):
+        return any(np.around(self.resource_use, 8) > np.around(self.resource_capacity, 8))
 
     @staticmethod
     def from_csv_line(line):
