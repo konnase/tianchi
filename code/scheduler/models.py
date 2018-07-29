@@ -132,6 +132,7 @@ class Machine(object):
 
         self.apps_id.remove(inst.app.id)
 
+    # we should deprecate this
     def take_out(self, inst):
         del (self.insts[inst.id])
 
@@ -226,14 +227,11 @@ class Machine(object):
 
     @property
     def cpu_score(self):
-        # return max(self.cpu_use / self.cpu_capacity)
         if self.disk_use == 0:
             return 0
         score = 0
         for i in self.cpu_use / self.cpu_capacity:
-            # print i
             score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
-            # print 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
         return score / 98.0
 
     @property

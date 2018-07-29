@@ -40,8 +40,6 @@ def main():
         if options.test:
             knapsack.read_lower_bound()
             knapsack.test(options.test)
-            # knapsack.fix_bug()
-            # knapsack.output()
             knapsack.write_to_csv()
         if options.search:
             try:
