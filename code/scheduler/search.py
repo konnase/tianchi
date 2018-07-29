@@ -179,13 +179,13 @@ class Search(object):
     def do_swap(self, inst1, inst2):
         machine1 = self.machines[inst1.machine_id]
         machine2 = self.machines[inst2.machine_id]
+        tmp = inst1.machine_id
+        inst1.machine_id = inst2.machine_id
+        inst2.machine_id = tmp
         machine1.put_inst(inst2)
         machine1.remove_inst(inst1)
         machine2.put_inst(inst1)
         machine2.remove_inst(inst2)
-        tmp = inst1.machine_id
-        inst1.machine_id = inst2.machine_id
-        inst2.machine_id = tmp
 
     def output(self):
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)

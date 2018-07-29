@@ -234,6 +234,13 @@ class Machine(object):
             score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
         return score / 98.0
 
+    @staticmethod
+    def calc_cpu_score(usage, capacity):
+        score = 0
+        for i in usage / capacity:
+            score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
+        return score / len(usage)
+
     @property
     def mem_usage(self):
         return max(self.mem_use / self.mem_capacity)
