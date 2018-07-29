@@ -1,7 +1,7 @@
 # coding=utf-8
 import os
 import numpy as np
-from constant import *
+from config import *
 
 
 class Instance(object):
@@ -14,7 +14,7 @@ class Instance(object):
         # 当实例还没有部署到机器（machine == None），
         # 或者已经部署到机器（machine == a），但需要迁移，还没有确定目标机器时，
         # 设置此标志为False
-        self.placed = False
+        self.deployed = False
 
         # self._metric = -1
 
@@ -65,7 +65,7 @@ class Application(object):
 
 
 class AppInterference(object):
-    kv = {}
+    kv = {}  # <(appId_a, appId_b), limit>
 
     @staticmethod
     def append(line):
@@ -103,13 +103,15 @@ class Machine(object):
                                    np.full(int(TS_COUNT), self.mem_cap),
                                    np.array([self.disk_cap, float(p_cap), float(m_cap), float(pm_cap)])))
 
+        self.full_cap = np.hstack((np.full(int(TS_COUNT), self.cpu_cap),
+                                   np.full(int(TS_COUNT), self.mem_cap),
+                                   np.array([self.disk_cap, float(p_cap), float(m_cap), float(pm_cap)])))
+
         self.usage = np.zeros(len(self.capacity))
 
-        # <inst_id, instance>
-        self.insts = {}
+        self.insts = {}  # <inst_id, instance>
 
-        # <app_id, cnt>
-        self.app_cnt_kv = {}
+        self.app_cnt_kv = {}  # <app_id, cnt>
 
     # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
     @property
@@ -129,12 +131,24 @@ class Machine(object):
         return self.usage[TS_COUNT * 2]
 
     @property
+    def pmp_usage(self):
+        return self.usage[TS_COUNT * 2 + 1:RESOURCE_LEN]
+
+    @property
     def cpu_util_max(self):
-        return max(self.cpu_usage / self.cpu_cap)
+        return np.max(self.cpu_usage / self.cpu_cap)
+
+    @property
+    def cpu_util_avg(self):
+        return np.average(self.cpu_usage / self.cpu_cap)
 
     @property
     def mem_util_max(self):
-        return max(self.mem_usage / self.mem_cap)
+        return np.max(self.mem_usage / self.mem_cap)
+
+    @property
+    def mem_util_avg(self):
+        return np.average(self.mem_usage / self.mem_cap)
 
     @property
     def score(self):
@@ -157,7 +171,7 @@ class Machine(object):
             inst.machine.remove_inst(inst)
 
         inst.machine = self
-        inst.placed = True
+        inst.deployed = True
         self.insts[inst.id] = inst
         self.app_cnt_kv.setdefault(inst.app.id, 0)
         self.app_cnt_kv[inst.app.id] += 1
@@ -168,7 +182,7 @@ class Machine(object):
 
         self.usage -= inst.app.resource
         inst.machine = None
-        inst.placed = False
+        inst.deployed = False
         self.insts.pop(inst.id)
         self.app_cnt_kv[inst.app.id] -= 1
 
@@ -191,19 +205,33 @@ class Machine(object):
     def out_of_capacity(self, inst):
         return any((self.usage + inst.app.resource) > self.capacity)
 
+    # 这里与没有乘以CPU_UTIL系数的资源量比较
+    def out_of_full_capacity(self):
+        return any(self.usage > self.full_cap)
+
     # 亲和性冲突
     def has_conflict(self, inst):
         appId_b = inst.app.id
-        appB_cnt = self.app_cnt_kv.get(appId_b, 0)
+        appCnt_b = self.app_cnt_kv.get(appId_b, 0)
 
-        for appId_a, appA_cnt in self.app_cnt_kv.iteritems():
-            if appB_cnt + 1 > AppInterference.limit_of(appId_a, appId_b):
+        for appId_a, appCnt_a in self.app_cnt_kv.iteritems():
+            if appCnt_b + 1 > AppInterference.limit_of(appId_a, appId_b):
                 return True
 
-            if appA_cnt > AppInterference.limit_of(appId_b, appId_a):
+            if appCnt_a > AppInterference.limit_of(appId_b, appId_a):
                 return True
 
         return False
+
+    def get_conflict_list(self):
+        result = []
+        for appId_a in self.app_cnt_kv.keys():
+            for appId_b, appCnt_b in self.app_cnt_kv.iteritems():
+                limit = AppInterference.limit_of(appId_a, appId_b)
+                if appCnt_b > limit:
+                    result.append((appId_a, appId_b, appCnt_b, limit))
+
+        return result
 
     @staticmethod
     # 合计一组机器的成本分数
@@ -256,7 +284,7 @@ def read_from_csv(project_path):
             m = machine_kv[parts[2]]
             can_deploy = m.can_put_inst(inst)
             m.put_inst(inst)  # 部署inst后，会改变机器状态，故需事先保存标志
-            inst.placed = can_deploy
+            inst.deployed = can_deploy
 
         instance_kv[inst.id] = inst  # 字典直接保存实例对象（的引用）
         instances.append(inst)

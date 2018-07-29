@@ -1,41 +1,30 @@
-import copy
+# coding=utf-8
 import random
-
 import numpy as np
+from config import *
 
-# todo: fix this
+
 class Search(object):
-    def __init__(self, insts, apps, machines, app_interfers):
+    def __init__(self, insts, apps, machines, inst_kv):
         self.insts = insts
-        self.machines = machines
-        self.bak_machines = copy.deepcopy(machines)
         self.apps = apps
-        self.app_interfers = app_interfers
-
-        self.machines = sorted(self.machines, key=lambda x: x.disk_capacity, reverse=True)
-        self.app_to_interfer = {}
-        self.id_to_inst = {}
+        self.machines = sorted(machines, key=lambda x: x.disk_cap, reverse=True)
+        self.inst_kv = inst_kv
 
         self.total_score = 0
 
-        for inst in self.insts:
-            self.id_to_inst[inst.id] = inst
-        for interfer in self.app_interfers:
-            self.app_to_interfer[(interfer.app_a, interfer.app_b)] = interfer
-        for i in range(len(self.machines)):
-            self.machines[i].app_interfers = self.app_to_interfer
-
     def rating(self, output):
-        for i, line in enumerate(open(output)):
+        for i, line in open(output):
             if line.startswith("undeployed"):
                 continue
-            insts = line.split()[2][1:-1].split(',')
+            insts_id = line.split()[2][1:-1].split(',')
 
-            cpu = np.zeros(98)
-            for inst_id in insts:
-                self.machines[i].put_inst(self.id_to_inst[inst_id])
-                self.id_to_inst[inst_id].machine_id = i
-                cpu += self.id_to_inst[inst_id].app.cpu
+            cpu = np.zeros(TS_COUNT)
+            for inst_id in insts_id:
+                # 这里不需要检查是否满足约束
+                inst = self.inst_kv[inst_id]
+                self.machines[i].put_inst(inst)
+                cpu += inst.app.cpu
         self._rating()
 
     def _rating(self):
@@ -46,22 +35,17 @@ class Search(object):
         p_overload_cnt = 0
         m_overload_cnt = 0
         pm_overload_cnt = 0
-        interfer_cnt = 0
+        interference_cnt = 0
         cpu_score = 0
 
         total_cnt = 0
         violate_cnt = 0
 
-        for machine in self.machines:
+        for m in self.machines:
             app_dict = {}
-            cpu = np.array([0.0] * 98)
-            mem = np.array([0.0] * 98)
-            disk = 0
-            p = 0
-            m = 0
-            pm = 0
+            r = m.usage
 
-            if machine.disk_use > 0:
+            if m.disk_usage > 0:
                 total_cnt += 1
 
             cpu_score += machine.cpu_score
@@ -125,7 +109,7 @@ class Search(object):
 
         while True:
             if not self._search():
-               break
+                break
 
     def _search(self):
         set1 = range(len(self.machines))

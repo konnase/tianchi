@@ -1,6 +1,6 @@
 # coding=utf-8
 import datetime
-from constant import *
+from config import *
 
 
 class FFD(object):
@@ -29,7 +29,7 @@ class FFD(object):
         print "starting resolve_init_conflict"
         for inst in self.instances:
             # 初始部署存在冲突的实例
-            if not inst.placed and inst.machine is not None:
+            if not inst.deployed and inst.machine is not None:
                 self.first_fit(inst, machines)
 
     def fit_large_inst(self, machines):

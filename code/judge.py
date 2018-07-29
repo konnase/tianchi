@@ -9,7 +9,7 @@ def read_deploy(path):
 
 
 def judge():
-    insts, app, machines, inst_kv, app_kv, machine_kv, = read_from_csv("data")
+    insts, app, machines, inst_kv, app_kv, machine_kv = read_from_csv("data")
 
     deploys = read_deploy("submit.csv")
 

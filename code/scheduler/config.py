@@ -4,6 +4,7 @@ INSTANCE_INPUT_FILE = "scheduling_preliminary_b_instance_deploy_20180726.csv"
 APP_INTERFER_FILE = "scheduling_preliminary_b_app_interference_20180726.csv"
 
 TS_COUNT = 98
+RESOURCE_LEN = 200
 
 CPU_UTIL_LARGE = 0.682
 CPU_UTIL_SMALL = 0.6

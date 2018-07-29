@@ -5,7 +5,7 @@ from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import Analyse
 from scheduler.models import read_from_csv, AppInterference
-import scheduler.constant as config
+import scheduler.config as config
 
 from enum import Enum
 
@@ -61,11 +61,11 @@ def main():
             except KeyboardInterrupt:
                 print "write to file."
                 knapsack.output()
+
     elif Method(options.method) == Method.Analyse:
         search_file = options.search
-        analyse = Analyse(insts_kv, machines, insts)
+        analyse = Analyse(insts_kv, machines)
         analyse.start_analyse(search_file)
-        analyse.write_to_csv()
 
     elif Method(options.method) == Method.Search:
         search = Search(insts, apps, machines, AppInterference)
