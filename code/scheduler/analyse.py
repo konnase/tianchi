@@ -14,6 +14,8 @@ class Analyse(object):
 
         self.init_deploy_conflict = []
         self.results = []
+        self.single_inst_count = {}
+        self.is_inst_deployed = {}
 
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
         self.larger_disk_capacity = self.machines[0].disk_capacity
@@ -30,6 +32,7 @@ class Analyse(object):
         self.smaller_cpu_util = smaller_cpu_util
         machine_count = 0
         final_score = 0
+        all_inst = 0
         self.results.append("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
             'out_of_capacity', 'max_cpu_use', 'avg_cpu_use', 'max_mem_use', 'avg_mem_use', 'p', 'm', 'pm'))
         with open(search_file, "r") as f:
@@ -39,8 +42,9 @@ class Analyse(object):
                 self.max_mem_use = 0.0
                 self.avg_mem_use = 0.0
                 instances_id = self.get_instance_id(line)
-                self.machines[machine_count].clean_machine_status()
+                # print instances_id
                 machine = self.machines[machine_count]
+                machine.clean_machine_status()
                 inst_count = self.deploy_inst(instances_id, machine)
                 if inst_count == 0:
                     continue
@@ -49,13 +53,15 @@ class Analyse(object):
                 self.avg_cpu_use /= inst_count
                 self.avg_mem_use /= inst_count
                 self.append_result(machine, out_of_capacity)
-                score = 0
-                for i in range(LINE_SIZE):
-                    score += (1 + 10 * (math.exp(
-                        max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
-                final_score += score / LINE_SIZE
+                # score = 0
+                # for i in range(LINE_SIZE):
+                #     score += (1 + 10 * (math.exp(
+                #         max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
+                # final_score += score / LINE_SIZE
+                final_score += self.get_final_score(machine)
+                all_inst += len(instances_id)
                 machine_count += 1
-        print final_score
+        self.print_watch_message(final_score, all_inst)
         self.resolve_init_conflict(self.machines[0:machine_count])
 
     def deploy_inst(self, instances_id, machine):
@@ -64,6 +70,10 @@ class Analyse(object):
         for inst_id in instances_id:
             if inst_id == '':
                 break
+            if self.single_inst_count.has_key(inst_id):
+                self.single_inst_count[inst_id] += 1
+            else:
+                self.single_inst_count[inst_id] = 1
             inst_count += 1
             index = self.instance_index[inst_id]
             machine.put_inst(self.instances[index])
@@ -74,6 +84,14 @@ class Analyse(object):
             self.avg_cpu_use += np.average(self.instances[index].app.cpu)
             self.avg_mem_use += np.average(self.instances[index].app.mem)
         return inst_count
+
+    @staticmethod
+    def get_final_score(machine):
+        score = 0
+        for i in range(LINE_SIZE):
+            score += (1 + 10 * (math.exp(
+                max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
+        return score / LINE_SIZE
 
     def resolve_init_conflict(self, machines):
         print "starting resolve_init_conflict"
@@ -105,6 +123,22 @@ class Analyse(object):
         result = "%s\t\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\n" % (
             out_of_capacity, self.max_cpu_use, self.avg_cpu_use, self.max_mem_use, self.avg_mem_use, machine.p_num, machine.m_num, machine.pm_num)
         self.results.append(result)
+
+    def print_watch_message(self, final_score, all_inst):
+        print "score:%4.3f,insts_num:%d" % (final_score, all_inst)
+        print "Insts below are multi-deployed:"
+        multi_deployed_insts_num = 0
+        for inst, count in self.single_inst_count.items():
+            if count > 1:
+                multi_deployed_insts_num += 1
+                # print inst, count
+        print "multi-deployed insts num:%s" % multi_deployed_insts_num
+
+        print "undeployed insts num:%d, for example:" % (len(self.instances) - len(self.single_inst_count)),
+        for inst in self.instances:
+            if inst.id not in self.single_inst_count.keys():
+                print inst.id
+                break
 
     @staticmethod
     def get_instance_id(line):
