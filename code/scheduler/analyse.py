@@ -1,14 +1,11 @@
-import math
-import time
-
+# coding=utf-8
 import numpy as np
 
-from constant import *
 
-
+# 检查 search result
 class Analyse(object):
-    def __init__(self, instance_index, machines, instances):
-        self.instance_index = instance_index
+    def __init__(self, instance_kv, machines, instances):
+        self.instance_kv = instance_kv
         self.machines = machines
         self.instances = instances
 
@@ -17,19 +14,13 @@ class Analyse(object):
         self.single_inst_count = {}
         self.is_inst_deployed = {}
 
-        self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
-        self.larger_disk_capacity = self.machines[0].disk_capacity
-        self.smaller_disk_capacity = self.machines[5999].disk_capacity
-        self.larger_cpu_util = 0.0
-        self.smaller_cpu_util = 0.0
+        self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
         self.max_cpu_use = 0.0
         self.avg_cpu_use = 0.0
         self.max_mem_use = 0.0
         self.avg_mem_use = 0.0
 
-    def start_analyse(self, search_file, larger_cpu_util, smaller_cpu_util):
-        self.larger_cpu_util = larger_cpu_util
-        self.smaller_cpu_util = smaller_cpu_util
+    def start_analyse(self, search_file):
         machine_count = 0
         final_score = 0
         all_inst = 0
@@ -41,42 +32,35 @@ class Analyse(object):
                 self.avg_cpu_use = 0.0
                 self.max_mem_use = 0.0
                 self.avg_mem_use = 0.0
-                instances_id = self.get_instance_id(line)
+                insts_id = self.get_inst_id_list(line)
                 # print instances_id
-                machine = self.machines[machine_count]
-                machine.clean_machine_status()
-                inst_count = self.deploy_inst(instances_id, machine)
+                m = self.machines[machine_count]
+                m.clear_instances()
+                inst_count = self.deploy_inst(insts_id, m)
                 if inst_count == 0:
                     continue
-                out_of_capacity = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
-                                                          self.larger_disk_capacity, self.smaller_disk_capacity)
+                out_of_capacity = m.out_of_capacity()
                 self.avg_cpu_use /= inst_count
                 self.avg_mem_use /= inst_count
-                self.append_result(machine, out_of_capacity)
-                # score = 0
-                # for i in range(LINE_SIZE):
-                #     score += (1 + 10 * (math.exp(
-                #         max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
-                # final_score += score / LINE_SIZE
-                final_score += self.get_final_score(machine)
-                all_inst += len(instances_id)
+                self.append_result(m, out_of_capacity)
+
+                final_score += m.score
+                all_inst += len(insts_id)
                 machine_count += 1
         self.print_watch_message(final_score, all_inst)
         self.resolve_init_conflict(self.machines[0:machine_count])
 
-    def deploy_inst(self, instances_id, machine):
-
+    def deploy_inst(self, insts_id, machine):
         inst_count = 0
-        for inst_id in instances_id:
+        for inst_id in insts_id:
             if inst_id == '':
                 break
-            if self.single_inst_count.has_key(inst_id):
-                self.single_inst_count[inst_id] += 1
-            else:
-                self.single_inst_count[inst_id] = 1
+            self.single_inst_count.setdefault(inst_id, 0)
+            self.single_inst_count[inst_id] += 1
+
             inst_count += 1
-            index = self.instance_index[inst_id]
-            machine.put_inst(self.instances[index])
+            index = self.instance_kv[inst_id]
+            machine.put_inst(self.instances[index])  # todo: 需要检查约束吗??
             if np.max(self.instances[index].app.cpu) > self.max_cpu_use:
                 self.max_cpu_use = np.max(self.instances[index].app.cpu)
             if np.max(self.instances[index].app.mem) > self.max_mem_use:
@@ -85,30 +69,9 @@ class Analyse(object):
             self.avg_mem_use += np.average(self.instances[index].app.mem)
         return inst_count
 
-    @staticmethod
-    def get_final_score(machine):
-        score = 0
-        for i in range(LINE_SIZE):
-            score += (1 + 10 * (math.exp(
-                max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
-        return score / LINE_SIZE
-
     def resolve_init_conflict(self, machines):
         print "starting resolve_init_conflict"
-        time.sleep(2)
-
-        for machine in machines:
-            for inst in machine.insts.values():
-                for inst_b in machine.insts.values():
-                    if machine.apps_id.count(inst.app.id) <= 0:
-                        break
-                    if machine.has_init_conflict(inst, inst_b):
-                        self.record_init_conflict(machine, inst, inst_b)
-                for inst_interferd in machine.insts.values():
-                    if not machine.insts.has_key(inst):
-                        break
-                    if machine.has_init_conflict(inst_interferd, inst):
-                        self.record_init_conflict(machine, inst_interferd, inst)
+        # todo: ???
 
     def record_init_conflict(self, machine, inst, inst_b):
         self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
@@ -121,7 +84,8 @@ class Analyse(object):
 
     def append_result(self, machine, out_of_capacity):
         result = "%s\t\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\n" % (
-            out_of_capacity, self.max_cpu_use, self.avg_cpu_use, self.max_mem_use, self.avg_mem_use, machine.p_num, machine.m_num, machine.pm_num)
+            out_of_capacity, self.max_cpu_use, self.avg_cpu_use, self.max_mem_use, self.avg_mem_use, machine.p_num,
+            machine.m_num, machine.pm_num)
         self.results.append(result)
 
     def print_watch_message(self, final_score, all_inst):
@@ -141,7 +105,7 @@ class Analyse(object):
                 break
 
     @staticmethod
-    def get_instance_id(line):
+    def get_inst_id_list(line):
         return line.split()[2].strip('(').strip(')').split(',')
 
     def write_to_csv(self):
@@ -149,5 +113,5 @@ class Analyse(object):
             for line in self.results:
                 f.write(line)
         with open("knapsack_deploy_conflict.csv", "w") as f:
-            for count, item in enumerate(self.init_deploy_conflict):
+            for count, item in enumerate(self.deploy_conflict):
                 f.write("{0}\n".format(item))

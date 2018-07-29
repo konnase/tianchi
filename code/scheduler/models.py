@@ -1,54 +1,46 @@
+# coding=utf-8
 import os
 import numpy as np
-import math
-import copy
-from enum import Enum
-
 from constant import *
 
 
-class Method(Enum):
-    FFD = 1
-    Knapsack = 2
-    Analyse = 3
-    If_Search_Has_Init_Conflict = 4
-    Search = 5
-
-
 class Instance(object):
-    def __init__(self, id, app_id, machine_id):
+    def __init__(self, id, app=None, machine=None):
         self.id = id
-        self.app_id = app_id
-        self.machine_id = machine_id
-        self.raw_machine_id = machine_id
-        self.placed = False
-        self.app = None
-        self.machine = None
-        self.done = False
+        self.app = app
+        self.machine = machine
 
-        self._score = -1
+        # 实例是否部署了
+        # 当实例还没有部署到机器（machine == None），
+        # 或者已经部署到机器（machine == a），但需要迁移，还没有确定目标机器时，
+        # 设置此标志为False
+        self.placed = False
+
+        # self._metric = -1
 
     @staticmethod
     def from_csv_line(line):
-        return Instance(*line.strip().split(","))
+        # 这里只设置 inst_id
+        return Instance(line.strip().split(",")[0])
 
-    @property
-    def score(self):
-        if self._score > 0:
-            return self._score
-
-        cpu = self.app.cpu / MAX_CPU_REQUEST
-        mem = self.app.mem / MAX_MEM_REQUEST
-
-        score = np.linalg.norm(cpu, ord=1) / LINE_SIZE * CPU_WEIGHT + np.linalg.norm(mem,
-                                                                                     ord=1) / LINE_SIZE * MEM_WEIGHT
-        self._score = score
-
-        return score
+    # @property
+    # # 自定义的指标
+    # def metric(self):
+    #     if self._metric > 0:
+    #         return self._metric
+    #
+    #     cpu = self.app.cpu / MAX_CPU_REQUEST
+    #     mem = self.app.mem / MAX_MEM_REQUEST
+    #
+    #     # linalg.norm(x, ord=1) 一阶范数是绝对值之和
+    #     _m = np.linalg.norm(cpu, ord=1) * CPU_WEIGHT + np.linalg.norm(mem, ord=1) * MEM_WEIGHT
+    #     self._metric = _m / TS_COUNT
+    #
+    #     return self._metric
 
     def __str__(self):
-        return "Instance id(%s) app_id(%s) machine_id(%s) score(%f)" % (
-            self.id, self.app_id, self.machine_id, self.score)
+        return "Instance_id(%s) app_id(%s) machine_id(%s)" % (
+            self.id, self.app.id, self.machine.id)
 
 
 class Application(object):
@@ -57,290 +49,216 @@ class Application(object):
         self.cpu = np.array([float(i) for i in cpu_line.split("|")])
         self.mem = np.array([float(i) for i in mem_line.split("|")])
         self.disk = float(disk)
-        self.p = int(p)
-        self.m = int(m)
-        self.pm = int(pm)
-        self.resource = np.hstack((self.cpu, self.mem, np.array([self.disk, self.p, self.m, self.pm])))
-
         self.instances = []
-        self.interfer_others = {}
-        self.interfer_by_others = {}
+
+        # 参考官方评分代码，把所有资源保存为一个向量，当然，要对cpu util特别处理
+        self.resource = np.hstack((self.cpu,
+                                   self.mem,
+                                   np.array([self.disk, float(p), float(m), float(pm)])))
 
     @staticmethod
     def from_csv_line(line):
         return Application(*line.strip().split(","))
 
     def __str__(self):
-        return "App id(%s) cpu(%s) mem(%s) disk(%d) p(%d) m(%d) pm(%d)" % (
-            self.id, self.cpu, self.mem, self.disk, self.p, self.m, self.pm)
+        return "App id(%s) resource(%s)" % (self.id, self.resource)
+
+
+class AppInterference(object):
+    kv = {}
+
+    @staticmethod
+    def append(line):
+        parts = line.split(",")
+
+        appId_a = parts[0]
+        appId_b = parts[1]
+        limit = int(parts[2])
+        if appId_a == appId_b:
+            limit += 1
+        # 没有重复的规则
+        AppInterference.kv[(appId_a, appId_b)] = limit
+
+    @staticmethod
+    def limit_of(appId_a, appId_b):
+        # 如果没有对应规则，返回一个很大的数
+        return AppInterference.kv.get((appId_a, appId_b), 1e9)
 
 
 class Machine(object):
-    def __init__(self, id, cpu_capacity, mem_capacity, disk_capacity, p_capacity, m_capacity, pm_capacity):
+    def __init__(self, id, cpu_cap, mem_cap, disk_cap, p_cap, m_cap, pm_cap):
         self.id = id
-        self.cpu_capacity = float(cpu_capacity)
-        self.mem_capacity = float(mem_capacity)
-        self.disk_capacity = float(disk_capacity)
-        self.p_capacity = int(p_capacity)
-        self.m_capacity = int(m_capacity)
-        self.pm_capacity = int(pm_capacity)
-        self.pmp = np.array([0] * 3)
-        self.pmp_cap = np.array([0] * 3)
-        self.resource_capacity = np.hstack((np.full(int(LINE_SIZE), self.mem_capacity),
-                                            np.full(int(LINE_SIZE), self.mem_capacity), np.array(
-            [self.disk_capacity, self.p_capacity, self.m_capacity, self.pm_capacity])))
-        self.resource_use = np.zeros(200)
-        self.app_interfers = {}
+        self.cpu_cap = float(cpu_cap)
+        self.mem_cap = float(mem_cap)
+        self.disk_cap = float(disk_cap)
 
-        self.cpu = np.full(int(LINE_SIZE), self.cpu_capacity)
-        self.mem = np.full(int(LINE_SIZE), self.mem_capacity)
-        self.cpu_use = np.zeros(int(LINE_SIZE))
-        self.mem_use = np.zeros(int(LINE_SIZE))
-        self.disk_use = 0
+        if self.is_large_machine:
+            self.CPU_UTIL = CPU_UTIL_LARGE
+        else:
+            self.CPU_UTIL = CPU_UTIL_SMALL
+
+        # 修改 capacity 中cpu的比例，
+        # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
+        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL),
+                                   np.full(int(TS_COUNT), self.mem_cap),
+                                   np.array([self.disk_cap, float(p_cap), float(m_cap), float(pm_cap)])))
+
+        self.usage = np.zeros(len(self.capacity))
+
+        # <inst_id, instance>
         self.insts = {}
-        self.apps_id = []
-        self.bins = []
-        self.app_inst = {}
 
-        self.p_num = 0
-        self.m_num = 0
-        self.pm_num = 0
+        # <app_id, cnt>
+        self.app_cnt_kv = {}
 
-    def put_inst(self, inst):
-        self.insts[inst.id] = inst
-        self.cpu_use += inst.app.cpu
-        self.mem_use += inst.app.mem
-        self.disk_use += inst.app.disk
-        self.p_num += inst.app.p
-        self.m_num += inst.app.m
-        self.pm_num += inst.app.pm
-
-        self.resource_use += inst.app.resource
-
-        self.apps_id.append(inst.app.id)
-
-    def remove_inst(self, inst):
-        self.insts.pop(inst.id)
-        self.cpu_use -= inst.app.cpu
-        self.mem_use -= inst.app.mem
-        self.disk_use -= inst.app.disk
-        self.p_num -= inst.app.p
-        self.m_num -= inst.app.m
-        self.pm_num -= inst.app.pm
-
-        self.resource_use -= inst.app.resource
-
-        self.apps_id.remove(inst.app.id)
-
-    def take_out(self, inst):
-        del (self.insts[inst.id])
-
-        self.cpu_use -= inst.app.cpu
-        self.mem_use -= inst.app.mem
-        self.disk_use -= inst.app.disk
-        self.p_num -= inst.app.p
-        self.m_num -= inst.app.m
-        self.pm_num -= inst.app.pm
-
-        self.resource_use -= inst.app.resource
-
-        self.apps_id.remove(inst.app.id)
-
-    def can_deploy_inst(self, inst, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        app = inst.app
-        if self.disk_capacity - self.disk_use < app.disk or \
-                (self.disk_capacity == larger_disk_capacity and (self.cpu * larger_cpu_util - self.cpu_use < app.cpu).any()) or \
-                (self.disk_capacity == smaller_disk_capacity and (self.cpu * smaller_cpu_util - self.cpu_use < app.cpu).any()) or \
-                (self.mem - self.mem_use < app.mem).any() or self.p_capacity - self.p_num < app.p or \
-                self.m_capacity - self.m_num < app.m or self.pm_capacity - self.pm_num < app.pm:
-            return False
-        # this machine can hold the instance in memory view
-        for app_a in app.interfer_by_others.values():
-            if self.apps_id.count(app_a.id) > 0:  # already deployed app_a on machine
-                if app_a.interfer_others.has_key(app.id):
-                    if app_a.interfer_others[app.id] <= self.apps_id.count(app.id):
-                        return False
-        for app_b in app.interfer_others.keys():
-            if self.apps_id.count(app_b) > 0:  # already deployed app_b on self
-                if app.interfer_others[app_b] < self.apps_id.count(app_b):
-                    return False
-        return True
-
-    def can_put_inst(self, inst):
-        if self.disk_use + inst.app.disk > self.disk_capacity:
-            return False
-        if any((self.cpu_use + inst.app.cpu) > self.cpu_capacity / 2):
-            return False
-        if any((self.mem_use + inst.app.mem) > self.mem_capacity):
-            return False
-        if any((self.pmp + np.array([inst.app.p, inst.app.m, inst.app.pm])) > self.pmp_cap):
-            return False
-
-        app_dic = copy.deepcopy(self.app_count)
-        has = app_dic[inst.app.id] if inst.app.id in app_dic else 0
-        for app, cnt in app_dic.iteritems():
-            if (app, inst.app.id) in self.app_interfers:
-                if has + 1 > self.app_interfers[(app, inst.app.id)].num:
-                    return False
-        for app, cnt in app_dic.iteritems():
-            if (inst.app.id, app) in self.app_interfers:
-                if cnt > self.app_interfers[(inst.app.id, app)].num:
-                    return False
-        return True
-
-    def has_init_conflict(self, inst, inst_b):
-        if inst.app.interfer_others.has_key(inst_b.app.id) and \
-                inst.app.interfer_others[inst_b.app.id] < self.apps_id.count(inst_b.app.id):
-            return True
-        return False
-
-    def is_cpu_util_too_high(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        if self.disk_capacity == larger_disk_capacity and (
-                self.cpu_use > self.cpu_capacity * larger_cpu_util).any():
-            return True
-        if self.disk_capacity == smaller_disk_capacity and (
-                self.cpu_use > self.cpu_capacity * smaller_cpu_util).any():
-            return True
-        return False
-
-    def out_of_capacity(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity) or \
-                (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any() or \
-                self.p_num > self.p_capacity or self.m_num > self.m_capacity or self.pm_num > self.pm_capacity:
-            return True
-        return False
-
-    def clean_machine_status(self):
-        self.apps_id[:] = []
-        self.mem_use = np.zeros(int(LINE_SIZE))
-        self.cpu_use = np.zeros(int(LINE_SIZE))
-        self.disk_use = 0
-        self.p_num = 0
-        self.m_num = 0
-        self.pm_num = 0
-        self.insts.clear()
+    # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
+    @property
+    def is_large_machine(self):
+        return self.disk_cap == DISK_CAP_LARGE
 
     @property
     def cpu_usage(self):
-        return max(self.cpu_use / self.cpu_capacity)
-
-    @property
-    def cpu_score(self):
-        # return max(self.cpu_use / self.cpu_capacity)
-        if self.disk_use == 0:
-            return 0
-        score = 0
-        for i in self.cpu_use / self.cpu_capacity:
-            # print i
-            score += 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
-            # print 1 + 10 * (math.exp(max(i - 0.5, 0)) - 1)
-        return score / 98.0
+        return self.usage[0:TS_COUNT]
 
     @property
     def mem_usage(self):
-        return max(self.mem_use / self.mem_capacity)
+        return self.usage[TS_COUNT:TS_COUNT * 2]
 
     @property
-    def app_count(self):
-        dic = {}
-        for inst in self.insts.values():
-            dic[inst.app.id] = dic[inst.app.id] + 1 if inst.app.id in dic else 1
-        return dic
+    def disk_usage(self):
+        return self.usage[TS_COUNT * 2]
 
     @property
-    def inter_inst_num(self):
-        app_dict = {}
-
-        for inst in self.insts.values():
-            app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 1
-        interfer_cnt = 0
-        for app_a in app_dict.keys():
-            for app_b in app_dict.keys():
-                if (app_a, app_b) in self.app_interfers:
-                    if app_dict[app_b] > self.app_interfers[(app_a, app_b)].num:
-                        interfer_cnt += app_dict[app_b]
-        return interfer_cnt
+    def cpu_util_max(self):
+        return max(self.cpu_usage / self.cpu_cap)
 
     @property
-    def violate_apps(self):
-        app_dict = {}
-        for inst in self.insts.values():
-            app_dict[inst.app_id] = app_dict[inst.app_id] + 1 if inst.app_id in app_dict else 1
-        apps = set()
-        for app_a in app_dict.keys():
-            for app_b in app_dict.keys():
-                if (app_a, app_b) in self.app_interfers:
-                    if app_dict[app_b] > self.app_interfers[(app_a, app_b)].num:
-                        apps.add(app_b)
-        return apps
+    def mem_util_max(self):
+        return max(self.mem_usage / self.mem_cap)
+
+    @property
+    def score(self):
+        if self.disk_usage == 0:
+            return 0
+
+        x = np.maximum(self.cpu_usage / self.cpu_cap - 0.5, 0)  # max(c - beta)
+
+        return np.average(1 + 10 * (np.exp(x) - 1))
+
+    # 将实例添加到机器上，不检查资源和亲和约束
+    def put_inst(self, inst):
+        # 幂等性，若inst已经部署到这台机器了，则直接跳过
+        if self.insts.has_key(inst.id):
+            return
+
+        self.usage += inst.app.resource
+
+        if inst.machine is not None:
+            inst.machine.remove_inst(inst)
+
+        inst.machine = self
+        inst.placed = True
+        self.insts[inst.id] = inst
+        self.app_cnt_kv.setdefault(inst.app.id, 0)
+        self.app_cnt_kv[inst.app.id] += 1
+
+    def remove_inst(self, inst):
+        if not self.insts.has_key(inst.id):
+            return
+
+        self.usage -= inst.app.resource
+        inst.machine = None
+        inst.placed = False
+        self.insts.pop(inst.id)
+        self.app_cnt_kv[inst.app.id] -= 1
+
+        # 必须移除实例个数为0的应用，否则检查亲和约束会干扰循环
+        if self.app_cnt_kv[inst.app.id] == 0:
+            self.app_cnt_kv.pop(inst.app.id)
+
+    def clear_instances(self):
+        # 注意：循环中修改列表
+        for inst in self.insts.values()[:]:
+            self.remove_inst(inst)
+
+    def can_put_inst(self, inst):
+        # if self.insts.has_key(inst.id):
+        #     return True
+        # else:
+        return not (self.out_of_capacity(inst) or self.has_conflict(inst))
+
+    # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
+    def out_of_capacity(self, inst):
+        return any((self.usage + inst.app.resource) > self.capacity)
+
+    # 亲和性冲突
+    def has_conflict(self, inst):
+        appId_b = inst.app.id
+        appB_cnt = self.app_cnt_kv.get(appId_b, 0)
+
+        for appId_a, appA_cnt in self.app_cnt_kv.iteritems():
+            if appB_cnt + 1 > AppInterference.limit_of(appId_a, appId_b):
+                return True
+
+            if appA_cnt > AppInterference.limit_of(appId_b, appId_a):
+                return True
+
+        return False
+
+    @staticmethod
+    # 合计一组机器的成本分数，不考虑没有部署的实例
+    def total_score(machines):
+        s = 0
+        for m in machines:
+            s += m.score
+        return s
 
     @staticmethod
     def from_csv_line(line):
         return Machine(*line.strip().split(","))
 
     def __str__(self):
-        return "Machine id(%s) cpu_score(%f) disk(%d/%d) cpu_usage(%f) mem_usage(%f) bins(%s)" % (
-            self.id, self.cpu_score, self.disk_use, self.disk_capacity, self.cpu_usage, self.mem_usage,
+        return "Machine id(%s) score(%f) disk(%d/%d) cpu_usage(%f) mem_usage(%f) bins(%s)" % (
+            self.id, self.score, self.disk_usage, self.disk_cap, self.cpu_util_max, self.mem_util_max,
             ",".join([str(i.app.disk) for i in self.insts.values()]))
 
 
-class AppInterference(object):
-    def __init__(self, app_a, app_b, num):
-        self.app_a = app_a
-        self.app_b = app_b
-        self.num = int(num)
-        if app_a == app_b:
-            self.num += 1
-
-    @staticmethod
-    def from_csv_line(line):
-        return AppInterference(*line.split(","))
-
-    def __str__(self):
-        return "App_a (%s) App_b (%s) number (%d)" % (
-            self.app_a, self.app_b, self.num
-        )
-
-
-def read_from_csv(directory_path):
-    instances = []
-    instance_index = {}
-    for line in open(os.path.join(directory_path, INSTANCE_INPUT_FILE)):
-        instance = Instance.from_csv_line(line)
-        instance_index[instance.id] = len(instances)
-        instances.append(instance)
-
+def read_from_csv(project_path):
     machines = []
-    machine_index = {}
-    for line in open(os.path.join(directory_path, MACHINE_INPUT_FILE)):
-        machine = Machine.from_csv_line(line)
-        machine_index[machine.id] = len(machines)
-        machines.append(machine)
+    machine_kv = {}
+    for line in open(os.path.join(project_path, MACHINE_INPUT_FILE)):
+        m = Machine.from_csv_line(line)
+        machine_kv[m.id] = m
+        machines.append(m)
 
     apps = []
-    app_index = {}
-    for line in open(os.path.join(directory_path, APP_INPUT_FILE)):
+    app_kv = {}
+    for line in open(os.path.join(project_path, APP_INPUT_FILE)):
         app = Application.from_csv_line(line)
-        app_index[app.id] = len(apps)
+        app_kv[app.id] = app
         apps.append(app)
 
-    app_interfer = []
-    for line in open(os.path.join(directory_path, APP_INTERFER_FILE)):
-        app_interfer.append(AppInterference.from_csv_line(line))
+    for line in open(os.path.join(project_path, APP_INTERFER_FILE)):
+        AppInterference.append(line)
 
-    return instances, apps, machines, app_interfer, app_index, machine_index, instance_index
+    instances = []
+    instance_kv = {}
+    for line in open(os.path.join(project_path, INSTANCE_INPUT_FILE)):
+        line = line.rstrip('\n')
+        inst = Instance.from_csv_line(line)
+        parts = line.split(',')  # inst_id,app_id,machine_id
+        inst.app = app_kv[parts[1]]
+        inst.app.instances.append(inst)
 
+        # machine_id不为空，
+        # 则读入初始部署，且不考虑资源和亲和约束
+        if parts[2] != '':
+            m = machine_kv[parts[2]]
+            can_deploy = m.can_put_inst(inst)
+            m.put_inst(inst)  # 部署inst后，会改变机器状态，故需事先保存标志
+            inst.placed = can_deploy
 
-def get_apps_instances(insts, apps, app_index):
-    for inst in insts:
-        index = app_index[inst.app_id]
-        apps[index].instances.append(inst)
-        inst.app = apps[index]
+        instance_kv[inst.id] = inst  # 字典直接保存实例对象（的引用）
+        instances.append(inst)
 
-
-def prepare_apps_interfers(app_interfers, app_index, apps):
-    for app_interfer in app_interfers:
-        index_a = app_index[app_interfer.app_a]
-        index_b = app_index[app_interfer.app_b]
-        apps[index_a].interfer_others[app_interfer.app_b] = app_interfer.num
-        apps[index_b].interfer_by_others[app_interfer.app_a] = apps[index_a]
+    return instances, apps, machines, instance_kv, app_kv, machine_kv

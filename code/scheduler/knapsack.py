@@ -4,6 +4,7 @@ import copy
 import math
 from itertools import combinations
 
+# todo: fix this
 
 class Knapsack(object):
     def __init__(self, insts, apps, machines, app_interfers):
