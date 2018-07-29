@@ -141,7 +141,7 @@ class Machine(object):
         if self.disk_usage == 0:
             return 0
 
-        x = np.maximum(self.cpu_usage / self.cpu_cap - 0.5, 0)  # max(c - beta)
+        x = np.maximum(self.cpu_usage / self.cpu_cap - 0.5, 0)  # max(c - beta, 0)
 
         return np.average(1 + 10 * (np.exp(x) - 1))
 
@@ -206,7 +206,7 @@ class Machine(object):
         return False
 
     @staticmethod
-    # 合计一组机器的成本分数，不考虑没有部署的实例
+    # 合计一组机器的成本分数
     def total_score(machines):
         s = 0
         for m in machines:

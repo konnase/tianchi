@@ -23,7 +23,6 @@ def judge():
             m.put_inst(inst)
         else:
             print i, inst_id, machine_id, "break"
-            break
 
     print "Total Score: ", Machine.total_score(machines)
 
