@@ -90,8 +90,8 @@ class FFD(object):
     def fit(self, larger_cpu_util=1, smaller_cpu_util=1):
         self.larger_cpu_util = larger_cpu_util
         self.smaller_cpu_util = smaller_cpu_util
-        self.resolve_init_conflict(self.machines)
         self.fit_large_inst()
+        self.resolve_init_conflict(self.machines)
         print "starting fit"
         time.sleep(2)
         for app in self.applications:

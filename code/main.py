@@ -17,9 +17,9 @@ def main():
     parser.add_option("-s", "--search", dest="search", help="file to search")
     parser.add_option("-p", "--request", dest="request", help="print request file")
     parser.add_option("--larger_cpu_util", dest="larger_cpu_util", default=1, type="float",
-                      help="larger machine's maximal cpu utilization")
+                      help="specify larger machine's maximal cpu utilization")
     parser.add_option("--smaller_cpu_util", dest="smaller_cpu_util", default=1, type="float",
-                      help="smaller machine's maximal cpu utilization")
+                      help="specify smaller machine's maximal cpu utilization")
     (options, args) = parser.parse_args()
 
     insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
