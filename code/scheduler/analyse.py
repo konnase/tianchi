@@ -53,11 +53,6 @@ class Analyse(object):
                 self.avg_cpu_use /= inst_count
                 self.avg_mem_use /= inst_count
                 self.append_result(machine, out_of_capacity)
-                # score = 0
-                # for i in range(LINE_SIZE):
-                #     score += (1 + 10 * (math.exp(
-                #         max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
-                # final_score += score / LINE_SIZE
                 final_score += self.get_final_score(machine)
                 all_inst += len(instances_id)
                 machine_count += 1
@@ -148,9 +143,11 @@ class Analyse(object):
         return line.split()[2].strip('(').strip(')').split(',')
 
     def write_to_csv(self):
+        print "write resource analysis to analyse.csv..."
         with open("analyse.csv", "w") as f:
             for line in self.results:
                 f.write(line)
+        print "write interferences analysis to knapsack_deploy_conflict.csv..."
         with open("knapsack_deploy_conflict.csv", "w") as f:
             for count, item in enumerate(self.init_deploy_conflict):
                 f.write("{0}\n".format(item))
