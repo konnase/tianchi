@@ -205,11 +205,18 @@ class Machine(object):
         return False
 
     def out_of_capacity(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity) or \
-                (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any() or \
-                self.p_num > self.p_capacity or self.m_num > self.m_capacity or self.pm_num > self.pm_capacity:
-            return True
-        return False
+        cpu = mem = p = m = pm = 0
+        if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity):
+            cpu = 1
+        if (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any():
+            mem = 1
+        if self.p_num > self.p_capacity:
+            p = 1
+        if self.m_num > self.m_capacity:
+            m = 1
+        if self.pm_num > self.pm_capacity:
+            pm = 1
+        return cpu, mem, p, m, pm
 
     def clean_machine_status(self):
         self.apps_id[:] = []

@@ -26,6 +26,11 @@ class Analyse(object):
         self.avg_cpu_use = 0.0
         self.max_mem_use = 0.0
         self.avg_mem_use = 0.0
+        self.cpu_overload = 0
+        self.mem_overload = 0
+        self.p_overload = 0
+        self.m_overload = 0
+        self.pm_overload = 0
 
     def start_analyse(self, search_file, larger_cpu_util, smaller_cpu_util):
         self.larger_cpu_util = larger_cpu_util
@@ -42,14 +47,14 @@ class Analyse(object):
                 self.max_mem_use = 0.0
                 self.avg_mem_use = 0.0
                 instances_id = self.get_instance_id(line)
-                # print instances_id
                 machine = self.machines[machine_count]
                 machine.clean_machine_status()
                 inst_count = self.deploy_inst(instances_id, machine)
                 if inst_count == 0:
                     continue
-                out_of_capacity = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
-                                                          self.larger_disk_capacity, self.smaller_disk_capacity)
+                self.record_overload_machine(machine)
+                # cpu, mem, p, m, pm = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
+                #                                              self.larger_disk_capacity, self.smaller_disk_capacity)
                 self.avg_cpu_use /= inst_count
                 self.avg_mem_use /= inst_count
                 self.append_result(machine, out_of_capacity)
@@ -59,8 +64,16 @@ class Analyse(object):
         self.print_watch_message(final_score, all_inst)
         self.resolve_init_conflict(self.machines[0:machine_count])
 
-    def deploy_inst(self, instances_id, machine):
+    def record_overload_machine(self, machine):
+        cpu, mem, p, m, pm = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
+                                                     self.larger_disk_capacity, self.smaller_disk_capacity)
+        self.cpu_overload += cpu
+        self.mem_overload += mem
+        self.p_overload += p
+        self.m_overload += m
+        self.pm_overload += pm
 
+    def deploy_inst(self, instances_id, machine):
         inst_count = 0
         for inst_id in instances_id:
             if inst_id == '':
@@ -116,7 +129,8 @@ class Analyse(object):
 
     def append_result(self, machine, out_of_capacity):
         result = "%s\t\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\n" % (
-            out_of_capacity, self.max_cpu_use, self.avg_cpu_use, self.max_mem_use, self.avg_mem_use, machine.p_num, machine.m_num, machine.pm_num)
+            out_of_capacity, self.max_cpu_use, self.avg_cpu_use, self.max_mem_use, self.avg_mem_use, machine.p_num,
+            machine.m_num, machine.pm_num)
         self.results.append(result)
 
     def print_watch_message(self, final_score, all_inst):
