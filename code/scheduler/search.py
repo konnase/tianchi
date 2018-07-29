@@ -1,6 +1,6 @@
 import copy
 import random
-
+import math
 import numpy as np
 
 
@@ -42,7 +42,6 @@ class Search(object):
         disk_overload_cnt = 0
         cpu_overload_cnt = 0
         mem_overload_cnt = 0
-        half_cpu_overload_cnt = 0
         p_overload_cnt = 0
         m_overload_cnt = 0
         pm_overload_cnt = 0
@@ -81,16 +80,10 @@ class Search(object):
                 for app_b in app_dict.keys():
                     if (app_a, app_b) in self.app_to_interfer:
                         if len(app_dict[app_b]) > self.app_to_interfer[(app_a, app_b)].num:
-                            # print "%s: %s and %s -> max(%d) actual(%d)" % (
-                            #     machine.id, app_a, app_b, self.app_to_interfer[(app_a, app_b)].num, len(app_dict[app_b]))
-                            # print ",".join(app_dict[app_b])
                             interfer_cnt += 1
                             violate_cnt += len(app_dict[app_b])
                     if (app_b, app_a) in self.app_to_interfer:
                         if len(app_dict[app_a]) > self.app_to_interfer[(app_b, app_a)].num:
-                            # print "%s: %s and %s -> max(%d) actual(%d)" % (
-                            #     machine.id, app_b, app_a, self.app_to_interfer[(app_b, app_a)].num, len(app_dict[app_a]))
-                            # print ",".join(app_dict[app_a])
                             interfer_cnt += 1
                             violate_cnt += len(app_dict[app_a])
 
@@ -100,8 +93,6 @@ class Search(object):
                 cpu_overload_cnt += 1
             if any(mem > machine.mem_capacity):
                 mem_overload_cnt += 1
-            if any(cpu > machine.cpu_capacity * 0.81):
-                half_cpu_overload_cnt += 1
             if p > machine.p_capacity:
                 p_overload_cnt += 1
             if m > machine.m_capacity:
@@ -113,8 +104,6 @@ class Search(object):
         print "Disk Overload: %f (%d / %d)" % (float(disk_overload_cnt) / total_cnt, disk_overload_cnt, total_cnt)
         print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) / total_cnt, cpu_overload_cnt, total_cnt)
         print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) / total_cnt, mem_overload_cnt, total_cnt)
-        print "Half CPU Overload: %f (%d / %d)" % (
-            float(half_cpu_overload_cnt) / total_cnt, half_cpu_overload_cnt, total_cnt)
         print "P Overload %f (%d / %d)" % (float(p_overload_cnt) / total_cnt, p_overload_cnt, total_cnt)
         print "M Overload %f (%d / %d)" % (float(m_overload_cnt) / total_cnt, m_overload_cnt, total_cnt)
         print "PM Overload %f (%d / %d)" % (float(pm_overload_cnt) / total_cnt, pm_overload_cnt, total_cnt)
@@ -125,7 +114,7 @@ class Search(object):
 
         while True:
             if not self._search():
-               break
+                break
 
     def _search(self):
         set1 = range(len(self.machines))
@@ -156,7 +145,8 @@ class Search(object):
         resource1 = machine1.resource_use - inst1.app.resource + inst2.app.resource
         resource2 = machine2.resource_use - inst2.app.resource + inst1.app.resource
 
-        if any(resource1 > machine1.resource_capacity) or any(resource2 > machine2.resource_capacity):
+        if any(np.around(resource1, 8) > np.around(machine1.resource_capacity)) or any(
+                np.around(resource2, 8) > np.around(machine2.resource_capacity, 8)):
             return False
 
         score1 = machine1.cpu_score
@@ -164,11 +154,11 @@ class Search(object):
 
         self.do_swap(inst1, inst2)
 
-        if machine1.inter_inst_num > 0 or machine2.inter_inst_num > 0:
+        if machine1.has_conflict() or machine2.has_conflict():
             self.do_swap(inst1, inst2)
             return False
 
-        delta = score1 ** 2 + score2 ** 2 - machine1.cpu_score ** 2 - machine2.cpu_score ** 2
+        delta = score1 + score2 - machine1.cpu_score - machine2.cpu_score
         if delta <= 0:
             self.do_swap(inst1, inst2)
             return False
@@ -189,7 +179,20 @@ class Search(object):
 
     def output(self):
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
-        with open('search', 'w') as f:
+        for machine in self.machines:
+            if machine.resource_overload():
+                print machine.resource_use > machine.resource_capacity
+                print machine.resource_capacity - machine.resource_use
+                print "Invalid search result: resource overload"
+                return
+            if machine.has_conflict():
+                print "invalid search result: constraint conflict"
+                return
+
+        path = "search-result/search_%d_%dm" % (
+        int(math.ceil(self.total_score)), len(filter(lambda x: x.disk_use > 0, self.machines)))
+        with open(path, 'w') as f:
+            print "writing to path %s" % path
             for machine in self.machines:
                 if machine.disk_use == 0:
                     continue

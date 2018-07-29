@@ -63,7 +63,7 @@ def main():
         try:
             search.search()
         except KeyboardInterrupt:
-            print "write to file."
+            search._rating()
             search.output()
 
 
