@@ -135,6 +135,9 @@ class Analyse(object):
         print "multi-deployed insts num:%s" % multi_deployed_insts_num
 
         print "undeployed insts num:%d, for example:" % (len(self.instances) - len(self.single_inst_count)),
+        if (len(self.instances) - len(self.single_inst_count)) == 0:
+            print 'None'
+            return
         for inst in self.instances:
             if inst.id not in self.single_inst_count.keys():
                 print inst.id
