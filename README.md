@@ -30,6 +30,8 @@ class Method(Enum):
 ### 检查搜索结果
 ```bash
 dotnet judge/verifysearch.dll search6991 # hard coded [search-result] path
+
+python code/main.py --data_dir=data --method=3 --search=search-result/search6278
 ```
 
 ### 官方评分 
