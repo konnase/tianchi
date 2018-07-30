@@ -19,20 +19,20 @@ class Analyse(object):
         machine_index = 0
 
         for line in open(search_file, "r"):
-            insts_id = self.get_instId_list(line)
+            instId_list = self.get_instId_list(line)
             m = self.machines[machine_index]
 
-            if 0 == self.deploy_insts(insts_id, m):
+            if 0 == self.deploy_insts(instId_list, m):
                 raise Exception('Failed to deploy instances ' + line)
 
-            self.inst_count += len(insts_id)
+            self.inst_count += len(instId_list)
             machine_index += 1
 
         self.print_info()
 
-    def deploy_insts(self, insts_id, machine):
+    def deploy_insts(self, instId_list, machine):
         count = 0
-        for inst_id in insts_id:
+        for inst_id in instId_list:
             if inst_id == '':
                 break
             self.inst_cnt_kv.setdefault(inst_id, 0)

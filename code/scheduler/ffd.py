@@ -41,7 +41,7 @@ class FFD(object):
                 continue
 
             for inst in app.instances:
-                if not inst.placed:
+                if not inst.deployed:
                     self.first_fit(inst, machines)
 
     def fit(self):
@@ -50,7 +50,7 @@ class FFD(object):
         print "starting fit"
         for app in self.apps:
             for inst in app.instances:
-                if not inst.placed:
+                if not inst.deployed:
                     self.first_fit(inst, self.machines)
 
     def write_to_csv(self):
@@ -61,7 +61,7 @@ class FFD(object):
         total_score = 0
         with open("search-result/search_%s" % datetime.datetime.now().strftime('%Y%m%d_%H%M%S'), "w") as f:
             for m in self.machines:
-                if len(m.insts) == 0:
+                if len(m.inst_kv) == 0:
                     continue
 
                 inst_disk = ""
@@ -70,7 +70,7 @@ class FFD(object):
                 score = m.score
                 total_score += score
 
-                for inst in m.insts.values():
+                for inst in m.inst_kv.values():
                     inst_disk += "," + str(inst.app.disk)
                     inst_id += "," + str(inst.id)
                     all_disk_use += inst.app.disk

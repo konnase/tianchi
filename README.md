@@ -6,16 +6,10 @@
 g++ code/lower_bound.cpp -O2 -o lb && ./lb < request > search
 ```
 
-rating for this lower_bound:
-
-```bash
-python code/main.py --data_dir=data --method=2 --test=lower_bound
-```
-
 ### Solution
 
 ```bash
-$ python code/main.py --data_dir=data --method=<method>
+$ python code/main.py --data_dir=data --method=1
 ```
 
 Method enum:
@@ -23,8 +17,9 @@ Method enum:
 ```python
 class Method(Enum):
     FFD = 1
-    Knapsack = 2
+    Knapsack = 2 # ??
     Analyse = 3
+    Search = 4
 ```
 
 ### 检查搜索结果
@@ -39,6 +34,8 @@ python code/main.py --data_dir=data --method=3 --search=search-result/search6278
 
 java -jar judge/judge.jar data/b.csv submit.csv # Decompress the data/b.csv.tgz first !!!
 
+python code/judge.py # hard coded dataset b and submit.csv
+
 ```
 
 ### 运行dotnet
@@ -46,7 +43,7 @@ java -jar judge/judge.jar data/b.csv submit.csv # Decompress the data/b.csv.tgz 
 dotnet run --project csharp/tianchi.csproj  ./
 # 终端输出结束后，提交文件保存在了 submit.csv
 
-# 或者在 cssharp 目录执行
+# 或者在 csharp 目录执行
 cd csharp
 dotnet run ../
 ```

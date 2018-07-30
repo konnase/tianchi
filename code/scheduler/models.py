@@ -109,8 +109,7 @@ class Machine(object):
 
         self.usage = np.zeros(len(self.capacity))
 
-        self.insts = {}  # <inst_id, instance>
-
+        self.inst_kv = {}  # <inst_id, instance>
         self.app_cnt_kv = {}  # <app_id, cnt>
 
     # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
@@ -162,7 +161,7 @@ class Machine(object):
     # 将实例添加到机器上，不检查资源和亲和约束
     def put_inst(self, inst):
         # 幂等性，若inst已经部署到这台机器了，则直接跳过
-        if self.insts.has_key(inst.id):
+        if self.inst_kv.has_key(inst.id):
             return
 
         self.usage += inst.app.resource
@@ -172,18 +171,18 @@ class Machine(object):
 
         inst.machine = self
         inst.deployed = True
-        self.insts[inst.id] = inst
+        self.inst_kv[inst.id] = inst
         self.app_cnt_kv.setdefault(inst.app.id, 0)
         self.app_cnt_kv[inst.app.id] += 1
 
     def remove_inst(self, inst):
-        if not self.insts.has_key(inst.id):
+        if not self.inst_kv.has_key(inst.id):
             return
 
         self.usage -= inst.app.resource
         inst.machine = None
         inst.deployed = False
-        self.insts.pop(inst.id)
+        self.inst_kv.pop(inst.id)
         self.app_cnt_kv[inst.app.id] -= 1
 
         # 必须移除实例个数为0的应用，否则检查亲和约束会干扰循环
@@ -192,7 +191,7 @@ class Machine(object):
 
     def clear_instances(self):
         # 注意：循环中修改列表
-        for inst in self.insts.values()[:]:
+        for inst in self.inst_kv.values()[:]:
             self.remove_inst(inst)
 
     def can_put_inst(self, inst):
@@ -254,7 +253,7 @@ class Machine(object):
     def __str__(self):
         return "Machine id(%s) score(%f) disk(%d/%d) cpu_usage(%f) mem_usage(%f) bins(%s)" % (
             self.id, self.score, self.disk_usage, self.disk_cap, self.cpu_util_max, self.mem_util_max,
-            ",".join([str(i.app.disk) for i in self.insts.values()]))
+            ",".join([str(i.app.disk) for i in self.inst_kv.values()]))
 
 
 def read_from_csv(project_path):
