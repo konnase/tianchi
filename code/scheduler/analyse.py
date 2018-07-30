@@ -41,7 +41,7 @@ class Analyse(object):
 
             inst = self.inst_kv[inst_id]
             machine.put_inst(inst)  # 不需要检查约束
-            self.submit_result.append((inst_id, machine.id, machine.score))
+            self.submit_result.append((inst_id, machine.id))
 
         return count
 
@@ -88,5 +88,5 @@ class Analyse(object):
 
     def write_to_csv(self):
         with open("submit0.csv", "w") as f:
-            for inst_id, machine_id, score in self.submit_result:
-                f.write("{0},{1},{2}\n".format(inst_id, machine_id, score))
+            for inst_id, machine_id in self.submit_result:
+                f.write("{0},{1}\n".format(inst_id, machine_id))
