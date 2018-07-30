@@ -22,6 +22,13 @@ class Method(Enum):
     Search = 5 # <-
 ```
 
+### Generate data/submit.csv
+
+```bash
+python code/build_submit.py --search=search-result/search_xxx   # the result will be outputed to data/submit.csv
+```
+
+
 ### 检查搜索结果
 ```bash
 dotnet judge/verifysearch.dll search6991 # hard coded [search-result] path
