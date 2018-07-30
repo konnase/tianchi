@@ -243,7 +243,7 @@ class Machine(object):
 
     # 清空一组机器上部署的实例
     @staticmethod
-    def clear(machines):
+    def empty(machines):
         for m in machines:
             m.clear_instances()
 

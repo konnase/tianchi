@@ -8,7 +8,7 @@ class Analyse(object):
     def __init__(self, inst_kv, machines):
         self.inst_kv = inst_kv
         self.machines = machines
-        Machine.clear(self.machines)
+        Machine.empty(self.machines)
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
 
         self.inst_count = 0
