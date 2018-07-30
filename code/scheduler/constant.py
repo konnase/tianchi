@@ -16,3 +16,29 @@ LARGE_MEM_INST = 24
 LARGE_DISK_INST = 300
 
 FLOAT_EPS = 0.000001
+
+DISK_CAP_LARGE = 2457
+DISK_CAP_SMALL = 1440
+
+
+class global_var(object):
+    CPU_UTIL_LARGE = 1
+    CPU_UTIL_SMALL = 1
+
+
+@property
+def cpu_util_large():
+    return global_var.CPU_UTIL_LARGE
+
+
+def set_cpu_util_large(cpu_util_large):
+    global_var.CPU_UTIL_LARGE = cpu_util_large
+
+
+@property
+def cpu_util_small():
+    return global_var.CPU_UTIL_SMALL
+
+
+def set_cpu_util_small(cpu_util_small):
+    global_var.CPU_UTIL_SMALL = cpu_util_small
