@@ -103,7 +103,8 @@ class Search(object):
             return 2
 
     def can_move_inst(self, machine1, inst):
-        if machine1.disk_usage == 0:  # todo: 对空闲机器，是否也可以作为迁移对象？
+        # todo: 对空闲机器，是否也可以作为迁移对象？
+        if machine1.disk_usage == 0 or inst.id in machine1.inst_kv:
             return False
 
         machine2 = inst.machine
@@ -128,6 +129,10 @@ class Search(object):
         return True
 
     def can_swap_inst(self, inst1, inst2):
+        # 同一应用的实例就不必交换了
+        if inst1.app == inst2.app:
+            return False
+
         machine1 = inst1.machine
         machine2 = inst2.machine
 
@@ -141,7 +146,7 @@ class Search(object):
         score1 = machine1.score
         score2 = machine2.score
 
-        if machine1.has_conflict_inst(inst2) or machine2.has_conflict_inst(inst1):
+        if self.has_conflict(inst1, inst2) or self.has_conflict(inst2, inst1):
             return False
 
         self.do_swap(inst1, inst2)
@@ -154,6 +159,17 @@ class Search(object):
 
         self.total_score += delta
         return True
+
+    # 若从机器上移除 inst_old, inst_new 是否还在机器上有亲和冲突
+    # 注意：参数顺序不同，对应结果不一定相同
+    def has_conflict(self, inst_old, inst_new):
+        machine = inst_old.machine
+
+        machine.remove_inst(inst_old)
+        flag = machine.has_conflict_inst(inst_new)
+        machine.put_inst(inst_old)  # 恢复原状
+
+        return flag
 
     def do_swap(self, inst1, inst2):
         machine1 = inst1.machine
