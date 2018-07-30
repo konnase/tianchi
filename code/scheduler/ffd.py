@@ -105,7 +105,6 @@ class FFD(object):
     def deploy_inst_on_machine(self, machine, inst):
         machine.put_inst(inst)
         self.submit_result.append((inst.id, machine.id))
-        inst.placed = True
 
     def record_init_conflict(self, machine, inst, inst_b):
         self.init_deploy_conflict.append("%s, appA:%s %s, appB:%s %s, interfer:%d, deployed:%d" %
