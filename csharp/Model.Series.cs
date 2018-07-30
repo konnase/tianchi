@@ -29,9 +29,17 @@ namespace Tianchi {
       }
     }
 
+    public double Average(Func<double, double> func) {
+      return _data.Average(func);
+    }
+
+    public double Sum(Func<double, double> func) {
+      return _data.Sum(func);
+    }
+
     // 将array各项累加到Series对应项
     public void Add(Series s) {
-      for (var i = 0; i < _data.Length; i++) _data[i] = _data[i] + s._data[i];
+      for (var i = 0; i < _data.Length; i++) _data[i] += +s._data[i];
     }
 
     public void Subtract(Series s) {
@@ -46,7 +54,7 @@ namespace Tianchi {
     // 计算 当前序列 this + s 之后 向量的最大值
     // 不会修改当前序列 
     public double MaxWith(Series s) {
-      return _data.Select((t, i) => t + s[i]).Max();
+      return _data.Select((d, i) => d + s[i]).Max();
     }
 
     public static Series Parse(string[] fields) {

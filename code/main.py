@@ -1,70 +1,64 @@
+# coding=utf-8
 from scheduler.search import Search
-import math
 from scheduler.knapsack import Knapsack
-from scheduler.models import read_from_csv, get_apps_instances, Method
 from optparse import OptionParser
 from scheduler.ffd import FFD
-from scheduler.analyse import start_analyse
-from scheduler.models import prepare_apps_interfers
-import datetime
-import numpy as np
+from scheduler.analyse import Analyse
+from scheduler.models import read_from_csv, AppInterference
+import scheduler.config as cfg
+
+from enum import Enum
+
+
+class Method(Enum):
+    FFD = 1
+    Knapsack = 2
+    Analyse = 3
+    Search = 5
 
 
 def main():
     parser = OptionParser()
-    parser.add_option("-d", "--data_dir", dest="data_dir", help="directory of csv data")
-    parser.add_option("-m", "--method", dest="method", type="int", help="method to solve this prolem")
+    parser.add_option("-d", "--data_dir", dest="data_dir", default="data", help="directory of csv data")
+    parser.add_option("-m", "--method", dest="method", type="int", help="method to solve this problem")
     parser.add_option("-t", "--test_output", dest="test", help="output to test")
     parser.add_option("-s", "--search", dest="search", help="file to search")
     parser.add_option("-p", "--request", dest="request", help="print request file")
+    parser.add_option("--uh", dest="larger_cpu_util", default=1, type="float",
+                      help="larger machine's maximal cpu utilization")
+    parser.add_option("--ul", dest="smaller_cpu_util", default=1, type="float",
+                      help="smaller machine's maximal cpu utilization")
     (options, args) = parser.parse_args()
 
-    insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
-    get_apps_instances(insts, apps, app_index)
+    # 需要在读入 machine 数据之前就修改这两个参数
 
-    prepare_apps_interfers(app_interfers, app_index, apps)
-    # for app in apps:
-    #     print app.id, app.interfer_by_others
+    cfg.CPU_UTIL_LARGE = options.larger_cpu_util
+    cfg.CPU_UTIL_SMALL = options.smaller_cpu_util
+
+    if cfg.CPU_UTIL_SMALL > cfg.CPU_UTIL_LARGE \
+            or cfg.CPU_UTIL_SMALL > 1 or cfg.CPU_UTIL_SMALL <= 0 \
+            or cfg.CPU_UTIL_LARGE > 1 or cfg.CPU_UTIL_LARGE <= 0:
+        print "Invalid larger_cpu_util %.2f or smaller_cpu_util %.2f, please retry!" % \
+              (cfg.CPU_UTIL_LARGE, cfg.CPU_UTIL_SMALL)
+        exit(-1)
+
+    insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv(options.data_dir)
 
     if Method(options.method) == Method.FFD:
-        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
-        # ffd algorithm
+        ffd = FFD(insts, apps, machines)
         ffd.fit()
-        with open("init_deploy_conflict.csv", "w") as f:
-            for count, item in enumerate(ffd.init_deploy_conflict):
-                f.write("{0}\n".format(item))
-        with open("submit.csv", "w") as f:
-            for count, item in enumerate(ffd.submit_result):
-                f.write("{0},{1}\n".format(item[0], item[1]))
-        z = datetime.datetime.now()
-        final_score = 0
-        with open("search-result/search_%s%s_%s%s" % (z.month, z.day, z.hour, z.minute), "w") as f:
-            for count, machine in enumerate(machines):
-                inst_disk = ""
-                inst_id = ""
-                all_disk_use = 0
-                score = 0
-                for i in range(98):
-                    score += (1 + 10 * (math.exp(max(0, (machine.cpu_use[i] / machine.cpu_capacity) - 0.5)) - 1))
-                for inst in machine.insts.values():
-                    inst_disk += "," + str(inst.app.disk)
-                    inst_id += "," + str(inst.id)
-                    all_disk_use += inst.app.disk
-                if all_disk_use == 0:
-                    continue
-                final_score += score / 98
-                f.write("total(%s,%s): {%s}, (%s)\n" % (score / 98, all_disk_use, inst_disk.lstrip(','), inst_id.lstrip(',')))
-        print final_score
+        ffd.write_to_csv()
+
     elif Method(options.method) == Method.Knapsack:
-        knapsack = Knapsack(insts, apps, machines, app_interfers)
+        knapsack = Knapsack(insts, apps, machines)
         if options.request:
             knapsack.print_request()
         if options.test:
-                # knapsack.read_lower_bound()
-                knapsack.test(options.test)
-                # knapsack.fix_bug()
-                # knapsack.output()
-                # knapsack.write_to_csv()
+            knapsack.read_lower_bound()
+            knapsack.test(options.test)
+            # knapsack.fix_bug()
+            # knapsack.output()
+            knapsack.write_to_csv()
         if options.search:
             try:
                 # knapsack.read_lower_bound()
@@ -74,23 +68,21 @@ def main():
             except KeyboardInterrupt:
                 print "write to file."
                 knapsack.output()
+
     elif Method(options.method) == Method.Analyse:
         search_file = options.search
-        ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
-        results = start_analyse(instance_index, ffd, search_file)
-        with open("analyse.csv", "w") as f:
-            for line in results:
-                f.write(line)
-        with open("knapsack_deploy_conflict.csv", "w") as f:
-            for count, item in enumerate(ffd.init_deploy_conflict):
-                f.write("{0}\n".format(item))
+        analyse = Analyse(inst_kv, machines)
+        analyse.start_analyse(search_file)
+        analyse.print_info()
+        analyse.write_to_csv()
+
     elif Method(options.method) == Method.Search:
-        search = Search(insts, apps, machines, app_interfers)
+        search = Search(inst_kv, machines)
         search.rating(options.search)
         try:
             search.search()
         except KeyboardInterrupt:
-            print "write to file."
+            search._rating()
             search.output()
 
 

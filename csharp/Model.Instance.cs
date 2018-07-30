@@ -4,7 +4,6 @@ namespace Tianchi {
     public readonly int Id;
 
     public Machine DeployedMachine;
-
     public bool NeedDeployOrMigrate = true;
 
     public Instance(int id, App app) {
@@ -15,7 +14,7 @@ namespace Tianchi {
     public Resource R => App.R;
 
     public override string ToString() {
-      return $"inst_{Id},app_{App.Id}, {R}";
+      return $"inst_{Id},app_{App.Id},{R}";
     }
   }
 }

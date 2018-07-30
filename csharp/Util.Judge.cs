@@ -12,7 +12,7 @@ namespace Tianchi {
     private static int UsedMachineCount => Machines.Sum(m => m.IsIdle ? 0 : 1);
 
     private static void ClearMachineDeployment() {
-      foreach (var m in Machines) m.ClearInstances();
+      Machines.ForEach(m => m.ClearInstances());
 
       Debug.Assert(Instances.All(inst => inst.NeedDeployOrMigrate));
     }
@@ -32,33 +32,31 @@ namespace Tianchi {
 
       ReadSubmit(csvSubmit, verbose);
 
-      FinalCheck(verbose);
       PrintScore();
+      FinalCheck(verbose);
     }
 
     private static void ReadSubmit(string csvSubmit, bool verbose = false) {
       _w?.Close();
 
-      var failedResource = 0;
-      var failedX = 0;
+      var failedCntResource = 0;
+      var failedCntX = 0;
 
       var lineNo = 0;
 
-      ReadCsv(csvSubmit, line => {
-        if (failedResource + failedX > 0 && !verbose) return;
-
-        var fields = line.Split(',');
+      ReadCsv(csvSubmit, fields => {
+        if (failedCntResource + failedCntX > 0 && !verbose) return;
         var instId = fields[0].Id();
         var mId = fields[1].Id();
         var inst = InstanceKv[instId];
         var m = MachineKv[mId];
         lineNo++;
-        inst.DeployedMachine?.RemoveInstance(inst); //Debug.Assert(inst.IsInitConflict);
+        inst.DeployedMachine?.RemoveInstance(inst);
 
         if (!m.AddInstance(inst)) {
-          if (m.IsOverCapacity(inst)) failedResource++;
+          if (m.IsOverCapacity(inst)) failedCntResource++;
 
-          if (m.IsXWithDeployed(inst)) failedX++;
+          if (m.IsXWithDeployed(inst)) failedCntX++;
 
           Console.Write($"[{lineNo}] ");
           Console.Write(m.FailedReason(inst));

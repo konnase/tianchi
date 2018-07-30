@@ -1,67 +1,92 @@
-import math
-
-import numpy as np
-
-from constant import *
+# coding=utf-8
+from models import Machine
 
 
-def start_analyse(instance_index, ffd, SEARCH_FILE):
-    ffd.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
-    results = []
-    machine_count = 0
-    final_score = 0
-    with open(SEARCH_FILE, "r") as f:
-        for line in f:
-            instances_id = line.split()[2].strip('(').strip(')').split(',')
-            # print instances_id
-            ffd.machines[machine_count].apps_id[:] = []
-            ffd.machines[machine_count].mem_use = np.zeros(int(LINE_SIZE))
-            ffd.machines[machine_count].cpu_use = np.zeros(int(LINE_SIZE))
-            ffd.machines[machine_count].disk_use = 0
-            ffd.machines[machine_count].p_num = 0
-            ffd.machines[machine_count].m_num = 0
-            ffd.machines[machine_count].pm_num = 0
-            ffd.machines[machine_count].insts.clear()
-            out_of_capacity = False
-            max_cpu_use = 0.0
-            avg_cpu_use = 0.0
-            time_cpu_use = np.zeros(LINE_SIZE)
-            max_mem_use = 0.0
-            avg_mem_use = 0.0
-            time_mem_use = np.zeros(LINE_SIZE)
-            inst_count = 0
+# 检查 search result
+# 是否存在资源超额，亲和冲突，未部署的实例，重复部署的实例
+class Analyse(object):
+    def __init__(self, inst_kv, machines):
+        self.inst_kv = inst_kv
+        self.machines = machines
+        self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
+        Machine.empty(self.machines)
 
-            for inst_id in instances_id:
-                if inst_id == '':
+        self.inst_count = 0
+        self.inst_cnt_kv = {}
+        self.submit_result = []
+
+    def start_analyse(self, search_file):
+        machine_index = 0
+
+        for line in open(search_file, "r"):
+            instId_list = self.get_instId_list(line)
+            m = self.machines[machine_index]
+
+            if 0 == self.deploy_insts(instId_list, m):
+                raise Exception('Failed to deploy instances ' + line)
+
+            self.inst_count += len(instId_list)
+            machine_index += 1
+
+    def deploy_insts(self, instId_list, machine):
+        count = 0
+        for inst_id in instId_list:
+            if inst_id == '':
+                break
+            self.inst_cnt_kv.setdefault(inst_id, 0)
+            self.inst_cnt_kv[inst_id] += 1
+            count += 1
+
+            inst = self.inst_kv[inst_id]
+            machine.put_inst(inst)  # 不需要检查约束
+            self.submit_result.append((inst_id, machine.id))
+
+        return count
+
+    def print_info(self):
+        print "score:%.4f,insts_num:%d of [%d]" % \
+              (Machine.total_score(self.machines), self.inst_count, len(self.inst_kv))
+        multi_deployed_insts_num = 0
+        for count in self.inst_cnt_kv.values():
+            if count > 1:
+                multi_deployed_insts_num += 1
+
+        if multi_deployed_insts_num > 0:
+            print "multi-deployed insts num:%s" % multi_deployed_insts_num
+
+        undeployed_inst_num = len(self.inst_kv) - len(self.inst_cnt_kv)
+        if undeployed_inst_num > 0:
+            print "undeployed insts num:%d, for example:" % undeployed_inst_num
+            for inst_id in self.inst_kv.keys():
+                if inst_id not in self.inst_cnt_kv.keys():
+                    print inst_id
                     break
-                inst_count += 1
-                index = instance_index[inst_id]
-                ffd.machines[machine_count].put_inst(ffd.instances[index])
-                time_cpu_use += ffd.instances[index].app.cpu
-                time_mem_use += ffd.instances[index].app.mem
-                if np.max(ffd.instances[index].app.cpu) > max_cpu_use:
-                    max_cpu_use = np.max(ffd.instances[index].app.cpu)
-                if np.max(ffd.instances[index].app.mem) > max_mem_use:
-                    max_mem_use = np.max(ffd.instances[index].app.mem)
-                avg_cpu_use += np.average(ffd.instances[index].app.cpu)
-                avg_mem_use += np.average(ffd.instances[index].app.mem)
-            if avg_cpu_use > ffd.machines[machine_count].cpu_capacity / 2 or \
-                    (time_cpu_use > np.full(LINE_SIZE, ffd.machines[machine_count].cpu_capacity / 2)).any() \
-                    or avg_mem_use > ffd.machines[machine_count].mem_capacity or \
-                    (time_mem_use > np.full(LINE_SIZE, ffd.machines[machine_count].mem_capacity)).any():
-                out_of_capacity = True
-            if inst_count == 0:
-                continue
-            avg_cpu_use /= inst_count
-            avg_mem_use /= inst_count
-            result = "%s\t\t%4.3f\t\t%4.3f\t\t%4.3f\t\t%4.3f\n" % (out_of_capacity, max_cpu_use, avg_cpu_use, max_mem_use, avg_mem_use)
-            results.append(result)
+        self.print_conflict()
 
-            score = 0
-            for i in range(LINE_SIZE):
-                score += (1 + 10 * (math.exp(max(0, (ffd.machines[machine_count].cpu_use[i] / ffd.machines[machine_count].cpu_capacity) - 0.5)) - 1))
-            final_score += score / LINE_SIZE
-            machine_count += 1
-    print final_score
-    ffd.fit_before(ffd.machines[0:machine_count])
-    return results
+    # 资源和亲和约束
+    def print_conflict(self):
+        for m in self.machines:
+            if m.out_of_full_capacity():
+                print "%1.0f, %s, %.2f, %.2f/%.2f, %.2f/%.2f, %.0f, %.0f, %.0f, %.0f" % \
+                      (m.disk_cap, m.id, m.score,
+                       m.cpu_util_avg, m.cpu_util_max,
+                       m.mem_util_avg, m.mem_util_max,
+                       m.disk_usage,
+                       m.pmp_usage[0], m.pmp_usage[1], m.pmp_usage[2])
+
+            for x in m.get_conflict_list():
+                print "%s, appA:%s, appB:%s,deployed:%d, limit:%d\n" % \
+                      (m.id, x[0], x[1], x[2], x[3])
+
+    @staticmethod
+    def get_instId_list(line):
+        if line.startswith("undeployed"):
+            return []
+        return line.split()[2].strip('(').strip(')').split(',')  # line.split()[2][1:-1].split(',')
+
+    # submit0.csv 不考虑初始的部署，对应 data/b0.csv
+    def write_to_csv(self):
+        with open("submit0.csv", "w") as f:
+            print "writing to submit0.csv"
+            for inst_id, machine_id in self.submit_result:
+                f.write("{0},{1}\n".format(inst_id, machine_id))
