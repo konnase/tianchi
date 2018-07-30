@@ -119,6 +119,8 @@ class Machine(object):
         self.resource_use += inst.app.resource
 
         self.apps_id.append(inst.app.id)
+        inst.machine = self
+        inst.placed = True
 
         # save app count
         self.apps_count[inst.app.id] = self.apps_count[inst.app.id] + 1 if inst.app.id in self.apps_count else 1
@@ -135,17 +137,19 @@ class Machine(object):
         self.resource_use -= inst.app.resource
 
         self.apps_id.remove(inst.app.id)
+        inst.machine = None
+        inst.placed = False
 
         # remove app
         self.apps_count[inst.app.id] -= 1
         if self.apps_count[inst.app.id] == 0:
             self.apps_count.pop(inst.app.id)
 
-    def can_deploy_inst(self, inst, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
+    def can_deploy_inst(self, inst):
         app = inst.app
         if self.disk_capacity - self.disk_use < app.disk or \
-                (self.disk_capacity == larger_disk_capacity and (self.cpu * larger_cpu_util - self.cpu_use < app.cpu).any()) or \
-                (self.disk_capacity == smaller_disk_capacity and (self.cpu * smaller_cpu_util - self.cpu_use < app.cpu).any()) or \
+                (self.disk_capacity == DISK_CAP_LARGE and (self.cpu * global_var.CPU_UTIL_LARGE - self.cpu_use < app.cpu).any()) or \
+                (self.disk_capacity == DISK_CAP_SMALL and (self.cpu * global_var.CPU_UTIL_SMALL - self.cpu_use < app.cpu).any()) or \
                 (self.mem - self.mem_use < app.mem).any() or self.p_capacity - self.p_num < app.p or \
                 self.m_capacity - self.m_num < app.m or self.pm_capacity - self.pm_num < app.pm:
             return False
@@ -189,18 +193,18 @@ class Machine(object):
             return True
         return False
 
-    def is_cpu_util_too_high(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
-        if self.disk_capacity == larger_disk_capacity and (
-                self.cpu_use > self.cpu_capacity * larger_cpu_util).any():
+    def is_cpu_util_too_high(self):
+        if self.disk_capacity == DISK_CAP_LARGE and (
+                self.cpu_use > self.cpu_capacity * global_var.CPU_UTIL_LARGE).any():
             return True
-        if self.disk_capacity == smaller_disk_capacity and (
-                self.cpu_use > self.cpu_capacity * smaller_cpu_util).any():
+        if self.disk_capacity == DISK_CAP_SMALL and (
+                self.cpu_use > self.cpu_capacity * global_var.CPU_UTIL_SMALL).any():
             return True
         return False
 
-    def out_of_capacity(self, larger_cpu_util=1, smaller_cpu_util=1, larger_disk_capacity=2457, smaller_disk_capacity=1440):
+    def out_of_capacity(self):
         cpu = mem = disk = p = m = pm = 0
-        if self.is_cpu_util_too_high(larger_cpu_util, smaller_cpu_util, larger_disk_capacity, smaller_disk_capacity):
+        if self.is_cpu_util_too_high():
             cpu = 1
         if (self.mem_use > np.full(LINE_SIZE, self.mem_capacity)).any():
             mem = 1

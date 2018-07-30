@@ -27,10 +27,6 @@ class FFD(object):
 
         self.applications.sort(key=lambda x: x.disk, reverse=True)
         self.machines.sort(key=lambda x: x.disk_capacity, reverse=True)
-        self.larger_disk_capacity = self.machines[0].disk_capacity
-        self.smaller_disk_capacity = self.machines[5999].disk_capacity
-        self.larger_cpu_util = 0.0
-        self.smaller_cpu_util = 0.0
 
     def get_app_id_index(self):
         for app in self.applications:
@@ -50,8 +46,7 @@ class FFD(object):
 
         for machine in machines:
             for inst in machine.insts.values():
-                if machine.is_cpu_util_too_high(self.larger_cpu_util, self.smaller_cpu_util, self.larger_disk_capacity,
-                                                self.smaller_disk_capacity):
+                if machine.is_cpu_util_too_high():
                     machine.remove_inst(inst)
                     self.deploy_inst(inst)
                     continue
@@ -80,16 +75,14 @@ class FFD(object):
                         app.disk >= LARGE_DISK_INST or (app.cpu >= np.full(int(LINE_SIZE), LARGE_CPU_INST)).any()
                         or (app.mem >= np.full(int(LINE_SIZE), LARGE_MEM_INST)).any()):
                     for machine in self.machines:
-                        if machine.disk_capacity == self.larger_disk_capacity and machine.disk_use <= 200:
-                            if machine.can_deploy_inst(inst, self.larger_cpu_util, self.smaller_cpu_util,
-                                                       self.larger_disk_capacity, self.smaller_disk_capacity):
+                        if machine.disk_capacity == DISK_CAP_LARGE and machine.disk_use <= 200:
+                            if machine.can_deploy_inst(inst):
                                 self.deploy_inst_on_machine(machine, inst)
                                 print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                                 break
 
-    def fit(self, larger_cpu_util=1, smaller_cpu_util=1):
-        self.larger_cpu_util = larger_cpu_util
-        self.smaller_cpu_util = smaller_cpu_util
+    def fit(self):
+        print global_var.CPU_UTIL_LARGE
         self.fit_large_inst()
         self.resolve_init_conflict(self.machines)
         print "starting fit"
@@ -102,8 +95,7 @@ class FFD(object):
 
     def deploy_inst(self, inst):
         for machine in self.machines:
-            if machine.can_deploy_inst(inst, self.larger_cpu_util, self.smaller_cpu_util, self.larger_disk_capacity,
-                                       self.smaller_disk_capacity):
+            if machine.can_deploy_inst(inst):
                 self.deploy_inst_on_machine(machine, inst)
                 print "deployed %s of %s on %s" % (inst.id, inst.app.id, machine.id)
                 break

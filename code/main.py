@@ -7,6 +7,7 @@ from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import Analyse
 from scheduler.models import prepare_apps_interfers
+import scheduler.constant as constant
 
 
 def main():
@@ -22,6 +23,9 @@ def main():
                       help="specify smaller machine's maximal cpu utilization")
     (options, args) = parser.parse_args()
 
+    constant.set_cpu_util_large(options.larger_cpu_util)
+    constant.set_cpu_util_small(options.smaller_cpu_util)
+
     insts, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv(options.data_dir)
     get_apps_instances(insts, apps, app_index)
 
@@ -29,9 +33,7 @@ def main():
 
     if Method(options.method) == Method.FFD:
         ffd = FFD(insts, apps, machines, app_interfers, machine_index, app_index)
-        larger_cpu_util = options.larger_cpu_util
-        smaller_cpu_util = options.smaller_cpu_util
-        ffd.fit(larger_cpu_util, smaller_cpu_util)
+        ffd.fit()
         ffd.write_to_csv()
     elif Method(options.method) == Method.Knapsack:
         knapsack = Knapsack(insts, apps, machines, app_interfers)
