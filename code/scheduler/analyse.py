@@ -57,10 +57,13 @@ class Analyse(object):
         undeployed_inst_num = len(self.inst_kv) - len(self.inst_cnt_kv)
         if undeployed_inst_num > 0:
             print "undeployed insts num:%d, for example:" % undeployed_inst_num
+            cnt = 0
             for inst_id in self.inst_kv.keys():
-                if inst_id not in self.inst_cnt_kv.keys():
+                if inst_id not in self.inst_cnt_kv:
+                    cnt += 1
                     print inst_id
-                    break
+                    if cnt > 10 or cnt == undeployed_inst_num:
+                        break
         self.print_conflict()
 
     # 资源和亲和约束
