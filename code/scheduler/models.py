@@ -91,6 +91,7 @@ class Machine(object):
         self.cpu_cap = float(cpu_cap)
         self.mem_cap = float(mem_cap)
         self.disk_cap = float(disk_cap)
+        self.pmp_cap = np.array([float(p_cap), float(m_cap), float(pm_cap)])
 
         if self.is_large_machine:
             self.CPU_UTIL = CPU_UTIL_LARGE
@@ -101,11 +102,13 @@ class Machine(object):
         # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
         self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL),
                                    np.full(int(TS_COUNT), self.mem_cap),
-                                   np.array([self.disk_cap, float(p_cap), float(m_cap), float(pm_cap)])))
+                                   np.array([self.disk_cap]),
+                                   self.pmp_cap))
 
         self.full_cap = np.hstack((np.full(int(TS_COUNT), self.cpu_cap),
                                    np.full(int(TS_COUNT), self.mem_cap),
-                                   np.array([self.disk_cap, float(p_cap), float(m_cap), float(pm_cap)])))
+                                   np.array([self.disk_cap]),
+                                   self.pmp_cap))
 
         self.usage = np.zeros(len(self.capacity))
 
@@ -122,16 +125,33 @@ class Machine(object):
         return self.usage[0:TS_COUNT]
 
     @property
+    def is_cpu_overload(self):
+        return np.any(np.around(self.cpu_usage, 8) > self.cpu_cap)
+
+    @property
     def mem_usage(self):
         return self.usage[TS_COUNT:TS_COUNT * 2]
+
+    @property
+    def is_mem_overload(self):
+
+        return np.any(np.around(self.mem_usage, 8) > self.mem_cap)
 
     @property
     def disk_usage(self):
         return self.usage[TS_COUNT * 2]
 
     @property
+    def is_disk_overload(self):
+        return self.disk_usage > self.disk_cap
+
+    @property
     def pmp_usage(self):
         return self.usage[TS_COUNT * 2 + 1:RESOURCE_LEN]
+
+    @property
+    def pmp_overload_cnt(self):
+        return np.sum((self.pmp_usage > self.pmp_cap))
 
     @property
     def cpu_util_max(self):
@@ -198,18 +218,18 @@ class Machine(object):
         # if self.insts.has_key(inst.id):
         #     return True
         # else:
-        return not (self.out_of_capacity(inst) or self.has_conflict(inst))
+        return not (self.out_of_capacity_inst(inst) or self.has_conflict_inst(inst))
 
     # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
-    def out_of_capacity(self, inst):
-        return any((self.usage + inst.app.resource) > self.capacity)
+    def out_of_capacity_inst(self, inst):
+        return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
 
     # 这里与没有乘以CPU_UTIL系数的资源量比较
     def out_of_full_capacity(self):
-        return any(self.usage > self.full_cap)
+        return np.any(np.around(self.usage, 8) > self.full_cap)
 
     # 亲和性冲突
-    def has_conflict(self, inst):
+    def has_conflict_inst(self, inst):
         appId_b = inst.app.id
         appCnt_b = self.app_cnt_kv.get(appId_b, 0)
 
@@ -222,6 +242,7 @@ class Machine(object):
 
         return False
 
+    # [(appId_a, appId_b, appCnt_b, limit)]
     def get_conflict_list(self):
         result = []
         for appId_a in self.app_cnt_kv.keys():
@@ -231,6 +252,16 @@ class Machine(object):
                     result.append((appId_a, appId_b, appCnt_b, limit))
 
         return result
+
+    def has_conflict(self):
+        cnt = 0
+        for appId_a in self.app_cnt_kv.keys():
+            for appId_b, appCnt_b in self.app_cnt_kv.iteritems():
+                limit = AppInterference.limit_of(appId_a, appId_b)
+                if appCnt_b > limit:
+                    cnt += 1
+
+        return cnt > 0
 
     @staticmethod
     # 合计一组机器的成本分数
@@ -254,6 +285,12 @@ class Machine(object):
         return "Machine id(%s) score(%f) disk(%d/%d) cpu_usage(%f) mem_usage(%f) bins(%s)" % (
             self.id, self.score, self.disk_usage, self.disk_cap, self.cpu_util_max, self.mem_util_max,
             ",".join([str(i.app.disk) for i in self.inst_kv.values()]))
+
+    def to_search_str(self):
+        return "total(%f,%d): {%s} (%s)\n" % (
+            self.score, self.disk_usage,
+            ",".join([str(int(i.app.disk)) for i in self.inst_kv.values()]),
+            ",".join([i.id for i in self.inst_kv.values()]))
 
 
 def read_from_csv(project_path):

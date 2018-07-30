@@ -8,8 +8,8 @@ class Analyse(object):
     def __init__(self, inst_kv, machines):
         self.inst_kv = inst_kv
         self.machines = machines
-        Machine.empty(self.machines)
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
+        Machine.empty(self.machines)
 
         self.inst_count = 0
         self.inst_cnt_kv = {}
@@ -28,8 +28,6 @@ class Analyse(object):
             self.inst_count += len(instId_list)
             machine_index += 1
 
-        self.print_info()
-
     def deploy_insts(self, instId_list, machine):
         count = 0
         for inst_id in instId_list:
@@ -46,10 +44,10 @@ class Analyse(object):
         return count
 
     def print_info(self):
-        print "score:%4.3f,insts_num:%d of [%d]" % \
+        print "score:%.4f,insts_num:%d of [%d]" % \
               (Machine.total_score(self.machines), self.inst_count, len(self.inst_kv))
         multi_deployed_insts_num = 0
-        for inst, count in self.inst_cnt_kv.items():
+        for count in self.inst_cnt_kv.values():
             if count > 1:
                 multi_deployed_insts_num += 1
 
@@ -65,6 +63,7 @@ class Analyse(object):
                     break
         self.print_conflict()
 
+    # 资源和亲和约束
     def print_conflict(self):
         for m in self.machines:
             if m.out_of_full_capacity():
@@ -75,18 +74,19 @@ class Analyse(object):
                        m.disk_usage,
                        m.pmp_usage[0], m.pmp_usage[1], m.pmp_usage[2])
 
-            list = m.get_conflict_list()
-            if len(list) == 0:
-                continue
-            for x in list:
+            for x in m.get_conflict_list():
                 print "%s, appA:%s, appB:%s,deployed:%d, limit:%d\n" % \
                       (m.id, x[0], x[1], x[2], x[3])
 
     @staticmethod
     def get_instId_list(line):
-        return line.split()[2].strip('(').strip(')').split(',')
+        if line.startswith("undeployed"):
+            return []
+        return line.split()[2].strip('(').strip(')').split(',')  # line.split()[2][1:-1].split(',')
 
+    # submit0.csv 不考虑初始的部署，对应 data/b0.csv
     def write_to_csv(self):
         with open("submit0.csv", "w") as f:
+            print "writing to submit0.csv"
             for inst_id, machine_id in self.submit_result:
                 f.write("{0},{1}\n".format(inst_id, machine_id))

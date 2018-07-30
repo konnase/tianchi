@@ -14,7 +14,7 @@ class Method(Enum):
     FFD = 1
     Knapsack = 2
     Analyse = 3
-    Search = 4
+    Search = 5
 
 
 def main():
@@ -34,15 +34,15 @@ def main():
     config.CPU_UTIL_LARGE = options.larger_cpu_util
     config.CPU_UTIL_SMALL = options.smaller_cpu_util
 
-    insts, apps, machines, insts_kv, app_kv, machine_kv = read_from_csv(options.data_dir)
+    insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv(options.data_dir)
 
     if Method(options.method) == Method.FFD:
-        ffd = FFD(insts, apps, machines, app_kv, machine_kv)
+        ffd = FFD(insts, apps, machines)
         ffd.fit()
         ffd.write_to_csv()
 
     elif Method(options.method) == Method.Knapsack:
-        knapsack = Knapsack(insts, apps, machines, AppInterference)
+        knapsack = Knapsack(insts, apps, machines)
         if options.request:
             knapsack.print_request()
         if options.test:
@@ -63,17 +63,17 @@ def main():
 
     elif Method(options.method) == Method.Analyse:
         search_file = options.search
-        analyse = Analyse(insts_kv, machines)
+        analyse = Analyse(inst_kv, machines)
         analyse.start_analyse(search_file)
+        analyse.print_info()
         analyse.write_to_csv()
 
     elif Method(options.method) == Method.Search:
-        search = Search(insts, apps, machines, AppInterference)
+        search = Search(inst_kv, machines)
         search.rating(options.search)
         try:
             search.search()
         except KeyboardInterrupt:
-            print "write to file."
             search.output()
 
 

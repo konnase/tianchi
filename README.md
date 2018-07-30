@@ -17,9 +17,9 @@ Method enum:
 ```python
 class Method(Enum):
     FFD = 1
-    Knapsack = 2 # ??
+    Knapsack = 2 # ?
     Analyse = 3
-    Search = 4
+    Search = 5 # <-
 ```
 
 ### 检查搜索结果

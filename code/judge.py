@@ -1,4 +1,4 @@
-from scheduler.models import read_from_csv, Machine, AppInterference
+from scheduler.models import read_from_csv, Machine
 
 
 def read_deploy(path):
@@ -16,8 +16,8 @@ def judge():
     i = 0
     for inst_id, machine_id in deploys:
         i += 1
-        m = machine_kv[machine_id]
         inst = inst_kv[inst_id]
+        m = machine_kv[machine_id]
 
         if m.can_put_inst(inst):
             m.put_inst(inst)
