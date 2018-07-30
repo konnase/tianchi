@@ -177,7 +177,8 @@ class Machine(object):
         if self.disk_usage == 0:
             return 0
 
-        x = np.maximum(self.cpu_usage / self.cpu_cap - 0.5, 0)  # max(c - beta, 0)
+        x = np.maximum(self.cpu_usage / self.cpu_cap -
+                       0.5, 0)  # max(c - beta, 0)
 
         return np.average(1 + 10 * (np.exp(x) - 1))
 
@@ -217,15 +218,18 @@ class Machine(object):
         for inst in self.inst_kv.values()[:]:
             self.remove_inst(inst)
 
-    def can_put_inst(self, inst):
+    def can_put_inst(self, inst, full_cap=False):
         # if self.insts.has_key(inst.id):
         #     return True
         # else:
-        return not (self.out_of_capacity_inst(inst) or self.has_conflict_inst(inst))
+        return not (self.out_of_capacity_inst(inst, full_cap) or self.has_conflict_inst(inst))
 
     # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
-    def out_of_capacity_inst(self, inst):
-        return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
+    def out_of_capacity_inst(self, inst, full_cap=False):
+        if full_cap:
+            return np.any(self.usage + inst.app.resource > self.full_cap)
+        else:
+            return np.any(self.usage + inst.app.resource > self.capacity)
 
     # 这里与没有乘以CPU_UTIL系数的资源量比较
     def out_of_full_capacity(self):
@@ -327,7 +331,7 @@ def read_from_csv(project_path):
         # 则读入初始部署，且不考虑资源和亲和约束
         if parts[2] != '':
             m = machine_kv[parts[2]]
-            can_deploy = m.can_put_inst(inst)
+            can_deploy = m.can_put_inst(inst, full_cap=True)
             m.put_inst(inst)  # 部署inst后，会改变机器状态，故需事先保存标志
             inst.deployed = can_deploy
 
