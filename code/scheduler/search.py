@@ -158,7 +158,7 @@ class Search(object):
     def do_swap(self, inst1, inst2):
         machine1 = inst1.machine
         machine2 = inst2.machine
-        machine1.put_inst(inst2)  # put_inst时会将其从旧的机器移除，但？？
+        machine1.put_inst(inst2)  # put_inst时会将其从旧的机器移除
         machine2.put_inst(inst1)
 
     def output(self):

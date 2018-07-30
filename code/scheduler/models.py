@@ -1,7 +1,10 @@
 # coding=utf-8
 import os
 import numpy as np
-from config import *
+import config as cfg
+
+TS_COUNT = cfg.TS_COUNT
+RESOURCE_LEN = cfg.RESOURCE_LEN
 
 
 class Instance(object):
@@ -94,9 +97,9 @@ class Machine(object):
         self.pmp_cap = np.array([float(p_cap), float(m_cap), float(pm_cap)])
 
         if self.is_large_machine:
-            self.CPU_UTIL = CPU_UTIL_LARGE
+            self.CPU_UTIL = cfg.CPU_UTIL_LARGE
         else:
-            self.CPU_UTIL = CPU_UTIL_SMALL
+            self.CPU_UTIL = cfg.CPU_UTIL_SMALL
 
         # 修改 capacity 中cpu的比例，
         # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
@@ -118,7 +121,7 @@ class Machine(object):
     # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
     @property
     def is_large_machine(self):
-        return self.disk_cap == DISK_CAP_LARGE
+        return self.disk_cap == cfg.DISK_CAP_LARGE
 
     @property
     def cpu_usage(self):
@@ -296,24 +299,24 @@ class Machine(object):
 def read_from_csv(project_path):
     machines = []
     machine_kv = {}
-    for line in open(os.path.join(project_path, MACHINE_INPUT_FILE)):
+    for line in open(os.path.join(project_path, cfg.MACHINE_INPUT_FILE)):
         m = Machine.from_csv_line(line)
         machine_kv[m.id] = m
         machines.append(m)
 
     apps = []
     app_kv = {}
-    for line in open(os.path.join(project_path, APP_INPUT_FILE)):
+    for line in open(os.path.join(project_path, cfg.APP_INPUT_FILE)):
         app = Application.from_csv_line(line)
         app_kv[app.id] = app
         apps.append(app)
 
-    for line in open(os.path.join(project_path, APP_INTERFER_FILE)):
+    for line in open(os.path.join(project_path, cfg.APP_INTERFER_FILE)):
         AppInterference.append(line)
 
     instances = []
     instance_kv = {}
-    for line in open(os.path.join(project_path, INSTANCE_INPUT_FILE)):
+    for line in open(os.path.join(project_path, cfg.INSTANCE_INPUT_FILE)):
         line = line.rstrip('\n')
         inst = Instance.from_csv_line(line)
         parts = line.split(',')  # inst_id,app_id,machine_id
