@@ -26,7 +26,7 @@ class Method(Enum):
 ```bash
 dotnet judge/verifysearch.dll search6991 # hard coded [search-result] path
 
-python code/main.py --data_dir=data --method=3 --search=search-result/search6278
+python code/main.py --data_dir=data --method=3 --search=search-result/search6278 --larger_cpu_util=[default=1] --smaller_cpu_util=[default=1]
 ```
 
 ### 官方评分 

@@ -74,6 +74,7 @@ def main():
         try:
             search.search()
         except KeyboardInterrupt:
+            search._rating()
             search.output()
 
 
