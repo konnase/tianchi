@@ -241,6 +241,12 @@ class Machine(object):
             s += m.score
         return s
 
+    # 清空一组机器上部署的实例
+    @staticmethod
+    def clear(machines):
+        for m in machines:
+            m.clear_instances()
+
     @staticmethod
     def from_csv_line(line):
         return Machine(*line.strip().split(","))

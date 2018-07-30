@@ -1,4 +1,6 @@
 # coding=utf-8
+from models import Machine
+
 
 # 检查 search result
 # 是否存在资源超额，亲和冲突，未部署的实例，重复部署的实例
@@ -6,28 +8,25 @@ class Analyse(object):
     def __init__(self, inst_kv, machines):
         self.inst_kv = inst_kv
         self.machines = machines
+        Machine.clear(self.machines)
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
 
+        self.inst_count = 0
         self.inst_cnt_kv = {}
+        self.submit_result = []
 
     def start_analyse(self, search_file):
         machine_index = 0
-        total_score = 0
-        inst_count = 0
 
         for line in open(search_file, "r"):
             insts_id = self.get_instId_list(line)
             m = self.machines[machine_index]
-            m.clear_instances()  # 清空初始部署
+
             if 0 == self.deploy_insts(insts_id, m):
                 raise Exception('Failed to deploy instances ' + line)
 
-            total_score += m.score
-            inst_count += len(insts_id)
+            self.inst_count += len(insts_id)
             machine_index += 1
-
-        print "score:%4.3f,insts_num:%d of [%d]" % \
-              (total_score, inst_count, len(self.inst_kv))
 
         self.print_info()
 
@@ -41,11 +40,14 @@ class Analyse(object):
             count += 1
 
             inst = self.inst_kv[inst_id]
-            machine.put_inst(inst)  # todo: 没有检查约束
+            machine.put_inst(inst)  # 不需要检查约束
+            self.submit_result.append((inst_id, machine.id, machine.score))
 
         return count
 
     def print_info(self):
+        print "score:%4.3f,insts_num:%d of [%d]" % \
+              (Machine.total_score(self.machines), self.inst_count, len(self.inst_kv))
         multi_deployed_insts_num = 0
         for inst, count in self.inst_cnt_kv.items():
             if count > 1:
@@ -66,11 +68,12 @@ class Analyse(object):
     def print_conflict(self):
         for m in self.machines:
             if m.out_of_full_capacity():
-                print "%s, %.2f, %.2f / %.2f, %.2f / %.2f, %.0f / %1.0f, %s" % \
-                      (m.id, m.score,
+                print "%1.0f, %s, %.2f, %.2f/%.2f, %.2f/%.2f, %.0f, %.0f, %.0f, %.0f" % \
+                      (m.disk_cap, m.id, m.score,
                        m.cpu_util_avg, m.cpu_util_max,
                        m.mem_util_avg, m.mem_util_max,
-                       m.disk_usage, m.disk_cap, m.pmp_usage)
+                       m.disk_usage,
+                       m.pmp_usage[0], m.pmp_usage[1], m.pmp_usage[2])
 
             list = m.get_conflict_list()
             if len(list) == 0:
@@ -82,3 +85,8 @@ class Analyse(object):
     @staticmethod
     def get_instId_list(line):
         return line.split()[2].strip('(').strip(')').split(',')
+
+    def write_to_csv(self):
+        with open("submit0.csv", "w") as f:
+            for inst_id, machine_id, score in self.submit_result:
+                f.write("{0},{1},{2}\n".format(inst_id, machine_id, score))
