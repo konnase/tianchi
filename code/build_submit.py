@@ -73,7 +73,7 @@ def get_init_deploy(inst):
 
 def write_to_csv():
     z = datetime.datetime.now()
-    with open("data/submit_%s_%s.csv" % (z.date(), z.time()), "w") as f:
+    with open("data/submit.csv", "w") as f:
         for count, item in enumerate(submit_result):
             f.write("{0},{1}\n".format(item[0], item[1]))
 
