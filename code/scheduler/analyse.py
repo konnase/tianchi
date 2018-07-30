@@ -66,8 +66,7 @@ class Analyse(object):
         self.resolve_init_conflict(self.machines[0:machine_count])
 
     def record_overload_machine(self, machine):
-        cpu, mem, disk, p, m, pm = machine.out_of_capacity(self.larger_cpu_util, self.smaller_cpu_util,
-                                                           self.larger_disk_capacity, self.smaller_disk_capacity)
+        cpu, mem, disk, p, m, pm = machine.out_of_capacity()
         self.cpu_overload += cpu
         self.mem_overload += mem
         self.disk_overload += disk
