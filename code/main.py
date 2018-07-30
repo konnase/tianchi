@@ -19,7 +19,7 @@ class Method(Enum):
 
 def main():
     parser = OptionParser()
-    parser.add_option("-d", "--data_dir", dest="data_dir", help="directory of csv data")
+    parser.add_option("-d", "--data_dir", dest="data_dir", default="data", help="directory of csv data")
     parser.add_option("-m", "--method", dest="method", type="int", help="method to solve this problem")
     parser.add_option("-t", "--test_output", dest="test", help="output to test")
     parser.add_option("-s", "--search", dest="search", help="file to search")

@@ -9,7 +9,8 @@ g++ code/lower_bound.cpp -O2 -o lb && ./lb < request > search
 ### Solution
 
 ```bash
-$ python code/main.py --data_dir=data --method=1 --uh=0.7 --ul=0.6
+python code/main.py --data_dir=data --method=1 --uh=0.7 --ul=0.6
+python code/main.py -m 1 --uh=0.7 --ul=0.6 # use default data dir project_path/data/
 ```
 
 Method enum:
