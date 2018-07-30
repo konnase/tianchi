@@ -123,15 +123,62 @@ class Search(object):
         random.shuffle(set2)
 
         for i in set1:
-            for inst1 in self.machines[i].insts.values():
-                for j in set2:
-                    if i == j:
-                        continue
-                    for inst2 in self.machines[j].insts.values():
-                        if self.can_swap_inst(inst1, inst2):
-                            print "swap %s <-> %s: %f" % (inst1.id, inst2.id, self.total_score)
+            for j in set2:
+                if i == j:
+                    continue
+
+                choice = self.choice()
+                if choice == 1:
+                    for inst in self.machines[j].insts.values():
+                        if self.can_move_inst(self.machines[i], inst, i):
+                            print "move %s -> %s: %f" % (inst.id, self.machines[i].id, self.total_score)
                             return True
+                elif choice == 2:
+                    for inst1 in self.machines[i].insts.values():
+                        for inst2 in self.machines[j].insts.values():
+                            if self.can_swap_inst(inst1, inst2):
+                                print "swap %s <-> %s: %f" % (inst1.id, inst2.id, self.total_score)
+                                return True
         return False
+
+    def choice(self):
+        rand = random.random()
+        if rand < 0.4:
+            return 1
+        else:
+            return 2
+
+    def can_move_inst(self, machine1, inst, machine_id_of_machine1):
+        if machine1.disk_use == 0:
+            return False
+
+        machine2 = self.machines[inst.machine_id]
+        resource = machine1.resource_use + inst.app.resource
+        if any(np.around(resource, 8) > np.around(machine1.resource_capacity)):
+            return False
+
+        score_before = machine1.cpu_score + machine2.cpu_score
+
+        machine_id_of_inst = inst.machine_id
+        inst.machine_id = machine_id_of_machine1
+        machine2.remove_inst(inst)
+        machine1.put_inst(inst)
+
+        if machine1.has_conflict():
+            inst.machine_id = machine_id_of_inst
+            machine1.remove_inst(inst)
+            machine2.put_inst(inst)
+            return False
+
+        score_after = machine1.cpu_score + machine2.cpu_score
+        if score_after > score_before:
+            inst.machine_id = machine_id_of_inst
+            machine1.remove_inst(inst)
+            machine2.put_inst(inst)
+            return False
+
+        self.total_score = self.total_score - score_before + score_after
+        return True
 
     def can_swap_inst(self, inst1, inst2):
         if inst1.id not in self.machines[inst1.machine_id].insts:
