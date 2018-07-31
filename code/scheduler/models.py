@@ -97,13 +97,13 @@ class Machine(object):
         self.pmp_cap = np.array([float(p_cap), float(m_cap), float(pm_cap)])
 
         if self.is_large_machine:
-            self.CPU_UTIL = cfg.CPU_UTIL_LARGE
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_LARGE
         else:
-            self.CPU_UTIL = cfg.CPU_UTIL_SMALL
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_SMALL
 
         # 修改 capacity 中cpu的比例，
         # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
-        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL),
+        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL_THRESHOLD),
                                    np.full(int(TS_COUNT), self.mem_cap),
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))
@@ -113,10 +113,11 @@ class Machine(object):
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))
 
-        self.usage = np.zeros(len(self.capacity))
+        self.usage = np.zeros(RESOURCE_LEN)
 
         self.inst_kv = {}  # <inst_id, instance>
         self.app_cnt_kv = {}  # <app_id, cnt>
+        self.app_kv = {}  # <app_id,[insts]> 用于减少重复搜索同类应用实例
 
     # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
     @property
@@ -177,7 +178,8 @@ class Machine(object):
         if self.disk_usage == 0:
             return 0
 
-        x = np.maximum(self.cpu_usage / self.cpu_cap - 0.5, 0)  # max(c - beta, 0)
+        x = np.maximum(self.cpu_usage / self.cpu_cap -
+                       0.5, 0)  # max(c - beta, 0)
 
         return np.average(1 + 10 * (np.exp(x) - 1))
 
@@ -195,8 +197,13 @@ class Machine(object):
         inst.machine = self
         inst.deployed = True
         self.inst_kv[inst.id] = inst
-        self.app_cnt_kv.setdefault(inst.app.id, 0)
-        self.app_cnt_kv[inst.app.id] += 1
+
+        app_id = inst.app.id
+        self.app_cnt_kv.setdefault(app_id, 0)
+        self.app_cnt_kv[app_id] += 1
+
+        self.app_kv.setdefault(app_id, [])
+        self.app_kv[app_id].append(inst)
 
     def remove_inst(self, inst):
         if not self.inst_kv.has_key(inst.id):
@@ -206,26 +213,35 @@ class Machine(object):
         inst.machine = None
         inst.deployed = False
         self.inst_kv.pop(inst.id)
-        self.app_cnt_kv[inst.app.id] -= 1
+        app_id = inst.app.id
+        self.app_cnt_kv[app_id] -= 1
 
         # 必须移除实例个数为0的应用，否则检查亲和约束会干扰循环
-        if self.app_cnt_kv[inst.app.id] == 0:
-            self.app_cnt_kv.pop(inst.app.id)
+        if self.app_cnt_kv[app_id] == 0:
+            self.app_cnt_kv.pop(app_id)
+            self.app_kv.pop(app_id)
+        else:
+            self.app_kv[app_id].remove(inst)
 
     def clear_instances(self):
         # 注意：循环中修改列表
         for inst in self.inst_kv.values()[:]:
             self.remove_inst(inst)
 
-    def can_put_inst(self, inst):
-        # if self.insts.has_key(inst.id):
+        self.usage = np.zeros(RESOURCE_LEN)  # 防止舍入误差？
+
+    def can_put_inst(self, inst, full_cap=False):
+        # if self.inst_kv.has_key(inst.id):
         #     return True
         # else:
-        return not (self.out_of_capacity_inst(inst) or self.has_conflict_inst(inst))
+        return not (self.out_of_capacity_inst(inst, full_cap) or self.has_conflict_inst(inst))
 
     # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
-    def out_of_capacity_inst(self, inst):
-        return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
+    def out_of_capacity_inst(self, inst, full_cap=False):
+        if full_cap:
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.full_cap)
+        else:
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
 
     # 这里与没有乘以CPU_UTIL系数的资源量比较
     def out_of_full_capacity(self):
@@ -257,14 +273,13 @@ class Machine(object):
         return result
 
     def has_conflict(self):
-        cnt = 0
         for appId_a in self.app_cnt_kv.keys():
             for appId_b, appCnt_b in self.app_cnt_kv.iteritems():
                 limit = AppInterference.limit_of(appId_a, appId_b)
                 if appCnt_b > limit:
-                    cnt += 1
+                    return True
 
-        return cnt > 0
+        return False
 
     @staticmethod
     # 合计一组机器的成本分数
@@ -327,7 +342,7 @@ def read_from_csv(project_path):
         # 则读入初始部署，且不考虑资源和亲和约束
         if parts[2] != '':
             m = machine_kv[parts[2]]
-            can_deploy = m.can_put_inst(inst)
+            can_deploy = m.can_put_inst(inst, full_cap=True)
             m.put_inst(inst)  # 部署inst后，会改变机器状态，故需事先保存标志
             inst.deployed = can_deploy
 

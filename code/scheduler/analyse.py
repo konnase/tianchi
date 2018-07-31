@@ -57,10 +57,13 @@ class Analyse(object):
         undeployed_inst_num = len(self.inst_kv) - len(self.inst_cnt_kv)
         if undeployed_inst_num > 0:
             print "undeployed insts num:%d, for example:" % undeployed_inst_num
+            cnt = 0
             for inst_id in self.inst_kv.keys():
-                if inst_id not in self.inst_cnt_kv.keys():
+                if inst_id not in self.inst_cnt_kv:
+                    cnt += 1
                     print inst_id
-                    break
+                    if cnt > 10 or cnt == undeployed_inst_num:
+                        break
         self.print_conflict()
 
     # 资源和亲和约束
@@ -85,6 +88,7 @@ class Analyse(object):
         return line.split()[2].strip('(').strip(')').split(',')  # line.split()[2][1:-1].split(',')
 
     # submit0.csv 不考虑初始的部署，对应 data/b0.csv
+    # 因为仅测试用，所以使用固定的名字，会覆盖之前的文件
     def write_to_csv(self):
         with open("submit0.csv", "w") as f:
             print "writing to submit0.csv"
