@@ -4,6 +4,7 @@ import math
 import numpy as np
 
 import config as cfg
+
 from scheduler.models import Machine
 
 
@@ -63,6 +64,7 @@ class FFD(object):
         self.resolve_init_conflict(self.machines)
         self.migrate_high_cpu_util(self.machines)
         self.fit_large_inst(self.machines)
+        self.resolve_init_conflict(self.machines)
         print "starting fit"
         for app in self.apps:
             for inst in app.instances:

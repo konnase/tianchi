@@ -61,9 +61,23 @@ class Search(object):
                                              total_cnt, pmp_overload_cnt, total_cnt)
         print "Constraint violate: %d / %d" % (interference_cnt, violate_cnt)
 
+    # def search(self):
+    #     set1 = range(len(self.machines))
+    #     set2 = range(len(self.machines))
+    #     while True:
+    #         if not self._search(set1, set2):
+    #             break
     def search(self):
-        set1 = range(len(self.machines))
-        set2 = range(len(self.machines))
+        set1 = []
+        set2 = []
+        for i in range(len(self.machines)):
+            if self.machines[i].score >= 1.0 and self.machines[i].score <= 1.30:
+                set1.append(i)
+            if self.machines[i].score >= 1.0 and self.machines[i].score <= 1.30:
+                set2.append(i)
+        print len(set1), len(set2)
+        # set1 = range(len(self.machines))
+        # set2 = range(len(self.machines))
         while True:
             if not self._search(set1, set2):
                 break
