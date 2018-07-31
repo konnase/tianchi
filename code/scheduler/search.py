@@ -24,7 +24,7 @@ class Search(object):
         disk_overload_cnt = 0
         cpu_overload_cnt = 0
         mem_overload_cnt = 0
-        pmp_overload_cnt = 0  # 这三项暂时没有遇到超额的，为了简便，合计并显示
+        pmp_overload_cnt = 0  # 这三项暂时没有遇到超额的，为了简便，合并显示
         interference_cnt = 0
         violate_cnt = 0
 
@@ -106,22 +106,23 @@ class Search(object):
     def choice(self):
         rand = random.random()
         if rand < 0.4:
-           return 1
+            return 1
         else:
-           return 2
+            return 2
 
     def try_move_inst(self, machine1, inst):
         # todo: 对空闲机器，是否也可以作为迁移对象？
         if machine1.disk_usage == 0:
             return False
 
-        machine2 = inst.machine
         if not machine1.can_put_inst(inst, full_cap=True):
             return False
 
+        machine2 = inst.machine
+
         score_before = machine1.score + machine2.score
 
-        machine1.put_inst(inst)
+        machine1.put_inst(inst)  # put_inst 时会自动将inst从旧的机器移除
 
         score_after = machine1.score + machine2.score
 
@@ -164,8 +165,8 @@ class Search(object):
         self.total_score += delta
         return True
 
-    # 检查从机器上移除 inst_old 之后, 
-    # inst_new 是否还有亲和冲突
+    # 从机器上移除 inst_old 之后,
+    # 检查 inst_new 是否有亲和冲突
     # 注意参数顺序
     def has_conflict(self, inst_old, inst_new):
         machine = inst_old.machine
@@ -179,7 +180,7 @@ class Search(object):
     def do_swap(self, inst1, inst2):
         machine1 = inst1.machine
         machine2 = inst2.machine
-        machine1.put_inst(inst2)  # put_inst时会将其从旧的机器移除
+        machine1.put_inst(inst2)
         machine2.put_inst(inst1)
 
     def output(self):
