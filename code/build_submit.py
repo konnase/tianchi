@@ -50,7 +50,7 @@ def migrate(machine_from, machines):
 
 def write_to_csv():
     s = ("%.2f" % total_score).replace(".", "_")
-    csv = "submit%s.csv" % s
+    csv = "submit_%s.csv" % s
     print "writing to", csv
     with open(csv, "w") as f:
         for inst_id, machine_id in submit_result:

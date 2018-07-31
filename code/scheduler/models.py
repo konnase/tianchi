@@ -113,7 +113,7 @@ class Machine(object):
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))
 
-        self.usage = np.zeros(len(self.capacity))
+        self.usage = np.zeros(RESOURCE_LEN)
 
         self.inst_kv = {}  # <inst_id, instance>
         self.app_cnt_kv = {}  # <app_id, cnt>
@@ -228,8 +228,10 @@ class Machine(object):
         for inst in self.inst_kv.values()[:]:
             self.remove_inst(inst)
 
+        self.usage = np.zeros(RESOURCE_LEN)  # 防止舍入误差？
+
     def can_put_inst(self, inst, full_cap=False):
-        # if self.insts.has_key(inst.id):
+        # if self.inst_kv.has_key(inst.id):
         #     return True
         # else:
         return not (self.out_of_capacity_inst(inst, full_cap) or self.has_conflict_inst(inst))
@@ -237,9 +239,9 @@ class Machine(object):
     # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
     def out_of_capacity_inst(self, inst, full_cap=False):
         if full_cap:
-            return np.any(self.usage + inst.app.resource > self.full_cap)
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.full_cap)
         else:
-            return np.any(self.usage + inst.app.resource > self.capacity)
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
 
     # 这里与没有乘以CPU_UTIL系数的资源量比较
     def out_of_full_capacity(self):
@@ -271,14 +273,13 @@ class Machine(object):
         return result
 
     def has_conflict(self):
-        cnt = 0
         for appId_a in self.app_cnt_kv.keys():
             for appId_b, appCnt_b in self.app_cnt_kv.iteritems():
                 limit = AppInterference.limit_of(appId_a, appId_b)
                 if appCnt_b > limit:
-                    cnt += 1
+                    return True
 
-        return cnt > 0
+        return False
 
     @staticmethod
     # 合计一组机器的成本分数
