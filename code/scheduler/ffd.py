@@ -59,7 +59,7 @@ class FFD(object):
 
     def fit(self):
         print "using CPU_UTIL_LARGE: %.2f and CPU_UTIL_SMALL: %.2f" % (self.machines[0].CPU_UTIL_THRESHOLD,
-                                                                       self.machines[3001].CPU_UTIL_THRESHOLD)
+                                                                       self.machines[3000].CPU_UTIL_THRESHOLD)
         self.resolve_init_conflict(self.machines)
         self.migrate_high_cpu_util(self.machines)
         self.fit_large_inst(self.machines)
