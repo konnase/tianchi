@@ -11,9 +11,6 @@ namespace Tianchi {
 
     private static double _f;
 
-    private static Func<double, double> Exp => Math.Exp;
-    private static Func<double, double, double> Max => Math.Max;
-
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
     private readonly Resource _accum = new Resource();
@@ -50,6 +47,9 @@ namespace Tianchi {
       IsIdle = true;
       _f = Math.Abs(CapCpu - 92) < 0.01 ? Program.UtilCpuH : Program.UtilCpuL;
     }
+
+    private static Func<double, double> Exp => Math.Exp;
+    private static Func<double, double, double> Max => Math.Max;
 
     public double UtilCpuAvg => _accum.Cpu.Avg / CapCpu;
     public double UtilCpuMax => _accum.Cpu.Max / CapCpu;
