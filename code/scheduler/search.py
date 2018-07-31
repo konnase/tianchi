@@ -199,8 +199,8 @@ class Search(object):
         total_score = Machine.total_score(self.machines)
         machine_cnt = len(filter(lambda x: x.disk_usage > 0, self.machines))
 
-        path = "search-result/search_%d_%dm" % (
-            int(math.ceil(total_score)), machine_cnt)
+        s = ("%.2f" % total_score).replace(".", "_")
+        path = "search-result/search_%s_%dm" % (s, machine_cnt)
         with open(path, 'w') as f:
             print "writing to %s" % path
             for machine in self.machines:

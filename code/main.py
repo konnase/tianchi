@@ -74,7 +74,7 @@ def main():
         analyse = Analyse(inst_kv, machines)
         analyse.start_analyse(search_file)
         analyse.print_info()
-        analyse.write_to_csv()
+        # analyse.write_to_csv()
 
     elif Method(options.method) == Method.Search:
         search = Search(inst_kv, machines)

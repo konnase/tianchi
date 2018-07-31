@@ -88,6 +88,7 @@ class Analyse(object):
         return line.split()[2].strip('(').strip(')').split(',')  # line.split()[2][1:-1].split(',')
 
     # submit0.csv 不考虑初始的部署，对应 data/b0.csv
+    # 因为仅测试用，所以使用固定的名字，会覆盖之前的文件
     def write_to_csv(self):
         with open("submit0.csv", "w") as f:
             print "writing to submit0.csv"

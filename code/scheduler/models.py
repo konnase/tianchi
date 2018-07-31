@@ -97,13 +97,13 @@ class Machine(object):
         self.pmp_cap = np.array([float(p_cap), float(m_cap), float(pm_cap)])
 
         if self.is_large_machine:
-            self.CPU_UTIL = cfg.CPU_UTIL_LARGE
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_LARGE
         else:
-            self.CPU_UTIL = cfg.CPU_UTIL_SMALL
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_SMALL
 
         # 修改 capacity 中cpu的比例，
         # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
-        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL),
+        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL_THRESHOLD),
                                    np.full(int(TS_COUNT), self.mem_cap),
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))

@@ -33,15 +33,15 @@ def judge():
         #         m.has_conflict_inst(inst), "break"
 
         m.put_inst(inst)
-        
+
     final_check(insts, machines)
 
 
 def final_check(insts, machines):
-    undeployed_cnt = 0
+    undeployed_inst_cnt = 0
     for i in insts:
         if not i.deployed:
-            undeployed_cnt += 1
+            undeployed_inst_cnt += 1
 
     x_cnt = 0
     for m in machines:
@@ -49,9 +49,10 @@ def final_check(insts, machines):
             x_cnt += 1
             print m.id, "out of cap:", m.out_of_full_capacity(), "conflict:", m.has_conflict()
 
-    if undeployed_cnt > 0 or x_cnt > 0:
-        print "Error: undeployed_cnt", undeployed_cnt,
-        ", has_conflict or out_of_full_capacity machines: ", x_cnt, "Total Score: 1e9"
+    if undeployed_inst_cnt > 0 or x_cnt > 0:
+        print "Error: undeployed_inst_cnt: %d, has_conflict or out_of_full_capacity machines: %d\n" \
+              "Total Score: 1e9" \
+              % (undeployed_inst_cnt, x_cnt)
     print "Actual Score: ", Machine.total_score(machines)
 
 
