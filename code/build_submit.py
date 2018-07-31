@@ -1,87 +1,62 @@
-import datetime
-import time
-
-from scheduler.models import read_from_csv
+# coding=utf-8
+from scheduler.models import read_from_csv, Machine
 from optparse import OptionParser
-from scheduler.models import get_apps_instances, prepare_apps_interfers
 
 submit_result = []
+total_score = 0
 
 
 def submit():
     parser = OptionParser()
     parser.add_option("-s", "--search", dest="search", help="input search file")
     (options, args) = parser.parse_args()
-    instances, apps, machines, app_interfers, app_index, machine_index, instance_index = read_from_csv("data")
-    get_apps_instances(instances, apps, app_index)
+    insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv("data")
 
-    prepare_apps_interfers(app_interfers, app_index, apps)
-
-    machine_dict = {}
-    for machine in machines:
-        machine_dict[machine.id] = machine
-
-    app_dict = {}
-    for app in apps:
-        app_dict[app.id] = app
-
-    inst_dict = {}
-    for inst in instances:
-        inst_dict[inst.id] = inst
-        inst.app = app_dict[inst.app_id]
-        if inst.machine_id != '':
-            inst.machine = machine_dict[inst.machine_id]
-            get_init_deploy(inst)  # get init deployment on machine
-        app_dict[inst.app_id].instances.append(inst)
-
-    machines.sort(key=lambda x: x.disk_capacity, reverse=True)
+    machines.sort(key=lambda x: x.disk_cap, reverse=True)
     machine_count = 0
-    with open(options.search, "r") as f:
-        for line in f:
+    for line in open(options.search, "r"):
+        if line.startswith("undeployed"):
+            continue
+        machine = machines[machine_count]
+        migrate(machine, machines)
 
-            # get instances' ids of line
-            instances_id = line.split()[2].strip('(').strip(')').split(',')
-            machine = machines[machine_count]
-
-            # remove all init insts in the machine
-            remove_all_inst_in_machine(machine, machines)
-
-            for inst_id in instances_id:
-                inst = inst_dict[inst_id]
-                if inst.placed:
-                    inst.machine.remove_inst(inst)
-                machine.put_inst(inst)
-                submit_result.append((inst.id, machine.id))
-                print "deployed %s to %s" % (inst.id, machine.id)
-            machine_count += 1
+        # get instances' ids of line
+        instId_list = line.split()[2].strip('(').strip(')').split(',')
+        for inst_id in instId_list:
+            inst = inst_kv[inst_id]
+            machine.put_inst(inst)
+            submit_result.append((inst_id, machine.id))
+            # print "deployed %s to %s" % (inst.id, machine.id)
+        machine_count += 1
+        if machine_count % 500 == 0:
+            print machine_count
+    global total_score
+    total_score = Machine.total_score(machines)
+    print "Total score: %.2f on %d machines" % (total_score, machine_count)
 
 
-def remove_all_inst_in_machine(machine, machines):
-    for inst in machine.insts.values()[:]:
-        for machine_dest in machines:
-            if machine_dest.id != machine.id and machine_dest.can_deploy_inst(inst):
-                machine.remove_inst(inst)
-                machine_dest.put_inst(inst)
-                submit_result.append((inst.id, machine_dest.id))
-                print "move %s to %s" % (inst.id, machine_dest.id)
+def migrate(machine_from, machines):
+    for inst in machine_from.inst_kv.values()[:]:
+        for machine_to in machines:
+            if machine_to != machine_from \
+                    and machine_to.can_put_inst(inst, full_cap=True):
+                machine_to.put_inst(inst)
+                submit_result.append((inst.id, machine_to.id))
+                # print "move %s to %s" % (inst.id, machine_to.id)
                 break
-
-
-def get_init_deploy(inst):
-    inst.machine.put_inst(inst)
+        else:
+            print "Cannot migrate %s from %s" % (inst.id, machine_from.id)
 
 
 def write_to_csv():
-    z = datetime.datetime.now()
-    with open("data/submit.csv", "w") as f:
-        for count, item in enumerate(submit_result):
-            f.write("{0},{1}\n".format(item[0], item[1]))
-
-
-def main():
-    submit()
-    write_to_csv()
+    s = ("%.2f" % total_score).replace(".", "_")
+    csv = "submit%s.csv" % s
+    print "writing to", csv
+    with open(csv, "w") as f:
+        for inst_id, machine_id in submit_result:
+            f.write("{0},{1}\n".format(inst_id, machine_id))
 
 
 if __name__ == '__main__':
-    main()
+    submit()
+    write_to_csv()
