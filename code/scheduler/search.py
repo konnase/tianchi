@@ -68,54 +68,58 @@ class Search(object):
             if not self._search(set1, set2):
                 break
 
+    # todo: 搜索过程中，占用机器的总数可能会减少，这是正常的
+    # 但有可能会丢掉少数几个实例，可能代码中还有bug
     def _search(self, set1, set2):
         random.shuffle(set1)
         random.shuffle(set2)
         print '...'
 
+        swap_cnt = 0
         has_change = False
         for i in set1:
             for j in set2:
                 if i == j:
                     continue
-
+                # 只取同类app中一个实例迁移或交换
                 choice = self.choice()
                 if choice == 1:
-                    for inst in self.machines[j].inst_kv.values():
-                        if self.can_move_inst(self.machines[i], inst):
+                    for insts in self.machines[j].app_kv.values():
+                        inst = insts[0]
+                        if self.try_move_inst(self.machines[i], inst):
                             print "move %s -> %s: %f" % (
                                 inst.id, self.machines[i].id, self.total_score)
                             has_change = True
                 elif choice == 2:
-                    for inst1 in self.machines[i].inst_kv.values():
-                        for inst2 in self.machines[j].inst_kv.values():
-                            if self.can_swap_inst(inst1, inst2):
-                                print "swap %s <-> %s: %f" % (
-                                    inst1.id, inst2.id, self.total_score)
+                    for insts1 in self.machines[i].app_kv.values():
+                        for insts2 in self.machines[j].app_kv.values():
+                            inst1 = insts1[0]
+                            inst2 = insts2[0]
+                            if self.try_swap_inst(inst1, inst2):
+                                swap_cnt += 1
+                                if swap_cnt % 100 == 1:
+                                    print "swap %s <-> %s: %f" % (
+                                        inst1.id, inst2.id, self.total_score)
                                 has_change = True
         return has_change
 
     def choice(self):
         rand = random.random()
         if rand < 0.4:
-            return 1
+           return 1
         else:
-            return 2
+           return 2
 
-    def can_move_inst(self, machine1, inst):
+    def try_move_inst(self, machine1, inst):
         # todo: 对空闲机器，是否也可以作为迁移对象？
-        if machine1.disk_usage == 0 or inst.id in machine1.inst_kv:
+        if machine1.disk_usage == 0:
             return False
 
         machine2 = inst.machine
-        resource = machine1.usage + inst.app.resource
-        if any(np.around(resource, 8) > np.around(machine1.capacity)):
+        if not machine1.can_put_inst(inst, full_cap=True):
             return False
 
         score_before = machine1.score + machine2.score
-
-        if machine1.has_conflict_inst(inst):
-            return False
 
         machine1.put_inst(inst)
 
@@ -128,7 +132,7 @@ class Search(object):
         self.total_score += score_after - score_before
         return True
 
-    def can_swap_inst(self, inst1, inst2):
+    def try_swap_inst(self, inst1, inst2):
         # 同一应用的实例就不必交换了
         if inst1.app == inst2.app:
             return False
@@ -139,8 +143,8 @@ class Search(object):
         resource1 = machine1.usage - inst1.app.resource + inst2.app.resource
         resource2 = machine2.usage - inst2.app.resource + inst1.app.resource
 
-        if any(np.around(resource1, 8) > np.around(machine1.capacity)) or any(
-                np.around(resource2, 8) > np.around(machine2.capacity)):
+        if any(np.around(resource1, 8) > np.around(machine1.full_cap)) or any(
+                np.around(resource2, 8) > np.around(machine2.full_cap)):
             return False
 
         score1 = machine1.score
@@ -160,8 +164,9 @@ class Search(object):
         self.total_score += delta
         return True
 
-    # 若从机器上移除 inst_old, inst_new 是否还在机器上有亲和冲突
-    # 注意：参数顺序不同，对应结果不一定相同
+    # 检查从机器上移除 inst_old 之后, 
+    # inst_new 是否还有亲和冲突
+    # 注意参数顺序
     def has_conflict(self, inst_old, inst_new):
         machine = inst_old.machine
 

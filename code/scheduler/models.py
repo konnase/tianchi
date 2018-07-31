@@ -117,6 +117,7 @@ class Machine(object):
 
         self.inst_kv = {}  # <inst_id, instance>
         self.app_cnt_kv = {}  # <app_id, cnt>
+        self.app_kv = {}  # <app_id,[insts]> 用于减少重复搜索同类应用实例
 
     # 根据某维资源（这里是disk）检查，需事先设置了该维资源值
     @property
@@ -196,8 +197,13 @@ class Machine(object):
         inst.machine = self
         inst.deployed = True
         self.inst_kv[inst.id] = inst
-        self.app_cnt_kv.setdefault(inst.app.id, 0)
-        self.app_cnt_kv[inst.app.id] += 1
+
+        app_id = inst.app.id
+        self.app_cnt_kv.setdefault(app_id, 0)
+        self.app_cnt_kv[app_id] += 1
+
+        self.app_kv.setdefault(app_id, [])
+        self.app_kv[app_id].append(inst)
 
     def remove_inst(self, inst):
         if not self.inst_kv.has_key(inst.id):
@@ -207,11 +213,15 @@ class Machine(object):
         inst.machine = None
         inst.deployed = False
         self.inst_kv.pop(inst.id)
-        self.app_cnt_kv[inst.app.id] -= 1
+        app_id = inst.app.id
+        self.app_cnt_kv[app_id] -= 1
 
         # 必须移除实例个数为0的应用，否则检查亲和约束会干扰循环
-        if self.app_cnt_kv[inst.app.id] == 0:
-            self.app_cnt_kv.pop(inst.app.id)
+        if self.app_cnt_kv[app_id] == 0:
+            self.app_cnt_kv.pop(app_id)
+            self.app_kv.pop(app_id)
+        else:
+            self.app_kv[app_id].remove(inst)
 
     def clear_instances(self):
         # 注意：循环中修改列表
