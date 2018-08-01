@@ -1,7 +1,7 @@
 # coding=utf-8
-from scheduler.models import read_from_csv, Machine
+from scheduler.models import read_from_csv, Machine, Instance
+from scheduler.analyse import Analyse
 from optparse import OptionParser
-import numpy as np
 
 
 def read_deploy(path):
@@ -38,22 +38,20 @@ def judge():
 
 
 def final_check(insts, machines):
-    undeployed_inst_cnt = 0
-    for i in insts:
-        if not i.deployed:
-            undeployed_inst_cnt += 1
+    Analyse.rating(machines)
 
-    x_cnt = 0
-    for m in machines:
-        if m.has_conflict() or m.out_of_full_capacity():
-            x_cnt += 1
-            print m.id, "out of cap:", m.out_of_full_capacity(), "conflict:", m.has_conflict()
+    x_cnt = Analyse.print_abnormal_machine_info(machines)
+    if x_cnt > 0:
+        print "\nError: has_conflict or out_of_full_capacity machines: %d" % (x_cnt)
 
-    if undeployed_inst_cnt > 0 or x_cnt > 0:
-        print "Error: undeployed_inst_cnt: %d, has_conflict or out_of_full_capacity machines: %d\n" \
-              "Total Score: 1e9" \
-              % (undeployed_inst_cnt, x_cnt)
-    print "Actual Score: ", Machine.total_score(machines)
+    undeployed_inst_cnt = len(Instance.get_undeployed_insts(insts))
+    if undeployed_inst_cnt > 0:
+        print "\nError: undeployed_inst_cnt: %d" % (undeployed_inst_cnt)
+
+    if undeployed_inst_cnt + x_cnt > 0:
+        print "\nTotal Score: 1e9"
+
+    print "\nActual Score: ", Machine.total_score(machines)
 
 
 if __name__ == '__main__':

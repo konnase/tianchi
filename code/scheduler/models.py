@@ -26,6 +26,14 @@ class Instance(object):
         # 这里只设置 inst_id
         return Instance(line.strip().split(",")[0])
 
+    @staticmethod
+    def get_undeployed_insts(instances):
+        result = []
+        for i in instances:
+            if not i.deployed:
+                result.append(i)
+        return result
+
     # @property
     # # 自定义的指标
     # def metric(self):
@@ -289,6 +297,27 @@ class Machine(object):
             s += m.score
         return s
 
+    @staticmethod
+    def used_machine_count(machines):
+        cnt = 0
+        for m in machines:
+            if m.disk_usage > 0:
+                cnt += 1
+        return cnt
+
+    # 分别获取资源超额和违反亲和约束的列表，
+    @staticmethod
+    def get_abnormal_machines(machines):
+        machines.sort(key=lambda x: x.disk_cap, reverse=True)
+        out_of_cap_set = []
+        conflict_set = []
+        for m in machines:
+            if m.out_of_full_capacity():
+                out_of_cap_set.append(m)
+            if m.has_conflict():
+                conflict_set.append(m)
+        return out_of_cap_set, conflict_set
+
     # 清空一组机器上部署的实例
     @staticmethod
     def empty(machines):
@@ -305,10 +334,27 @@ class Machine(object):
             ",".join([str(i.app.disk) for i in self.inst_kv.values()]))
 
     def to_search_str(self):
-        return "total(%f,%d): {%s} (%s)\n" % (
-            self.score, self.disk_usage,
+        return "total(%f,%.2f,%.2f,%.2f,%d): {%s} (%s)\n" % (
+            self.score, self.cpu_util_max, self.cpu_util_avg, self.mem_util_max, self.disk_usage,
             ",".join([str(int(i.app.disk)) for i in self.inst_kv.values()]),
             ",".join([i.id for i in self.inst_kv.values()]))
+
+
+def write_to_search(path, machines):
+    with open(path, "w") as f:
+        print "writing to %s" % path
+        for m in machines:
+            if m.disk_usage == 0:
+                continue
+            f.write(m.to_search_str())
+
+
+# [(inst_id, machine_id)]
+def write_to_submit_csv(path, submit_result):
+    print "writing to %s" % (path)
+    with open(path, "w") as f:
+        for inst_id, machine_id in submit_result:
+            f.write("{0},{1}\n".format(inst_id, machine_id))
 
 
 def read_from_csv(project_path):

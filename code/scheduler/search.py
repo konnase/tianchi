@@ -1,67 +1,31 @@
 # coding=utf-8
 import random
-import math
 import numpy as np
 from analyse import Analyse
-from scheduler.models import Machine
+from scheduler.models import Machine, write_to_search
 
 
 class Search(object):
-    def __init__(self, inst_kv, machines):
+    def __init__(self, instances, inst_kv, machines):
+        self.instances = instances
         self.inst_kv = inst_kv
         self.machines = sorted(
             machines, key=lambda x: x.disk_cap, reverse=True)
         self.total_score = 0
+        self.analyse = Analyse(self.instances, self.inst_kv, self.machines)
 
-    def rating(self, output):
-        Analyse(self.inst_kv, self.machines).start_analyse(output)
+    def rating(self, input):
+        self.analyse.start_analyse(input)
         self._rating()
 
     def _rating(self):
-        total_cnt = 0
-        total_score = 0
-
-        disk_overload_cnt = 0
-        cpu_overload_cnt = 0
-        mem_overload_cnt = 0
-        pmp_overload_cnt = 0  # 这三项暂时没有遇到超额的，为了简便，合并显示
-        interference_cnt = 0
-        violate_cnt = 0
-
-        for machine in self.machines:
-            if machine.disk_usage == 0:
-                continue
-
-            total_cnt += 1
-            total_score += machine.score
-
-            if machine.is_disk_overload:
-                disk_overload_cnt += 1
-            if machine.is_cpu_overload:
-                cpu_overload_cnt += 1
-            if machine.is_mem_overload:
-                mem_overload_cnt += 1
-
-            pmp_overload_cnt += machine.pmp_overload_cnt
-            conflict_list = machine.get_conflict_list()
-            interference_cnt += len(conflict_list)
-            for x in conflict_list:
-                # (appId_a, appId_b, appCnt_b, limit)
-                violate_cnt += machine.app_cnt_kv[x.appId_b]
-
-        self.total_score = total_score
-        print "CPU Score: %.2f" % total_score
-        print "Disk Overload: %f (%d / %d)" % (float(disk_overload_cnt) /
-                                               total_cnt, disk_overload_cnt, total_cnt)
-        print "CPU Overload: %f (%d / %d)" % (float(cpu_overload_cnt) /
-                                              total_cnt, cpu_overload_cnt, total_cnt)
-        print "Memory Overload: %f (%d / %d)" % (float(mem_overload_cnt) /
-                                                 total_cnt, mem_overload_cnt, total_cnt)
-        print "PMP Overload %f (%d / %d)" % (float(pmp_overload_cnt) /
-                                             total_cnt, pmp_overload_cnt, total_cnt)
-        print "Constraint violate: %d / %d" % (interference_cnt, violate_cnt)
+        self.total_score = self.analyse.rating(self.machines)
 
     def search(self):
+        print "using CPU_UTIL_LARGE: %.2f and CPU_UTIL_SMALL: %.2f" % \
+              (self.machines[0].CPU_UTIL_THRESHOLD,
+               self.machines[3000].CPU_UTIL_THRESHOLD)
+
         set1 = range(len(self.machines))
         set2 = range(len(self.machines))
         while True:
@@ -71,7 +35,7 @@ class Search(object):
     # todo: 搜索过程中，占用机器的总数可能会减少，这是正常的
     # 但有可能会丢掉少数几个实例，可能代码中还有bug
     def _search(self, set1, set2):
-        random.shuffle(set1)
+        random.shuffle(set1) # random.Random(seed).shuffle(set1)
         random.shuffle(set2)
         print '...'
 
@@ -111,7 +75,6 @@ class Search(object):
             return 2
 
     def try_move_inst(self, machine1, inst):
-        # todo: 对空闲机器，是否也可以作为迁移对象？
         if machine1.disk_usage == 0:
             return False
 
@@ -185,25 +148,29 @@ class Search(object):
 
     def output(self):
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
-        for machine in self.machines:
-            if machine.out_of_full_capacity():
-                print machine.usage > machine.capacity
-                # print machine.capacity - machine.usage
-                print "Invalid search result: resource overload ", machine.id
-                return
-            if machine.has_conflict():
-                print machine.id, machine.get_conflict_list()
-                print "Invalid search result: constraint conflict"
-                return
+        cnt = self.print_abnormal_machine_info(self.machines)
+        if cnt > 0: return
+
+        self.analyse.print_undeployed_inst_info(self.instances)
 
         total_score = Machine.total_score(self.machines)
-        machine_cnt = len(filter(lambda x: x.disk_usage > 0, self.machines))
+        machine_cnt = Machine.used_machine_count(self.machines)
 
-        s = ("%.2f" % total_score).replace(".", "_")
-        path = "search-result/search_%s_%dm" % (s, machine_cnt)
-        with open(path, 'w') as f:
-            print "writing to %s" % path
-            for machine in self.machines:
-                if machine.disk_usage == 0:
-                    continue
-                f.write(machine.to_search_str())
+        s = ("%.2f_%dm" % (total_score, machine_cnt)).replace(".", "_")
+        write_to_search("search-result/search_%s" % (s), self.machines)
+
+    @staticmethod
+    def print_abnormal_machine_info(machines):
+        out_of_cap_set, conflict_set = Machine.get_abnormal_machines(machines)
+        if len(out_of_cap_set) > 0:
+            print "Invalid search result: resource overload # %d" % len(out_of_cap_set)
+        if len(conflict_set) > 0:
+            print "Invalid search result: constraint conflict # %d" % len(conflict_set)
+        for m in out_of_cap_set:
+            print m.usage > m.capacity
+            # print machine.capacity - machine.usage
+            print m.id
+        for m in conflict_set:
+            print m.id, m.get_conflict_list()
+
+        return len(out_of_cap_set) + len(conflict_set)
