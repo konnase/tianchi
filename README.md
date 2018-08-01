@@ -6,7 +6,13 @@
 g++ code/lower_bound.cpp -O2 -o lb && ./lb < request > search
 ```
 
-### Solution
+### Search
+
+```bash
+python code/main.py -m 5 --uh=0.6 --ul=0.6  -s search-result/search_xxx
+```
+
+### FFD
 
 ```bash
 python code/main.py --data_dir=data --method=1 --uh=0.7 --ul=0.6
@@ -20,10 +26,10 @@ class Method(Enum):
     FFD = 1
     Knapsack = 2 # ?
     Analyse = 3
-    Search = 5 # <-
+    Search = 5
 ```
 
-### Generate data/submit.csv
+### Generate submit.csv from search result
 
 ```bash
 python code/build_submit.py --search=search-result/search_xxx   # the result will be outputed to data/submit.csv

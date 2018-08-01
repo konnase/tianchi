@@ -26,6 +26,14 @@ class Instance(object):
         # 这里只设置 inst_id
         return Instance(line.strip().split(",")[0])
 
+    @staticmethod
+    def get_undeployed_insts(instances):
+        result = []
+        for i in instances:
+            if not i.deployed:
+                result.append(i)
+        return result
+
     # @property
     # # 自定义的指标
     # def metric(self):
@@ -97,13 +105,13 @@ class Machine(object):
         self.pmp_cap = np.array([float(p_cap), float(m_cap), float(pm_cap)])
 
         if self.is_large_machine:
-            self.CPU_UTIL = cfg.CPU_UTIL_LARGE
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_LARGE
         else:
-            self.CPU_UTIL = cfg.CPU_UTIL_SMALL
+            self.CPU_UTIL_THRESHOLD = cfg.CPU_UTIL_SMALL
 
         # 修改 capacity 中cpu的比例，
         # 但不修改 self.cpu_cap，后者用于计算 cpu_util 和 score
-        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL),
+        self.capacity = np.hstack((np.full(int(TS_COUNT), self.cpu_cap * self.CPU_UTIL_THRESHOLD),
                                    np.full(int(TS_COUNT), self.mem_cap),
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))
@@ -113,7 +121,7 @@ class Machine(object):
                                    np.array([self.disk_cap]),
                                    self.pmp_cap))
 
-        self.usage = np.zeros(len(self.capacity))
+        self.usage = np.zeros(RESOURCE_LEN)
 
         self.inst_kv = {}  # <inst_id, instance>
         self.app_cnt_kv = {}  # <app_id, cnt>
@@ -228,8 +236,10 @@ class Machine(object):
         for inst in self.inst_kv.values()[:]:
             self.remove_inst(inst)
 
+        self.usage = np.zeros(RESOURCE_LEN)  # 防止舍入误差？
+
     def can_put_inst(self, inst, full_cap=False):
-        # if self.insts.has_key(inst.id):
+        # if self.inst_kv.has_key(inst.id):
         #     return True
         # else:
         return not (self.out_of_capacity_inst(inst, full_cap) or self.has_conflict_inst(inst))
@@ -237,9 +247,9 @@ class Machine(object):
     # capacity 中 cpu 部分已经乘以了CPU_UTIL系数
     def out_of_capacity_inst(self, inst, full_cap=False):
         if full_cap:
-            return np.any(self.usage + inst.app.resource > self.full_cap)
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.full_cap)
         else:
-            return np.any(self.usage + inst.app.resource > self.capacity)
+            return np.any(np.around(self.usage + inst.app.resource, 8) > self.capacity)
 
     # 这里与没有乘以CPU_UTIL系数的资源量比较
     def out_of_full_capacity(self):
@@ -271,14 +281,13 @@ class Machine(object):
         return result
 
     def has_conflict(self):
-        cnt = 0
         for appId_a in self.app_cnt_kv.keys():
             for appId_b, appCnt_b in self.app_cnt_kv.iteritems():
                 limit = AppInterference.limit_of(appId_a, appId_b)
                 if appCnt_b > limit:
-                    cnt += 1
+                    return True
 
-        return cnt > 0
+        return False
 
     @staticmethod
     # 合计一组机器的成本分数
@@ -287,6 +296,27 @@ class Machine(object):
         for m in machines:
             s += m.score
         return s
+
+    @staticmethod
+    def used_machine_count(machines):
+        cnt = 0
+        for m in machines:
+            if m.disk_usage > 0:
+                cnt += 1
+        return cnt
+
+    # 分别获取资源超额和违反亲和约束的列表，
+    @staticmethod
+    def get_abnormal_machines(machines):
+        machines.sort(key=lambda x: x.disk_cap, reverse=True)
+        out_of_cap_set = []
+        conflict_set = []
+        for m in machines:
+            if m.out_of_full_capacity():
+                out_of_cap_set.append(m)
+            if m.has_conflict():
+                conflict_set.append(m)
+        return out_of_cap_set, conflict_set
 
     # 清空一组机器上部署的实例
     @staticmethod
@@ -304,10 +334,27 @@ class Machine(object):
             ",".join([str(i.app.disk) for i in self.inst_kv.values()]))
 
     def to_search_str(self):
-        return "total(%f,%d): {%s} (%s)\n" % (
-            self.score, self.disk_usage,
+        return "total(%f,%.2f,%.2f,%.2f,%d): {%s} (%s)\n" % (
+            self.score, self.cpu_util_max, self.cpu_util_avg, self.mem_util_max, self.disk_usage,
             ",".join([str(int(i.app.disk)) for i in self.inst_kv.values()]),
             ",".join([i.id for i in self.inst_kv.values()]))
+
+
+def write_to_search(path, machines):
+    with open(path, "w") as f:
+        print "writing to %s" % path
+        for m in machines:
+            if m.disk_usage == 0:
+                continue
+            f.write(m.to_search_str())
+
+
+# [(inst_id, machine_id)]
+def write_to_submit_csv(path, submit_result):
+    print "writing to %s" % (path)
+    with open(path, "w") as f:
+        for inst_id, machine_id in submit_result:
+            f.write("{0},{1}\n".format(inst_id, machine_id))
 
 
 def read_from_csv(project_path):
