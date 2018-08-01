@@ -32,6 +32,9 @@ class Search(object):
             if not self._search(set1, set2):
                 break
 
+        self._rating()
+        self.output()
+
     # todo: 搜索过程中，占用机器的总数可能会减少，这是正常的
     # 但有可能会丢掉少数几个实例，可能代码中还有bug
     def _search(self, set1, set2):
