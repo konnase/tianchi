@@ -67,7 +67,7 @@ class Analyse(object):
         undeployed_cnt = len(undeployed_insts)
         if undeployed_cnt > 0:
             print "undeployed insts num:%d, for example:" % len(undeployed_insts)
-            print ",".join(undeployed_insts)
+            print ",".join(inst.id for inst in undeployed_insts)
 
         return undeployed_cnt
 
