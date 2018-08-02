@@ -4,7 +4,7 @@ from scheduler.knapsack import Knapsack
 from optparse import OptionParser
 from scheduler.ffd import FFD
 from scheduler.analyse import Analyse
-from scheduler.models import read_from_csv, AppInterference
+from scheduler.models import read_from_csv
 import scheduler.config as cfg
 
 from enum import Enum
@@ -45,7 +45,7 @@ def main():
     insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv(options.data_dir)
 
     if Method(options.method) == Method.FFD:
-        ffd = FFD(insts, apps, machines)
+        ffd = FFD(insts, apps, machines, app_kv)
         ffd.fit()
         ffd.write_to_csv()
 
@@ -71,13 +71,13 @@ def main():
 
     elif Method(options.method) == Method.Analyse:
         search_file = options.search
-        analyse = Analyse(inst_kv, machines)
+        analyse = Analyse(insts, inst_kv, machines)
         analyse.start_analyse(search_file)
         analyse.print_info()
         # analyse.write_to_csv()
 
     elif Method(options.method) == Method.Search:
-        search = Search(inst_kv, machines)
+        search = Search(insts, inst_kv, machines)
         search.rating(options.search)
         try:
             search.search()
