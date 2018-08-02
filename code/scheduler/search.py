@@ -29,13 +29,23 @@ class Search(object):
                         machine.put_inst(inst)
                         break
 
+    # def search(self):
+    #     set1 = range(len(self.machines))
+    #     set2 = range(len(self.machines))
+    #     while True:
+    #         if not self._search(set1, set2):
+    #             break
     def search(self):
-        print "using CPU_UTIL_LARGE: %.2f and CPU_UTIL_SMALL: %.2f" % \
-              (self.machines[0].CPU_UTIL_THRESHOLD,
-               self.machines[3000].CPU_UTIL_THRESHOLD)
-
-        set1 = range(len(self.machines))
-        set2 = range(len(self.machines))
+        set1 = []
+        set2 = []
+        for i in range(len(self.machines)):
+            if self.machines[i].score >= 1.0 and self.machines[i].score <= 1.30:
+                set1.append(i)
+            if self.machines[i].score >= 1.0 and self.machines[i].score <= 1.30:
+                set2.append(i)
+        print len(set1), len(set2)
+        # set1 = range(len(self.machines))
+        # set2 = range(len(self.machines))
         while True:
             if not self._search(set1, set2):
                 break
