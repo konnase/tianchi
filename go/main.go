@@ -93,7 +93,7 @@ type Machine struct {
 	appCntKV        map[string]int
 	appInterference AppInterference
 
-	lock sync.RWMutex
+	lock sync.Mutex
 }
 
 type MachineSlice []*Machine
@@ -443,8 +443,10 @@ func (s *Scheduler) search() {
 			}
 			for _, inst1 := range s.machines[i].instKV {
 				for _, inst2 := range s.machines[j].instKV {
-					if inst1.Machine.Id == s.machines[i].Id && inst2.Machine.Id == s.machines[j].Id && s.trySwap(inst1, inst2) {
-						s.doSwap(inst1, inst2)
+					if inst1.App.Id == inst2.App.Id {
+						continue
+					}
+					if s.trySwap(inst1, inst2) {
 						fmt.Printf("swap (%s) <-> (%s): %f\n", inst1.Id, inst2.Id, s.totalScore)
 					}
 				}
@@ -454,16 +456,26 @@ func (s *Scheduler) search() {
 }
 
 func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
-	inst1.lock.RLock()
-	inst2.lock.RLock()
-	defer inst1.lock.RUnlock()
-	defer inst2.lock.RUnlock()
-	machine1 := inst1.Machine
-	machine2 := inst2.Machine
-	machine1.lock.RLock()
-	machine2.lock.RLock()
-	defer machine1.lock.RUnlock()
-	defer machine2.lock.RUnlock()
+	m1 := inst1.Machine
+	m2 := inst2.Machine
+	if m1.Id == m2.Id { //死锁的实际原因，但不知为何不同机器上的实例却出现机器Id相等的情况
+		return false
+	}
+
+	if m1.Id > m2.Id { //m1总是Id较小的机器，理论上即可避免死锁
+		m1 = inst2.Machine
+		m2 = inst1.Machine
+	}
+
+	//id := m1.Id + "," + m2.Id
+	m1.lock.Lock()
+	//fmt.Print(id + ",1 Locked->")
+	m2.lock.Lock()
+	//fmt.Println(id + ",2 Locked")
+
+	defer m2.lock.Unlock()
+
+	defer m1.lock.Unlock()
 
 	for i := 0; i < 200; i++ {
 		if inst1.Machine.Usage[i]-inst1.App.Resource[i]+inst2.App.Resource[i] > inst1.Machine.Capacity[i] {
@@ -500,26 +512,23 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	}
 
 	s.totalScore -= inst1.Machine.score() + inst2.Machine.score() - score1 - score2
+	s.doSwap(inst1, inst2)
 	return true
 }
 
 func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine1 := inst1.Machine
 	machine2 := inst2.Machine
-	machine1.lock.Lock()
-	defer machine1.lock.Unlock()
-	machine2.lock.Lock()
-	defer machine2.lock.Unlock()
-	inst1.lock.Lock()
-	defer inst1.lock.Unlock()
-	inst2.lock.Lock()
-	defer inst2.lock.Unlock()
+	//machine1.lock.Lock()
+	//defer machine1.lock.Unlock()
+	//machine2.lock.Lock()
+	//defer machine2.lock.Unlock()
 	machine1.put(inst2)
 	machine2.put(inst1)
 }
 
 func (s *Scheduler) output() {
-	filePath := fmt.Sprintf("search-result/search_%s", strconv.FormatInt(int64(s.totalScore),10))
+	filePath := fmt.Sprintf("search-result/search_%s", strconv.FormatInt(int64(s.totalScore), 10))
 	f, err := os.Create(filePath)
 	if err != nil {
 		panic(err)
@@ -545,6 +554,8 @@ func main() {
 		fmt.Println("Usage: go run main.go <search_file> <cores>")
 		os.Exit(1)
 	}
+
+	rand.Seed(1)
 
 	searchFile := os.Args[1]
 	cores, _ := strconv.Atoi(os.Args[2])
