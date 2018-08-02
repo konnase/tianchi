@@ -24,3 +24,5 @@ data/b0.csv
 ./lower_bound
 search-result/search_*
 search
+
+*.exe
