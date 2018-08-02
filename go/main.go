@@ -29,7 +29,7 @@ type Instance struct {
 	Machine *Machine
 
 	deployed bool
-	lock sync.RWMutex
+	//lock sync.RWMutex
 }
 
 func NewInstance(line string) *Instance {
@@ -91,6 +91,7 @@ type Machine struct {
 
 	instKV          map[string]*Instance
 	appCntKV        map[string]int
+	appKV           map[string]*Instance //<appId, onlyOneInstance>
 	appInterference AppInterference
 
 	lock sync.Mutex
@@ -116,6 +117,7 @@ func NewMachine(line string, interference AppInterference) *Machine {
 		Id:              splits[0],
 		instKV:          make(map[string]*Instance),
 		appCntKV:        make(map[string]int),
+		appKV:           make(map[string]*Instance),
 		appInterference: interference,
 	}
 	machine.CpuCapacity, _ = strconv.ParseFloat(splits[1], 64)
@@ -217,6 +219,7 @@ func (m *Machine) put(inst *Instance) {
 	inst.deployed = true
 
 	m.instKV[inst.Id] = inst
+	m.appKV[inst.App.Id] = inst //每类应用只记录一个实例用来swap即可
 
 	if _, ok := m.appCntKV[inst.App.Id]; ok {
 		m.appCntKV[inst.App.Id] += 1
@@ -242,6 +245,7 @@ func (m *Machine) remove(inst *Instance) {
 	m.appCntKV[inst.App.Id] -= 1
 	if m.appCntKV[inst.App.Id] == 0 {
 		delete(m.appCntKV, inst.App.Id)
+		delete(m.appKV, inst.App.Id)
 	}
 }
 
@@ -441,8 +445,8 @@ func (s *Scheduler) search() {
 			if i == j {
 				continue
 			}
-			for _, inst1 := range s.machines[i].instKV {
-				for _, inst2 := range s.machines[j].instKV {
+			for _, inst1 := range s.machines[i].appKV {
+				for _, inst2 := range s.machines[j].appKV {
 					if inst1.App.Id == inst2.App.Id {
 						continue
 					}
@@ -507,7 +511,7 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	score1 /= 98.0
 	score2 /= 98.0
 
-	if (inst1.Machine.score() + inst2.Machine.score() - score1 - score2) < 0.0001 {
+	if (inst1.Machine.score() + inst2.Machine.score() - score1 - score2) < 0.00001 {
 		return false
 	}
 
