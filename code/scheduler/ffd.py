@@ -2,6 +2,7 @@
 import numpy as np
 
 import config as cfg
+
 from scheduler.models import Instance, Machine, write_to_submit_csv, write_to_search
 
 

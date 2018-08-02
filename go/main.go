@@ -1,18 +1,18 @@
 package main
 
 import (
-	"strings"
-	"math"
-	"strconv"
-	"os"
 	"bufio"
-	"io"
 	"fmt"
-	"sync"
+	"io"
+	"math"
 	"math/rand"
+	"os"
 	"os/signal"
 	"runtime"
 	"sort"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 const (
@@ -532,15 +532,21 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 }
 
 func (s *Scheduler) output() {
-	filePath := fmt.Sprintf("search-result/search_%s", strconv.FormatInt(int64(s.totalScore), 10))
+	machines := MachineSlice(s.machines)
+	sort.Sort(machines)
+	usedMachine := 0
+	for _, machine := range machines {
+		if machine.diskUsage() != 0 {
+			usedMachine++
+		}
+	}
+	filePath := fmt.Sprintf("search-result/search_%s_%d", strconv.FormatInt(int64(s.totalScore), 10), usedMachine)
 	f, err := os.Create(filePath)
 	if err != nil {
 		panic(err)
 	}
 	defer f.Close()
 
-	machines := MachineSlice(s.machines)
-	sort.Sort(machines)
 	w := bufio.NewWriter(f)
 	for _, machine := range machines {
 		if machine.diskUsage() == 0 {
