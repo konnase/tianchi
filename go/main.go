@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"os/signal"
 	"runtime"
+	"sort"
 )
 
 const (
@@ -28,6 +29,7 @@ type Instance struct {
 	Machine *Machine
 
 	deployed bool
+	lock sync.RWMutex
 }
 
 func NewInstance(line string) *Instance {
@@ -92,6 +94,19 @@ type Machine struct {
 	appInterference AppInterference
 
 	lock sync.RWMutex
+}
+
+type MachineSlice []*Machine
+
+func (m MachineSlice) Len() int {
+	return len(m)
+}
+
+func (m MachineSlice) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+func (m MachineSlice) Less(i, j int) bool {
+	return m[i].DiskCapacity > m[j].DiskCapacity
 }
 
 func NewMachine(line string, interference AppInterference) *Machine {
@@ -428,7 +443,7 @@ func (s *Scheduler) search() {
 			}
 			for _, inst1 := range s.machines[i].instKV {
 				for _, inst2 := range s.machines[j].instKV {
-					if s.trySwap(inst1, inst2) {
+					if inst1.Machine.Id == s.machines[i].Id && inst2.Machine.Id == s.machines[j].Id && s.trySwap(inst1, inst2) {
 						s.doSwap(inst1, inst2)
 						fmt.Printf("swap (%s) <-> (%s): %f\n", inst1.Id, inst2.Id, s.totalScore)
 					}
@@ -439,10 +454,16 @@ func (s *Scheduler) search() {
 }
 
 func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
-	inst1.Machine.lock.RLock()
-	inst2.Machine.lock.RLock()
-	defer inst1.Machine.lock.RUnlock()
-	defer inst2.Machine.lock.RUnlock()
+	inst1.lock.RLock()
+	inst2.lock.RLock()
+	defer inst1.lock.RUnlock()
+	defer inst2.lock.RUnlock()
+	machine1 := inst1.Machine
+	machine2 := inst2.Machine
+	machine1.lock.RLock()
+	machine2.lock.RLock()
+	defer machine1.lock.RUnlock()
+	defer machine2.lock.RUnlock()
 
 	for i := 0; i < 200; i++ {
 		if inst1.Machine.Usage[i]-inst1.App.Resource[i]+inst2.App.Resource[i] > inst1.Machine.Capacity[i] {
@@ -489,6 +510,10 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	defer machine1.lock.Unlock()
 	machine2.lock.Lock()
 	defer machine2.lock.Unlock()
+	inst1.lock.Lock()
+	defer inst1.lock.Unlock()
+	inst2.lock.Lock()
+	defer inst2.lock.Unlock()
 	machine1.put(inst2)
 	machine2.put(inst1)
 }
@@ -501,8 +526,10 @@ func (s *Scheduler) output() {
 	}
 	defer f.Close()
 
+	machines := MachineSlice(s.machines)
+	sort.Sort(machines)
 	w := bufio.NewWriter(f)
-	for _, machine := range s.machines {
+	for _, machine := range machines {
 		if machine.diskUsage() == 0 {
 			continue
 		}

@@ -21,6 +21,14 @@ class Search(object):
     def _rating(self):
         self.total_score = self.analyse.rating(self.machines)
 
+    def _fix(self):
+        for inst in self.inst_kv.values():
+            if inst.machine == None:
+                for machine in self.machines:
+                    if machine.can_put_inst(inst):
+                        machine.put_inst(inst)
+                        break
+
     def search(self):
         print "using CPU_UTIL_LARGE: %.2f and CPU_UTIL_SMALL: %.2f" % \
               (self.machines[0].CPU_UTIL_THRESHOLD,
