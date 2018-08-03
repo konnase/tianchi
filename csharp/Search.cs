@@ -22,6 +22,8 @@ namespace Tianchi {
         searchFile = $"{_projectPath}/{args[0]}";
         taskCnt = int.Parse(args[1]);
       } else {
+        //需将 csharp\bin\Debug\netcoreapp2.1目录构建的.dll（及同名的runtimeconfig.json）手动拷贝到项目目录，
+        //并修改文件名...
         Console.WriteLine("Usage:\n" +
                           "dotent search.dll <search file> <tasks=6>\n" +
                           "Example:\n" +
@@ -35,9 +37,7 @@ namespace Tianchi {
         Environment.Exit(-1);
       }
 
-
       ReadAllData(DataSet);
-
       VerifySearchResult(searchFile);
 
       // ReSharper disable once InconsistentlySynchronizedField
@@ -49,7 +49,7 @@ namespace Tianchi {
         Console.WriteLine($"{e.SpecialKey} received");
       };
 
-      var tasks = new List<Task>(capacity: taskCnt);
+      var tasks = new List<Task>(taskCnt);
       for (var i = 0; i < taskCnt; i++) {
         var t = Task.Factory.StartNew(() => {
           while (TrySearch()) {
@@ -73,42 +73,41 @@ namespace Tianchi {
       var u2 = new Resource();
       var diff = new Resource();
 
-      foreach (var i in shuffledIndexes) {
-        foreach (var j in shuffledIndexes) {
-          if (_stop) {
-            Console.WriteLine($"[{tId}] Stoping ...");
-            return false;
-          }
+      foreach (var i in shuffledIndexes)
+      foreach (var j in shuffledIndexes) {
+        if (_stop) {
+          Console.WriteLine($"[{tId}] Stoping ...");
+          return false;
+        }
 
-          if (i == j) continue;
+        if (i == j) continue;
 
-          var m1 = Machines[i];
-          var m2 = Machines[j];
+        var m1 = Machines[i];
+        var m2 = Machines[j];
 
-          Debug.Assert(m1.Id != m2.Id);
+        Debug.Assert(m1.Id != m2.Id);
 
-          if (m1.Id > m2.Id) {
-            m1 = Machines[j];
-            m2 = Machines[i];
-          }
+        if (m1.Id > m2.Id) {
+          m1 = Machines[j];
+          m2 = Machines[i];
+        }
 
-          lock (m1) {
-            lock (m2) {
-              foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()取快照
-              foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
-                if (inst1.App.Id == inst2.App.Id) continue;
-                if (m1 != inst1.Machine || m2 != inst2.Machine) continue; //实例已经被别的线程处理过了
+        lock (m1) {
+          lock (m2) {
+            foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()取快照
+            foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
+              if (inst1.App.Id == inst2.App.Id) continue;
+              if (m1 != inst1.Machine || m2 != inst2.Machine) continue; //实例已经被别的线程处理过了
 
-                var delta = TrySwap(inst1, inst2, u1, u2, diff);
-                if (delta > 0.0) continue;
+              var delta = TrySwap(inst1, inst2, u1, u2, diff);
+              if (delta > 0.0) continue;
 
-                UpdateScore(delta);
+              UpdateScore(delta);
 
-                //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
-                //但仍是某个任务计算出来的结果，也可以接受
-                Console.WriteLine($"{_searchTotalScore:0.000000}, swap inst_{inst1.Id} <-> inst_{inst2.Id}");
-                hasChange = true;
-              }
+              //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
+              //但仍是某个任务计算出来的结果，也可以接受
+              Console.WriteLine($"{_searchTotalScore:0.000000}, swap inst_{inst1.Id} <-> inst_{inst2.Id}");
+              hasChange = true;
             }
           }
         }
@@ -132,22 +131,22 @@ namespace Tianchi {
         lock (i2) {
           var m1 = inst1.Machine;
           var m2 = inst2.Machine;
-          
+
           diff.Copy(inst1.R).Subtract(inst2.R);
-          
+
           u1.Copy(m1.Usage).Subtract(diff);
           if (u1.IsOverCap(m1.Capacity)) return double.MaxValue;
 
           u2.Copy(m2.Usage).Add(diff);
           if (u2.IsOverCap(m2.Capacity)) return double.MaxValue;
 
-          if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
-
           var delta = u1.Cpu.Score(m1.CapCpu) + u2.Cpu.Score(m2.CapCpu)
                       - (m1.Score + m2.Score);
-          
+
           //期望delta是负数，且绝对值越大越好
           if (delta > 0.0 || -delta < 0.00001) return double.MaxValue;
+
+          if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
 
           m1 = inst1.Machine;
           m2 = inst2.Machine;
@@ -197,8 +196,9 @@ namespace Tianchi {
           where !m.IsIdle
           orderby m.CapDisk descending, m.Score descending
           select m;
+        //注意机器的顺序
         //排序后分数小（1.00）的机器在文件尾部，便于修正丢失的实例
-        foreach (var m in list) //注意机器的顺序
+        foreach (var m in list)
           w.WriteLine(m.ToSearchStr());
 
         w.Close();
