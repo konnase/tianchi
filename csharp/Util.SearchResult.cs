@@ -146,10 +146,6 @@ namespace Tianchi {
     }
     //*/
 
-    private static void DeployBinNoCheck(Machine m, List<Instance> bin) {
-      bin.ForEach(inst => m.AddInstance(inst, ignoreCheck: true));
-    }
-
     //验证装箱搜索结果，需要先读取初始的csv数据
     private static void VerifySearchResult(string searchResultFile) {
       ClearMachineDeployment(); //reset to a clean state
@@ -162,6 +158,10 @@ namespace Tianchi {
 
       PrintScore();
       FinalCheck();
+    }
+
+    private static void DeployBinNoCheck(Machine m, List<Instance> bin) {
+      bin.ForEach(inst => m.TryPutInst(inst, ignoreCheck: true));
     }
 
     private static void ParseSearchResult(string searchResultFile) {

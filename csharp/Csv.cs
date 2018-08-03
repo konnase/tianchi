@@ -115,8 +115,8 @@ namespace Tianchi {
           //官方的评测代码在初始化阶段忽略资源和亲和性检查，直接将 inst 添加到机器上。
           //在评价阶段，如果提交的代码中有 inst 的新部署目标，才会将其迁移；
           //在迁移之前向旧机器放置实例，就可能存在不必要的资源或亲和性冲突；
-          var needMigrate = !m.IsFit(inst);
-          m.AddInstance(inst, ignoreCheck: true);
+          var needMigrate = !m.CanPutInst(inst, true);
+          m.TryPutInst(inst, ignoreCheck: true);
 
           //因为AddInstance函数会将NeedDeployOrMigrate置为true，
           //而且添加inst后改变了机器状态，会增加资源使用和App个数，
