@@ -5,9 +5,11 @@ using System.Text;
 namespace Tianchi {
   public class Series {
     private readonly double[] _data;
+    private readonly int length;
 
     public Series(int length) {
       _data = new double[length];
+      this.length = length;
     }
 
     public Series(int length, double initValue) : this(length) {
@@ -37,9 +39,25 @@ namespace Tianchi {
       return _data.Sum(func);
     }
 
+    public bool Any(Predicate<int> predicate) {
+      for (var i = 0; i < length; i++)
+        if (predicate(i))
+          return true;
+
+      return false;
+    }
+
+    public void Copy(Series s) {
+      for (var i = 0; i < length; i++) _data[i] = s._data[i];
+    }
+
+    public void Reset() {
+      for (var i = 0; i < length; i++) _data[i] = 0.0;
+    }
+
     // 将array各项累加到Series对应项
     public void Add(Series s) {
-      for (var i = 0; i < _data.Length; i++) _data[i] += +s._data[i];
+      for (var i = 0; i < _data.Length; i++) _data[i] += s._data[i];
     }
 
     public void Subtract(Series s) {

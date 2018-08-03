@@ -80,5 +80,31 @@ namespace Tianchi {
     public static void ForEach<T>(this IList<T> collection, Action<T, int> action) {
       for (var i = 0; i < collection.Count; i++) action(collection[i], i);
     }
+
+    public static void Shuffle<T>(this IList<T> list, Random rnd) {
+      T temp;
+      var j = 0;
+      for (var i = 0; i < list.Count; i++) {
+        j = rnd.Next(i, list.Count);
+        temp = list[i];
+        list[i] = list[j];
+        list[j] = temp;
+      }
+    }
+
+    public static void Shuffle<T>(this IList<T> list) {
+      list.Shuffle(new Random());
+    }
+
+    public static int[] ToRangeArray(this int n) {
+      var result = new int[n];
+      for (var i = 0; i < n; i++) result[i] = i;
+
+      return result;
+    }
+
+    public static double Score(this Series cpuUsage, double cpuCapacitiy, double alpha = 10, double beta = 0.5) {
+      return cpuUsage.Average(u => 1 + alpha * (Math.Exp(Math.Max(0, u / cpuCapacitiy - beta)) - 1));
+    }
   }
 }

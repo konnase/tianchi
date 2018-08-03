@@ -12,13 +12,16 @@ namespace Tianchi {
             if (onlyIdleMachine && !m.IsIdle) continue;
 
             // 针对初始部署就违反约束的实例，需将其迁移到其它机器上
-            if (inst.DeployedMachine == m) continue;
+            if (inst.Machine == m) continue;
 
-            if (m.AddInstance(inst, _w)) break; //FirstFit
+            if (m.TryPutInst(inst, _w)) break; //FirstFit
           }
     }
 
     private static void RunFirstFit() {
+      ReadAllData(DataSet);
+      //_w = File.CreateText(CsvSubmit);
+
       Console.WriteLine("==FirstFit==");
 
       //var instList = Instances.OrderBy(inst => inst.R.Cpu.Avg); //Cpu[45]
@@ -33,6 +36,8 @@ namespace Tianchi {
       }
 
       _w?.Close();
+      //Console.WriteLine("==Judge==");
+      //JudgeSubmit(CsvSubmit);
     }
 
     //TODO: SigComm14 Tetris 中按app.R与m.avil.R点积之后 BFD

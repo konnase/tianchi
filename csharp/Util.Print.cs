@@ -6,19 +6,14 @@ namespace Tianchi {
   public static partial class Program {
     private static void PrintScore() {
       Console.WriteLine($"TotalScore: " +
-                        $"{TotalCostScore:0.00} on {UsedMachineCount} Machines; " +
-                        $"Score/Machines = [{TotalCostScore / UsedMachineCount:0.00}]");
+                        $"{TotalScore:0.00} / {UsedMachineCount}" +
+                        $" = [{TotalScore / UsedMachineCount:0.00}]");
     }
 
     private static void PrintUndeployedInst() {
-      var undeployedInsts = Instances.Where(inst => inst.NeedDeployOrMigrate).ToList();
-      if (undeployedInsts.Count > 0) {
-        Console.WriteLine($"\nUndeployed Instances: {undeployedInsts.Count}");
-        if (undeployedInsts.Count <= 10) {
-          Console.WriteLine("inst_id,app_id,cpu_max,mem_max,disk,p");
-          undeployedInsts.ForEach(Console.WriteLine);
-        }
-      }
+      foreach (var inst in Instances)
+        if (inst.NeedDeployOrMigrate)
+          Console.WriteLine(inst);
     }
 
     private static void PrintCsvInitInfo() {
@@ -32,20 +27,26 @@ namespace Tianchi {
 
       //初始数据中，忽略了约束，被强制部署到机器上的实例
       var xInstList = Instances
-        .Where(i => i.DeployedMachine != null && i.NeedDeployOrMigrate)
+        .Where(i => i.Machine != null && i.NeedDeployOrMigrate)
         .ToList();
 
       if (xInstList.Count > 0)
-        Console.WriteLine(xInstList.Count); //DataSetA: 143
+        Console.WriteLine($"xInstList.Count: {xInstList.Count}"); //DataSetA: 143
+
+      var xMachineList = Machines
+        .Where(m => !m.IsIdle && m.InstList.Any(i => i.NeedDeployOrMigrate))
+        .ToList();
+
+      if (xMachineList.Count > 0) Console.WriteLine($"xMachineList.Count: {xMachineList.Count}");
 
       //DataSetA
       //注意：与上述FinalCheck结果不同，但这是合理的；
       //一台机器上可能有多个实例发生冲突，导致计数出入。
       //共117台机器上存在约束冲突
-      foreach (var inst in xInstList)
-        //inst可能存在多个冲突，这里不再一一找出，只输出机器上的应用计数列表
-        Console.WriteLine($"m_{inst.DeployedMachine.Id},app_{inst.App.Id}," +
-                          $"inst_{inst.Id},[{inst.DeployedMachine.AppListToStr()}]");
+      foreach (var m in xMachineList)
+      foreach (var x in m.ConflictList)
+        Console.WriteLine($"m_{m.Id},A:app_{x.Item1.Id},B:app_{x.Item2.Id}," +
+                          $"BCnt:{x.Item3} > BLimit:{x.Item4}");
     }
 
     //DataSetB
@@ -94,9 +95,9 @@ namespace Tianchi {
       var totalCapCpu = Machines.Sum(m => m.CapCpu);
       var totalCapMem = Machines.Sum(m => m.CapMem);
       var totalCapDisk = Machines.Sum(m => m.CapDisk);
-      var totalCapP = Machines.Sum(m => m.Cap.P);
-      var totalCapM = Machines.Sum(m => m.Cap.M);
-      var totalCapPm = Machines.Sum(m => m.Cap.Pm);
+      var totalCapP = Machines.Sum(m => m.Capacity.P);
+      var totalCapM = Machines.Sum(m => m.Capacity.M);
+      var totalCapPm = Machines.Sum(m => m.Capacity.Pm);
 
       Console.WriteLine($"Disk: {r.Disk},{r.Disk * 100.0 / totalCapDisk:0.00}%");
       Console.WriteLine($"P: {r.P},{r.P * 100.0 / totalCapP:0.00}%");
@@ -124,23 +125,18 @@ namespace Tianchi {
           m.InstList.Count
         select m;
 
-      foreach (var m in list) {
-        m.InstList.Sort((i, j) => j.R.Disk.CompareTo(i.R.Disk));
-        Console.WriteLine($"total({m.Score:0.00},{m.CapDisk - m.Avail.Disk}): " +
-                          $"{{{m.InstList.ToStr(i => i.R.Disk)}}} " +
-                          $"({m.InstListToStr()})");
-      }
+      foreach (var m in list) Console.WriteLine(m.ToSearchStr());
     }
 
     private static void PrintInitStats() {
       PrintCsvInitInfo();
       Console.WriteLine();
       PrintRequestUtil();
-      Console.WriteLine();
-      PrintAppUtilStat();
-      Console.WriteLine();
-      PrintMachine(Machines.Where(m => !m.IsIdle));
-      Console.WriteLine();
+      //Console.WriteLine();
+      //PrintAppUtilStat();
+      //Console.WriteLine();
+      //PrintMachine(Machines.Where(m => !m.IsIdle));
+      //Console.WriteLine();
       //PrintUtilTs();
     }
 

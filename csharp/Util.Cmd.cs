@@ -13,6 +13,7 @@ namespace Tianchi {
         _projectPath = args[0];
         searchFile = $"{_projectPath}/search-result/{args[1]}";
       } else {
+        //需要手动把生成的dll拷贝到judge目录，并改名字……
         Console.WriteLine("Usage:\n" +
                           "dotent judge/verifysearch.dll <search file in [search-result]>\n" +
                           "or\n" +

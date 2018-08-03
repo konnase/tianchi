@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 
 namespace Tianchi {
   public static partial class Program {
@@ -148,10 +146,6 @@ namespace Tianchi {
     }
     //*/
 
-    private static void DeployBinNoCheck(Machine m, List<Instance> bin) {
-      bin.ForEach(inst => m.AddInstance(inst, ignoreCheck: true));
-    }
-
     //验证装箱搜索结果，需要先读取初始的csv数据
     private static void VerifySearchResult(string searchResultFile) {
       ClearMachineDeployment(); //reset to a clean state
@@ -162,27 +156,12 @@ namespace Tianchi {
       //注意：这里机器类型的排序恰好跟Bins是一致的，故可以共用一个索引变量
       Bins.ForEach((bin, i) => DeployBinNoCheck(Machines[i], Bins[i]));
 
-      Console.WriteLine($"Bins in Search Result: {Bins.Count}; " +
-                        $"Instances: {Bins.Sum(bin => bin.Count)} of [{InstCount}]\n");
-
       PrintScore();
-      FinalCheck(true);
+      FinalCheck();
+    }
 
-      var set = new HashSet<Instance>(InstCount);
-      var cntKv = new Dictionary<Instance, int>();
-      Bins.ForEach(bin => bin.ForEach(inst => {
-        if (!set.Add(inst)) cntKv[inst] = cntKv.GetValueOrDefault(inst, 1) + 1;
-      }));
-
-      if (cntKv.Count > 0) {
-        Console.WriteLine($"\nDuplicated Instances: {cntKv.Count}");
-        if (cntKv.Count <= 10) cntKv.ForEach(kv => Console.WriteLine($"inst_{kv.Key.Id},{kv.Value}"));
-
-        //输出重复次数超过两次的实例
-        cntKv.Where(kv => kv.Value > 2).ForEach(kv => Console.WriteLine($"inst_{kv.Key.Id},{kv.Value}"));
-      }
-
-      PrintUndeployedInst();
+    private static void DeployBinNoCheck(Machine m, List<Instance> bin) {
+      bin.ForEach(inst => m.TryPutInst(inst, ignoreCheck: true));
     }
 
     private static void ParseSearchResult(string searchResultFile) {

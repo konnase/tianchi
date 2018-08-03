@@ -3,7 +3,7 @@ namespace Tianchi {
     public readonly App App;
     public readonly int Id;
 
-    public Machine DeployedMachine;
+    public Machine Machine;
     public bool NeedDeployOrMigrate = true;
 
     public Instance(int id, App app) {

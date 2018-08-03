@@ -1,10 +1,11 @@
+using System;
 using System.IO;
 
 namespace Tianchi {
   public static partial class Program {
-    public const double UtilCpuH = 0.68;
-    public const double UtilCpuL = 0.65;
-    private static string _projectPath = "D:/tianchi/";
+    public const double UtilCpuH = 1.0;
+    public const double UtilCpuL = 1.0;
+    private static string _projectPath = ".";
 
     private static readonly StreamWriter _w = null;
 
@@ -18,18 +19,11 @@ namespace Tianchi {
 
     private static void Main(string[] args) {
       //VerifySearchCmd(args);
-      //ReadAllData(DataSet);
-
-      //_w = File.CreateText(CsvSubmit);
       //RunFirstFit();
 
-      //GenDeploy($"{_projectPath}/search");
+      RunSearch(args);
 
-      //Console.WriteLine("==Judge==");
-      //JudgeSubmit(CsvSubmit);
-      //PrintSearch();
-
-      //Console.WriteLine("==End==");
+      Console.WriteLine("==End==");
     }
   }
 }
