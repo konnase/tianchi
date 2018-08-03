@@ -186,10 +186,7 @@ class Machine(object):
         if self.disk_usage == 0:
             return 0
 
-        x = np.maximum(self.cpu_usage / self.cpu_cap -
-                       0.5, 0)  # max(c - beta, 0)
-
-        return np.average(1 + 10 * (np.exp(x) - 1))
+        return cpu_score(self.cpu_usage,self.cpu_cap)
 
     # 将实例添加到机器上，不检查资源和亲和约束
     def put_inst(self, inst):
@@ -335,6 +332,11 @@ class Machine(object):
             self.score, self.cpu_util_max, self.cpu_util_avg, self.mem_util_max, self.disk_usage,
             ",".join([str(int(i.app.disk)) for i in self.inst_kv.values()]),
             ",".join([i.id for i in self.inst_kv.values()]))
+
+
+def cpu_score(cpu_usage, cpu_cap):
+    x = np.maximum(cpu_usage / cpu_cap - 0.5, 0)  # max(c - beta, 0)
+    return np.average(1 + 10 * (np.exp(x) - 1))
 
 
 def write_to_search(path, machines):

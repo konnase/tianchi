@@ -2,7 +2,8 @@
 import random
 import numpy as np
 from analyse import Analyse
-from scheduler.models import Machine, write_to_search
+from scheduler.models import Machine, write_to_search, cpu_score
+import config as cfg
 
 
 class Search(object):
@@ -56,7 +57,7 @@ class Search(object):
     # todo: 搜索过程中，占用机器的总数可能会减少，这是正常的
     # 但有可能会丢掉少数几个实例，可能代码中还有bug
     def _search(self, set1, set2):
-        random.shuffle(set1) # random.Random(seed).shuffle(set1)
+        random.shuffle(set1)  # random.Random(seed).shuffle(set1)
         random.shuffle(set2)
         print '...'
 
@@ -69,7 +70,7 @@ class Search(object):
                 # 只取同类app中一个实例迁移或交换
                 choice = self.choice()
                 if choice == 1:
-                    for inst in self.machines[j].app_inst_kv.values(): #<app_id, only_one_inst>
+                    for inst in self.machines[j].app_inst_kv.values():  # <app_id, only_one_inst>
                         if self.try_move_inst(self.machines[i], inst):
                             print "move %s -> %s: %f" % (
                                 inst.id, self.machines[i].id, self.total_score)
@@ -122,26 +123,26 @@ class Search(object):
         machine1 = inst1.machine
         machine2 = inst2.machine
 
-        resource1 = machine1.usage - inst1.app.resource + inst2.app.resource
-        resource2 = machine2.usage - inst2.app.resource + inst1.app.resource
+        diff = inst1.app.resource - inst2.app.resource
+
+        resource1 = machine1.usage - diff
+        resource2 = machine2.usage + diff
 
         if any(np.around(resource1, 8) > np.around(machine1.full_cap)) or any(
                 np.around(resource2, 8) > np.around(machine2.full_cap)):
             return False
 
-        score1 = machine1.score
-        score2 = machine2.score
+        score1 = cpu_score(resource1[0:cfg.TS_COUNT], machine1.cpu_cap)
+        score2 = cpu_score(resource2[0:cfg.TS_COUNT], machine2.cpu_cap)
+
+        delta = score1 + score2 - (machine1.score + machine2.score)
+        if delta >= 0:
+            return False
 
         if self.has_conflict(inst1, inst2) or self.has_conflict(inst2, inst1):
             return False
 
         self.do_swap(inst1, inst2)
-
-        delta = machine1.score + machine2.score - score1 - score2
-
-        if delta >= 0:
-            self.do_swap(inst1, inst2)  # 恢复原状
-            return False
 
         self.total_score += delta
         return True
