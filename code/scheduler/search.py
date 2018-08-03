@@ -69,17 +69,14 @@ class Search(object):
                 # 只取同类app中一个实例迁移或交换
                 choice = self.choice()
                 if choice == 1:
-                    for insts in self.machines[j].app_kv.values():
-                        inst = insts[0]
+                    for inst in self.machines[j].app_inst_kv.values(): #<app_id, only_one_inst>
                         if self.try_move_inst(self.machines[i], inst):
                             print "move %s -> %s: %f" % (
                                 inst.id, self.machines[i].id, self.total_score)
                             has_change = True
                 elif choice == 2:
-                    for insts1 in self.machines[i].app_kv.values():
-                        for insts2 in self.machines[j].app_kv.values():
-                            inst1 = insts1[0]
-                            inst2 = insts2[0]
+                    for inst1 in self.machines[i].app_inst_kv.values():
+                        for inst2 in self.machines[j].app_inst_kv.values():
                             if self.try_swap_inst(inst1, inst2):
                                 swap_cnt += 1
                                 if swap_cnt % 100 == 1:
