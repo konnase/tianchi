@@ -92,25 +92,30 @@ namespace Tianchi {
           m2 = Machines[i];
         }
 
-        lock (m1) {
-          foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()取快照
-            lock (m2) {
-              foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
-                if (inst1.App.Id == inst2.App.Id) continue;
-                if (m1 != inst1.Machine || m2 != inst2.Machine) continue; //实例已经被别的线程处理过了
+        if (Monitor.TryEnter(m1)) {
+          try {
+            foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()即取快照
+              lock (m2) { //减小m2锁的粒度
+                foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
+                  if (inst1.App == inst2.App) continue;
+                  if (m2 != inst2.Machine) continue; //inst2刚在本线程的上轮循环swap了
 
-                var delta = TrySwap(inst1, inst2, u1, u2, diff);
-                if (delta > 0.0) continue;
+                  var delta = TrySwap(inst1, inst2, u1, u2, diff);
+                  if (delta > 0.0) continue;
 
-                UpdateScore(delta);
+                  UpdateScore(delta);
 
-                //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
-                //但仍是某个任务计算出来的结果，也可以接受
-                Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
-                                  $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
-                hasChange = true;
+                  //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
+                  //但仍是某个任务计算出来的结果，也可以接受
+                  Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
+                                    $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
+                  hasChange = true;
+                  break; //inst1已经swap了，外层循环继续检查下一个实例
+                }
               }
-            }
+          } finally {
+            Monitor.Exit(m1);
+          }
         }
       }
 
@@ -120,56 +125,49 @@ namespace Tianchi {
     //如果交换成功，返回负的分数差值，否则返回double.MaxValue
     private static double TrySwap(Instance inst1, Instance inst2,
       Resource u1, Resource u2, Resource diff) { //引入u1,u2,diff这三个参数是为了减少GC
-      var i1 = inst1;
-      var i2 = inst2;
-      Debug.Assert(inst1.Id != inst2.Id);
-      if (i1.Id > i2.Id) {
-        i1 = inst2;
-        i2 = inst1;
-      }
+      var m1 = inst1.Machine;
+      var m2 = inst2.Machine;
 
-      lock (i1) {
-        lock (i2) {
-          var m1 = inst1.Machine;
-          var m2 = inst2.Machine;
+      diff.Copy(inst1.R).Subtract(inst2.R);
 
-          diff.Copy(inst1.R).Subtract(inst2.R);
+      u1.Copy(m1.Usage).Subtract(diff);
+      if (u1.IsOverCap(m1.Capacity)) return double.MaxValue;
 
-          u1.Copy(m1.Usage).Subtract(diff);
-          if (u1.IsOverCap(m1.Capacity)) return double.MaxValue;
+      u2.Copy(m2.Usage).Add(diff);
+      if (u2.IsOverCap(m2.Capacity)) return double.MaxValue;
 
-          u2.Copy(m2.Usage).Add(diff);
-          if (u2.IsOverCap(m2.Capacity)) return double.MaxValue;
+      var delta = u1.Cpu.Score(m1.CapCpu) + u2.Cpu.Score(m2.CapCpu)
+                  - (m1.Score + m2.Score);
 
-          var delta = u1.Cpu.Score(m1.CapCpu) + u2.Cpu.Score(m2.CapCpu)
-                      - (m1.Score + m2.Score);
+      //期望delta是负数，且绝对值越大越好
+      if (delta > 0.0 || -delta < 0.00001) return double.MaxValue;
 
-          //期望delta是负数，且绝对值越大越好
-          if (delta > 0.0 || -delta < 0.00001) return double.MaxValue;
+      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
 
-          if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
+      m1 = inst1.Machine;
+      m2 = inst2.Machine;
 
-          m1 = inst1.Machine;
-          m2 = inst2.Machine;
-          m1.RemoveInst(inst1);
-          m2.RemoveInst(inst2);
-          var ok1 = m1.TryPutInst(inst2);
-          var ok2 = m2.TryPutInst(inst1);
-          if (!ok1 || !ok2)
-            throw new Exception($"swap error! ok1 {ok1}, ok2 {ok2}");
+      m1.TryPutInst(inst2, ignoreCheck: true);
+      m2.TryPutInst(inst1, ignoreCheck: true);
 
-          return delta;
-        }
-      }
+      return delta;
     }
 
     // 假设从机器上移除 instOld 之后, 检查 instNew 是否有亲和冲突
     // 注意参数顺序
     private static bool HasConflict(Instance instOld, Instance instNew) {
       var m = instOld.Machine;
-      m.RemoveInst(instOld);
+      var appCountKv = m.AppCountKv; //直接修改
+      var appOld = instOld.App;
+      var appOldCnt = appCountKv[appOld];
+      if (appOldCnt == 1)
+        appCountKv.Remove(appOld);
+      else
+        appCountKv[appOld] = appOldCnt - 1;
+
       var result = m.HasConflictWithInst(instNew);
-      m.TryPutInst(instOld, ignoreCheck: true); // 恢复原状
+      appCountKv[appOld] = appOldCnt; //恢复原状
+
       return result;
     }
 
