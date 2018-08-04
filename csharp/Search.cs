@@ -93,23 +93,24 @@ namespace Tianchi {
         }
 
         lock (m1) {
-          lock (m2) {
-            foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()取快照
-            foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
-              if (inst1.App.Id == inst2.App.Id) continue;
-              if (m1 != inst1.Machine || m2 != inst2.Machine) continue; //实例已经被别的线程处理过了
+          foreach (var inst1 in m1.AppInstKv.Values.ToList()) //ToList()取快照
+            lock (m2) {
+              foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
+                if (inst1.App.Id == inst2.App.Id) continue;
+                if (m1 != inst1.Machine || m2 != inst2.Machine) continue; //实例已经被别的线程处理过了
 
-              var delta = TrySwap(inst1, inst2, u1, u2, diff);
-              if (delta > 0.0) continue;
+                var delta = TrySwap(inst1, inst2, u1, u2, diff);
+                if (delta > 0.0) continue;
 
-              UpdateScore(delta);
+                UpdateScore(delta);
 
-              //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
-              //但仍是某个任务计算出来的结果，也可以接受
-              Console.WriteLine($"{_searchTotalScore:0.000000}, swap inst_{inst1.Id} <-> inst_{inst2.Id}");
-              hasChange = true;
+                //即便采用了原子操作，输出的值仍可能不是刚才计算出来的值，
+                //但仍是某个任务计算出来的结果，也可以接受
+                Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
+                                  $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
+                hasChange = true;
+              }
             }
-          }
         }
       }
 
@@ -167,7 +168,6 @@ namespace Tianchi {
     private static bool HasConflict(Instance instOld, Instance instNew) {
       var m = instOld.Machine;
       m.RemoveInst(instOld);
-
       var result = m.HasConflictWithInst(instNew);
       m.TryPutInst(instOld, ignoreCheck: true); // 恢复原状
       return result;
@@ -176,7 +176,6 @@ namespace Tianchi {
     //CAS原子操作
     private static void UpdateScore(double delta) {
       double init, update;
-
       do {
         init = _searchTotalScore;
         update = init + delta;
@@ -189,6 +188,7 @@ namespace Tianchi {
         var output = $"{_projectPath}/search-result/" +
                      $"search_{TotalScore:0.00}".Replace('.', '_') +
                      $"_{UsedMachineCount}m";
+
         Console.WriteLine($"Writing to {output}");
         var w = File.CreateText(output);
 
@@ -200,7 +200,6 @@ namespace Tianchi {
         //排序后分数小（1.00）的机器在文件尾部，便于修正丢失的实例
         foreach (var m in list)
           w.WriteLine(m.ToSearchStr());
-
         w.Close();
       }
     }
