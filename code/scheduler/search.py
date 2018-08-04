@@ -70,7 +70,8 @@ class Search(object):
                 # 只取同类app中一个实例迁移或交换
                 choice = self.choice()
                 if choice == 1:
-                    for inst in self.machines[j].app_inst_kv.values():  # <app_id, only_one_inst>
+                    # <app_id, only_one_inst>
+                    for inst in self.machines[j].app_inst_kv.values():
                         if self.try_move_inst(self.machines[i], inst):
                             print "move %s -> %s: %f" % (
                                 inst.id, self.machines[i].id, self.total_score)
@@ -151,11 +152,15 @@ class Search(object):
     # 检查 inst_new 是否有亲和冲突
     # 注意参数顺序
     def has_conflict(self, inst_old, inst_new):
-        machine = inst_old.machine
+        m = inst_old.machine
+        cnt = m.app_cnt_kv[inst_old.app.id]
+        if cnt == 1:
+            m.app_cnt_kv.pop(inst_old.app.id)
+        else:
+            m.app_cnt_kv[inst_old.app.id] = cnt - 1
 
-        machine.remove_inst(inst_old)
-        flag = machine.has_conflict_inst(inst_new)
-        machine.put_inst(inst_old)  # 恢复原状
+        flag = m.has_conflict_inst(inst_new)
+        m.app_cnt_kv[inst_old.app.id] = cnt  # 恢复原状
 
         return flag
 
@@ -168,7 +173,8 @@ class Search(object):
     def output(self):
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
         cnt = self.print_abnormal_machine_info(self.machines)
-        if cnt > 0: return
+        if cnt > 0:
+            return
 
         self.analyse.print_undeployed_inst_info(self.instances)
 
@@ -182,9 +188,11 @@ class Search(object):
     def print_abnormal_machine_info(machines):
         out_of_cap_set, conflict_set = Machine.get_abnormal_machines(machines)
         if len(out_of_cap_set) > 0:
-            print "Invalid search result: resource overload # %d" % len(out_of_cap_set)
+            print "Invalid search result: resource overload # %d" % len(
+                out_of_cap_set)
         if len(conflict_set) > 0:
-            print "Invalid search result: constraint conflict # %d" % len(conflict_set)
+            print "Invalid search result: constraint conflict # %d" % len(
+                conflict_set)
         for m in out_of_cap_set:
             print m.usage > m.capacity
             # print machine.capacity - machine.usage
