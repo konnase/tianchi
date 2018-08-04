@@ -29,7 +29,7 @@ type Instance struct {
 	Machine *Machine
 
 	deployed bool
-	//lock sync.RWMutex
+	//lock     sync.Mutex
 }
 
 func NewInstance(line string) *Instance {
@@ -194,9 +194,13 @@ func (m *Machine) score() float64 {
 	if m.diskUsage() == 0 {
 		return 0.0
 	}
+	return cpuScore(m.cpuUsage(), m.CpuCapacity)
+}
+
+func cpuScore(cpuUsage []float64, cpuCapacity float64) float64 {
 	score := 0.0
-	for _, v := range m.cpuUsage() {
-		util := v / m.CpuCapacity
+	for _, v := range cpuUsage {
+		util := v / cpuCapacity
 		score += 1 + 10*(math.Exp(math.Max(util-0.5, 0))-1)
 	}
 	return score / 98.0
@@ -406,7 +410,7 @@ type Scheduler struct {
 	instKV map[string]*Instance
 	appKV  map[string]*Application
 
-	totalScore float64
+	totalScore float64 //todo: 共享变量，不影响计算过程，只用于输出
 }
 
 func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Instance, appKV map[string]*Application) *Scheduler {
@@ -447,11 +451,16 @@ func (s *Scheduler) search() {
 			}
 			for _, inst1 := range s.machines[i].appKV {
 				for _, inst2 := range s.machines[j].appKV {
-					if inst1.App.Id == inst2.App.Id {
+					if inst1.App == inst2.App {
 						continue
 					}
+					if inst2.Machine.Id != s.machines[j].Id {
+						continue //inst2已经在上一轮循环swap过了
+					}
 					if s.trySwap(inst1, inst2) {
-						fmt.Printf("swap (%s) <-> (%s): %f\n", inst1.Id, inst2.Id, s.totalScore)
+						fmt.Printf("swap (%s) <-> (%s): %f\n",
+							inst1.Id, inst2.Id, s.totalScore)
+						break //inst1也swap过了，外层循环继续下一个实例
 					}
 				}
 			}
@@ -462,25 +471,18 @@ func (s *Scheduler) search() {
 func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	m1 := inst1.Machine
 	m2 := inst2.Machine
-	if m1.Id == m2.Id { //死锁的实际原因，但不知为何不同机器上的实例却出现机器Id相等的情况
+	if m1.Id == m2.Id {
 		return false
 	}
 
-	if m1.Id > m2.Id { //m1总是Id较小的机器，理论上即可避免死锁
+	if m1.Id > m2.Id { //令m1总是Id较小的机器，即可避免死锁
 		m1 = inst2.Machine
 		m2 = inst1.Machine
 	}
-
-	//id := m1.Id + "," + m2.Id
 	m1.lock.Lock()
-	//fmt.Print(id + ",1 Locked->")
 	m2.lock.Lock()
-	//fmt.Println(id + ",2 Locked")
-
 	defer m2.lock.Unlock()
-
 	defer m1.lock.Unlock()
-
 	for i := 0; i < 200; i++ {
 		if inst1.Machine.Usage[i]-inst1.App.Resource[i]+inst2.App.Resource[i] > inst1.Machine.Capacity[i] {
 			return false
@@ -488,10 +490,6 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 		if inst2.Machine.Usage[i]-inst2.App.Resource[i]+inst1.App.Resource[i] > inst2.Machine.Capacity[i] {
 			return false
 		}
-	}
-
-	if inst1.Machine.hasConflictInst(inst2) || inst2.Machine.hasConflictInst(inst1) {
-		return false
 	}
 
 	var cpu1 [98]float64
@@ -502,31 +500,40 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 		cpu1[i] = machineCpu1[i] - inst1.App.Cpu[i] + inst2.App.Cpu[i]
 		cpu2[i] = machineCpu2[i] - inst2.App.Cpu[i] + inst1.App.Cpu[i]
 	}
-	score1 := 0.0
-	score2 := 0.0
-	for i := 0; i < 98; i++ {
-		score1 += 1 + 10*(math.Exp(math.Max(cpu1[i]/inst1.Machine.CpuCapacity-0.5, 0))-1)
-		score2 += 1 + 10*(math.Exp(math.Max(cpu2[i]/inst2.Machine.CpuCapacity-0.5, 0))-1)
-	}
-	score1 /= 98.0
-	score2 /= 98.0
+	score1 := cpuScore(cpu1[0:98], inst1.Machine.CpuCapacity)
+	score2 := cpuScore(cpu2[0:98], inst2.Machine.CpuCapacity)
+	delta := score1 + score2 - (inst1.Machine.score() + inst2.Machine.score())
 
-	if (inst1.Machine.score() + inst2.Machine.score() - score1 - score2) < 0.00001 {
+	if delta > 0 || -delta < 0.00001 {
 		return false
 	}
 
-	s.totalScore -= inst1.Machine.score() + inst2.Machine.score() - score1 - score2
+	if hasConflict(inst1, inst2) || hasConflict(inst2, inst1) {
+		return false
+	}
+
+	s.totalScore += delta
 	s.doSwap(inst1, inst2)
 	return true
+}
+
+func hasConflict(inst1, inst2 *Instance) bool {
+	m := inst1.Machine
+	instCnt := m.appCntKV[inst1.AppId]
+	if instCnt == 1 {
+		delete(m.appCntKV, inst1.AppId)
+	} else {
+		m.appCntKV[inst1.AppId] = instCnt - 1
+	}
+
+	result := m.hasConflictInst(inst2)
+	m.appCntKV[inst1.AppId] = instCnt //恢复原状
+	return result
 }
 
 func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine1 := inst1.Machine
 	machine2 := inst2.Machine
-	//machine1.lock.Lock()
-	//defer machine1.lock.Unlock()
-	//machine2.lock.Lock()
-	//defer machine2.lock.Unlock()
 	machine1.put(inst2)
 	machine2.put(inst1)
 }
@@ -540,7 +547,7 @@ func (s *Scheduler) output() {
 			usedMachine++
 		}
 	}
-	filePath := fmt.Sprintf("search-result/search_%s_%d", strconv.FormatInt(int64(s.totalScore), 10), usedMachine)
+	filePath := fmt.Sprintf("search-result/search_%s_%dm", strconv.FormatInt(int64(s.totalScore), 10), usedMachine)
 	f, err := os.Create(filePath)
 	if err != nil {
 		panic(err)
@@ -573,7 +580,7 @@ func main() {
 	runtime.GOMAXPROCS(cores)
 
 	stopChan := make(chan os.Signal, 1)
-	signal.Notify(stopChan, os.Interrupt, os.Kill)
+	signal.Notify(stopChan, os.Interrupt, os.Kill) //todo: 让goroutine正常停止
 
 	machines, instKV, appKV := ReadData()
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV)
