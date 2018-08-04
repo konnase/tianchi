@@ -224,7 +224,7 @@ namespace Tianchi {
       var appBCnt = AppCountKv.ContainsKey(appB) ? AppCountKv[appB] : 0;
 
       foreach (var kv in AppCountKv) {
-        //<appA, appB, k>
+        //<appA, appB, bLimit>
         var appA = kv.Key; //已部署的应用
         var bLimit = appA.XLimit(appB);
 
@@ -232,7 +232,7 @@ namespace Tianchi {
           return true;
 
         //同时，已部署的应用不会与将要部署的inst的规则冲突
-        //<appB,appA,aLimit>
+        //<appB, appA, aLimit>
         var aLimit = appB.XLimit(appA);
         var appACnt = kv.Value;
 
