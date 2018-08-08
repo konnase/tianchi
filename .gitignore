@@ -27,3 +27,4 @@ search
 main
 
 *.exe
+go/test/*
