@@ -28,3 +28,5 @@ main
 
 *.exe
 go/test/*
+debug
+data/init_neibor_set.csv

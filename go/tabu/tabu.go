@@ -20,6 +20,7 @@ const (
 	InstanceInput        = "data/scheduling_preliminary_b_instance_deploy_20180726.csv"
 	ApplicationInput     = "data/scheduling_preliminary_b_app_resources_20180726.csv"
 	AppInterferenceInput = "data/scheduling_preliminary_b_app_interference_20180726.csv"
+	InitNeiborSet        = "data/init_neibor_set.csv"
 	InitNeiborSize       = 20
 )
 
@@ -114,6 +115,12 @@ func (m MachineSlice) Less(i, j int) bool {
 func NewMachine(line string, interference AppInterference) *Machine {
 	line = strings.TrimSpace(line)
 	splits := strings.Split(line, ",")
+	// machine := new(Machine)
+	// machine.Id = splits[0]
+	// machine.instKV = make(map[string]*Instance)
+	// machine.appCntKV = make(map[string]int)
+	// machine.appKV = make(map[string]*Instance)
+	// machine.appInterference = interference
 	machine := &Machine{
 		Id:              splits[0],
 		instKV:          make(map[string]*Instance),
@@ -363,6 +370,7 @@ func ReadAppInterference(lines []string) AppInterference {
 }
 
 func ReadMachine(lines []string, interference AppInterference) []*Machine {
+	// m := make([]*Machine, 6000)
 	var m []*Machine
 	for _, line := range lines {
 		m = append(m, NewMachine(line, interference))
@@ -371,6 +379,7 @@ func ReadMachine(lines []string, interference AppInterference) []*Machine {
 }
 
 func ReadApplication(lines []string) []*Application {
+	// a := make([]*Application, 9000)
 	var a []*Application
 	for _, line := range lines {
 		a = append(a, NewApplication(line))
@@ -379,6 +388,7 @@ func ReadApplication(lines []string) []*Application {
 }
 
 func ReadInstance(lines []string) []*Instance {
+	// i := make([]*Instance, 69000)
 	var i []*Instance
 	for _, line := range lines {
 		i = append(i, NewInstance(line))
@@ -411,91 +421,86 @@ type Neibor struct {
 	appB     string
 	machineB int
 }
+type Solution struct {
+	machines   []*Machine
+	instKV     map[string]*Instance
+	appKV      map[string]*Application
+	totalScore float64               //todo: 共享变量，不影响计算过程，只用于输出
+	initIndex  map[Neibor][]*Machine //生成初始领域时，记录移动的机器的下标
+}
+
+type SolutionSlice []*Solution
+
+func (s SolutionSlice) Len() int {
+	return len(s)
+}
+
+func (s SolutionSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+func (s SolutionSlice) Less(i, j int) bool {
+	return s[i].totalScore > s[j].totalScore
+}
 
 type Scheduler struct {
-	machines [][]*Machine
-
-	instKV map[string]*Instance //instKV和appKV对所有解都一样
-	appKV  map[string]*Application
-
+	solutions       []*Solution
 	tabuList        map[string]map[string]map[string]map[string]int
 	candidateSetLen int
-	initIndex       map[Neibor][]*Machine //生成初始领域时，记录移动的机器的下标
 
 	searchFile string
-	totalScore [InitNeiborSize + 1]float64 //todo: 共享变量，不影响计算过程，只用于输出
 }
 
 func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Instance, appKV map[string]*Application) *Scheduler {
-	scheduler := &Scheduler{
-		instKV: instKV,
-		appKV:  appKV,
-	}
-	scheduler.machines = append(scheduler.machines, machine)
+	solution := new(Solution)
+	solution.instKV = instKV
+	solution.appKV = appKV
+	solution.machines = machine
+	solution.initIndex = make(map[Neibor][]*Machine)
+	scheduler := &Scheduler{}
+	scheduler.solutions = append(scheduler.solutions, solution)
 	scheduler.tabuList = make(map[string]map[string]map[string]map[string]int)
-	scheduler.initIndex = make(map[Neibor][]*Machine)
 
-	lines := ReadLines(searchFile)
-	i := 0
-	for i, line := range lines {
-		var machineIndex int
-		if i < 3000 {
-			machineIndex = i + 3000
-		} else {
-			machineIndex = i - 3000
-		}
-
-		split := strings.Split(line, " ")
-		str := strings.TrimRight(strings.TrimLeft(split[2], "("), ")")
-		insts := strings.Split(str, ",")
-
-		for _, inst := range insts {
-			scheduler.machines[0][machineIndex].put(scheduler.instKV[inst])
-		}
-	}
-	scheduler.candidateSetLen = i / 2
+	scheduler.readSearchFile(searchFile, 0)
 	scheduler.searchFile = searchFile
-	scheduler.totalScore[0] = TotalScore(scheduler.machines[0]) //原始解的分数
+	scheduler.solutions[0].totalScore = TotalScore(scheduler.solutions[0].machines) //原始解的分数
 	return scheduler
 }
 
 func (s *Scheduler) tabuSearch() {
+	fmt.Println(s.candidateSetLen)
 	s.getInitNeiborSet()
-	fmt.Println(len(s.machines))
-	for i, machines := range s.machines {
-		fmt.Println(i, TotalScore(machines), machines[i].instIdList())
-	}
+	s.getCandidateNeibor()
+	fmt.Println(len(s.solutions))
+}
+
+func (s *Scheduler) generateInitNeiborSet() {
 
 }
 
 func (s *Scheduler) getInitNeiborSet() {
 	for i := 1; i < InitNeiborSize+1; i++ {
-		machineAIndex := rand.Intn(len(s.machines[0]))
-		machineBIndex := rand.Intn(len(s.machines[0]))
-		newSolve := s.copyMachines(i)
-		// fmt.Println(len(newSolve))
-		// newSolve := make([]*Machine, len(s.machines[0]))
-		// deepcopy.Copy(newSolve, s.machines[0])
-		s.machines = append(s.machines, newSolve)
-		fmt.Printf("solve %d score: %0.2f\n", i, TotalScore(s.machines[i-1]))
+		machineAIndex := rand.Intn(len(s.solutions[0].machines))
+		machineBIndex := rand.Intn(len(s.solutions[0].machines))
+		s.getNewNeibor(i)
+		// fmt.Printf("solve %d score: %0.2f\n", i, TotalScore(s.machines[i]))
 		swaped := false
-		for _, instA := range s.machines[i][machineAIndex].appKV {
-			for _, instB := range s.machines[i][machineBIndex].appKV {
+		for _, instA := range s.solutions[i].machines[machineAIndex].appKV {
+			for _, instB := range s.solutions[i].machines[machineBIndex].appKV {
 				if instA.AppId == instB.AppId {
 					continue
 				}
 				//如果machineA上的appA已经和machineB上的appB交换过了，则重新生成
-				if _, ok := s.initIndex[Neibor{instA.AppId, machineAIndex, instB.AppId, machineBIndex}]; ok {
+				if _, ok := s.solutions[i].initIndex[Neibor{instA.AppId, machineAIndex, instB.AppId, machineBIndex}]; ok {
 					continue
 				}
-				if instB.Machine.Id != s.machines[i][machineBIndex].Id {
+				if instB.Machine.Id != s.solutions[i].machines[machineBIndex].Id {
 					continue //inst2已经在上一轮循环swap过了
 				}
 
 				if s.trySwap(instA, instB, i, true) { //交换第i个解里面随机的两个inst
-					s.initIndex[Neibor{instA.AppId, machineAIndex, instB.AppId, machineBIndex}] = s.machines[i]
+					s.solutions[i].initIndex[Neibor{instA.AppId, machineAIndex, instB.AppId, machineBIndex}] = s.solutions[i].machines
 					fmt.Printf("swap (%s) <-> (%s): %f\n",
-						instA.Id, instB.Id, s.totalScore[i])
+						instA.Id, instB.Id, s.solutions[i].totalScore)
 					swaped = true
 					break //产生一个邻居后，跳到最外层循环，继续产生下一个邻居
 				}
@@ -507,15 +512,40 @@ func (s *Scheduler) getInitNeiborSet() {
 		}
 		if !swaped {
 			i--
-			s.machines = s.machines[:len(s.machines)-1]
+			s.solutions = s.solutions[:len(s.solutions)-1]
 		}
 	}
 }
 
-func (s *Scheduler) copyMachines(index int) []*Machine {
-	interference := ReadAppInterference(ReadLines(AppInterferenceInput))
-	machines := ReadMachine(ReadLines(MachineInput), interference)
-	lines := ReadLines(s.searchFile)
+func (s *Scheduler) getNewNeibor(index int) {
+	s.solutions = append(s.solutions, new(Solution))
+	machines, instKV, appKV := ReadData()
+	s.solutions[index].instKV = instKV
+	s.solutions[index].appKV = appKV
+	s.solutions[index].machines = machines
+	s.solutions[index].initIndex = make(map[Neibor][]*Machine)
+	s.readSearchFile(s.searchFile, index)
+	s.solutions[index].totalScore = TotalScore(s.solutions[index].machines)
+}
+
+func (s *Scheduler) getCandidateNeibor() {
+	// candidateNum := 10 //supposed to be scheduler.candidateSetLen
+	scoreMapToNeibor := make(map[float64]int)
+	for i, solution := range s.solutions {
+		scoreMapToNeibor[solution.totalScore] = i
+	}
+	solutions := SolutionSlice(s.solutions)
+	sort.Sort(solutions)
+	for _, solution := range solutions {
+		fmt.Println(solution.totalScore)
+	}
+
+}
+
+//searchFile: search file;  index: the indexth neighbor of the neighbor set, index=0 for original solution
+func (s *Scheduler) readSearchFile(searchFile string, index int) {
+	lines := ReadLines(searchFile)
+	count := 0
 	for i, line := range lines {
 		var machineIndex int
 		if i < 3000 {
@@ -529,32 +559,34 @@ func (s *Scheduler) copyMachines(index int) []*Machine {
 		insts := strings.Split(str, ",")
 
 		for _, inst := range insts {
-			machines[machineIndex].put(s.instKV[inst])
+			s.solutions[index].machines[machineIndex].put(s.solutions[index].instKV[inst])
 		}
+		count++
 	}
-	s.totalScore[index] = TotalScore(machines)
-	return machines
+	if index == 0 {
+		s.candidateSetLen = count / 2
+	}
 }
 
 func (s *Scheduler) search() {
-	shuffledIndex := rand.Perm(len(s.machines[0]))
+	shuffledIndex := rand.Perm(len(s.solutions[0].machines))
 
 	for _, i := range shuffledIndex {
 		for _, j := range shuffledIndex {
 			if i == j {
 				continue
 			}
-			for _, inst1 := range s.machines[0][i].appKV {
-				for _, inst2 := range s.machines[0][j].appKV {
+			for _, inst1 := range s.solutions[0].machines[i].appKV {
+				for _, inst2 := range s.solutions[0].machines[j].appKV {
 					if inst1.App == inst2.App {
 						continue
 					}
-					if inst2.Machine.Id != s.machines[0][j].Id {
+					if inst2.Machine.Id != s.solutions[0].machines[j].Id {
 						continue //inst2已经在上一轮循环swap过了
 					}
 					if s.trySwap(inst1, inst2, 0, false) {
 						fmt.Printf("swap (%s) <-> (%s): %f\n",
-							inst1.Id, inst2.Id, s.totalScore[0])
+							inst1.Id, inst2.Id, s.solutions[0].totalScore)
 						break //inst1也swap过了，外层循环继续下一个实例
 					}
 				}
@@ -607,7 +639,7 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance, index int, force bool) bool 
 		return false
 	}
 
-	s.totalScore[index] += delta
+	s.solutions[index].totalScore += delta
 	s.doSwap(inst1, inst2)
 	return true
 }
@@ -634,7 +666,7 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 }
 
 func (s *Scheduler) output() {
-	machines := MachineSlice(s.machines[0])
+	machines := MachineSlice(s.solutions[0].machines)
 	sort.Sort(machines)
 	usedMachine := 0
 	for _, machine := range machines {
@@ -642,7 +674,7 @@ func (s *Scheduler) output() {
 			usedMachine++
 		}
 	}
-	filePath := fmt.Sprintf("search-result/search_%s_%dm", strconv.FormatInt(int64(s.totalScore[0]), 10), usedMachine)
+	filePath := fmt.Sprintf("search-result/search_%s_%dm", strconv.FormatInt(int64(s.solutions[0].totalScore), 10), usedMachine)
 	f, err := os.Create(filePath)
 	if err != nil {
 		panic(err)
@@ -659,6 +691,27 @@ func (s *Scheduler) output() {
 	}
 	w.Flush()
 	fmt.Printf("writing to %s\n", filePath)
+
+	// f, err = os.Create(InitNeiborSet)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer f.Close()
+	// w = bufio.NewWriter(f)
+	// for _, solution := range s.solutions {
+	// 	machines := MachineSlice(solution.machines)
+	// 	sort.Sort(machines)
+	// 	for _, machine := range machines {
+	// 		if machine.diskUsage() == 0 {
+	// 			continue
+	// 		}
+	// 		str := fmt.Sprintf("total(%.6f,%d): {%s} (%s)", machine.score(), int(machine.diskUsage()), machine.instDiskList(), machine.instIdList())
+	// 		fmt.Fprintln(w, str)
+	// 	}
+	// 	fmt.Fprintln(w, "#")
+	// }
+	// w.Flush()
+	// fmt.Printf("writing to %s\n", InitNeiborSet)
 }
 
 func main() {
@@ -679,21 +732,17 @@ func main() {
 
 	machines, instKV, appKV := ReadData()
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV)
-	fmt.Println(scheduler.totalScore[0])
+	fmt.Println(scheduler.solutions[0].totalScore)
 
-	// for i := 0; i < cores; i++ {
-	// 	go scheduler.tabuSearch()
-	// 	// go scheduler.search()
-	// }
-	scheduler.tabuSearch()
-	<-stopChan
-	fmt.Println(len(scheduler.machines))
-	for i, machines := range scheduler.machines {
-		fmt.Println(i, TotalScore(machines), machines[i].instIdList())
+	for i := 0; i < cores; i++ {
+		go scheduler.tabuSearch()
+		// go scheduler.search()
 	}
+	// scheduler.tabuSearch()
+	<-stopChan
 	// for k, _ := range scheduler.initIndex {
 	// 	fmt.Println(k)
 	// }
-	// scheduler.output()
-	// fmt.Printf("total score: %.6f", TotalScore(scheduler.machines[0]))
+	scheduler.output()
+	fmt.Printf("total score: %.6f", TotalScore(scheduler.solutions[0].machines))
 }
