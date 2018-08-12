@@ -461,7 +461,16 @@ func (s *Scheduler) search(wait *sync.WaitGroup) {
 			if i == j {
 				continue
 			}
+			// ignore empty machine
+			if s.machines[i].diskUsage() == 0 || s.machines[j].diskUsage() == 0 {
+				continue
+			}
 			for _, inst1 := range s.machines[i].appKV {
+				// try move
+				if s.tryMove(s.machines[j], inst1) {
+					fmt.Printf("move (%s) -> (%s): %f\n", s.machines[j].Id, inst1.Id, s.totalScore)
+				}
+				// try swap
 				for _, inst2 := range s.machines[j].appKV {
 					if s.done {
 						fmt.Printf("goroutine %d done\n", getGID())
@@ -485,6 +494,42 @@ func (s *Scheduler) search(wait *sync.WaitGroup) {
 	}
 }
 
+// tryMove move inst from machine1 to machine2
+func (s *Scheduler) tryMove(machine2 *Machine, inst *Instance) bool {
+	machine1 := inst.Machine
+	if machine1.Id == machine2.Id {
+		return false
+	}
+	machine1.lock.Lock()
+	machine2.lock.Lock()
+	defer machine1.lock.Unlock()
+	defer machine2.lock.Unlock()
+	if !machine2.canPutInst(inst) {
+		return false
+	}
+
+	var cpu1 [98]float64
+	var cpu2 [98]float64
+	machineCpu1 := machine1.cpuUsage()
+	machineCpu2 := machine2.cpuUsage()
+	for i := 0; i < 98; i++ {
+		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
+		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
+	}
+	score1 := cpuScore(cpu1[0:98], machine1.CpuCapacity)
+	score2 := cpuScore(cpu2[0:98], machine2.CpuCapacity)
+	delta := score1 + score2 - (machine1.score() + machine2.score())
+
+	if delta > 0 || -delta < 0.00001 {
+		return false
+	}
+
+	s.totalScore += delta
+	machine2.put(inst)
+	return true
+}
+
+// trySwap swaps inst1 and inst2
 func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	m1 := inst1.Machine
 	m2 := inst2.Machine
@@ -509,6 +554,10 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 		}
 	}
 
+	if hasConflict(inst1, inst2) || hasConflict(inst2, inst1) {
+		return false
+	}
+
 	var cpu1 [98]float64
 	var cpu2 [98]float64
 	machineCpu1 := inst1.Machine.cpuUsage()
@@ -522,10 +571,6 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	delta := score1 + score2 - (inst1.Machine.score() + inst2.Machine.score())
 
 	if delta > 0 || -delta < 0.00001 {
-		return false
-	}
-
-	if hasConflict(inst1, inst2) || hasConflict(inst2, inst1) {
 		return false
 	}
 
