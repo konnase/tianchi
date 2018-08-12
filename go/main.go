@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"bytes"
 )
 
 const (
@@ -330,6 +331,15 @@ func TotalScore(machines []*Machine) float64 {
 	return s
 }
 
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
 func ReadLines(input string) []string {
 	f, err := os.Open(input)
 	if err != nil {
@@ -411,6 +421,7 @@ type Scheduler struct {
 	appKV  map[string]*Application
 
 	totalScore float64 //todo: 共享变量，不影响计算过程，只用于输出
+	done       bool
 }
 
 func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Instance, appKV map[string]*Application) *Scheduler {
@@ -418,6 +429,7 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 		machines: machine,
 		instKV:   instKV,
 		appKV:    appKV,
+		done:     false,
 	}
 
 	lines := ReadLines(searchFile)
@@ -441,7 +453,7 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 	return scheduler
 }
 
-func (s *Scheduler) search() {
+func (s *Scheduler) search(wait *sync.WaitGroup) {
 	shuffledIndex := rand.Perm(len(s.machines))
 
 	for _, i := range shuffledIndex {
@@ -451,6 +463,11 @@ func (s *Scheduler) search() {
 			}
 			for _, inst1 := range s.machines[i].appKV {
 				for _, inst2 := range s.machines[j].appKV {
+					if s.done {
+						fmt.Printf("goroutine %d done\n", getGID())
+						wait.Done()
+						return
+					}
 					if inst1.App == inst2.App {
 						continue
 					}
@@ -538,6 +555,10 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine2.put(inst1)
 }
 
+func (s *Scheduler) Done() {
+	s.done = true
+}
+
 func (s *Scheduler) output() {
 	machines := MachineSlice(s.machines)
 	sort.Sort(machines)
@@ -586,11 +607,15 @@ func main() {
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV)
 	fmt.Println(scheduler.totalScore)
 
+	var wg sync.WaitGroup
 	for i := 0; i < cores; i++ {
-		go scheduler.search()
+		wg.Add(1)
+		go scheduler.search(&wg)
 	}
 
 	<-stopChan
+	scheduler.Done()
+	wg.Wait()
 	scheduler.output()
 	fmt.Printf("total score: %.6f", TotalScore(scheduler.machines))
 }
