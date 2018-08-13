@@ -21,8 +21,9 @@ const (
 	ApplicationInput     = "data/scheduling_preliminary_b_app_resources_20180726.csv"
 	AppInterferenceInput = "data/scheduling_preliminary_b_app_interference_20180726.csv"
 	InitNeiborSet        = "data/init_neibor_set.csv"
-	InitNeiborSize       = 20
-	TabuLen              = 3
+	InitNeiborSize       = 50
+	CandidateLen         = 50
+	TabuLen              = 4
 )
 
 type Instance struct {
@@ -116,12 +117,6 @@ func (m MachineSlice) Less(i, j int) bool {
 func NewMachine(line string, interference AppInterference) *Machine {
 	line = strings.TrimSpace(line)
 	splits := strings.Split(line, ",")
-	// machine := new(Machine)
-	// machine.Id = splits[0]
-	// machine.instKV = make(map[string]*Instance)
-	// machine.appCntKV = make(map[string]int)
-	// machine.appKV = make(map[string]*Instance)
-	// machine.appInterference = interference
 	machine := &Machine{
 		Id:              splits[0],
 		instKV:          make(map[string]*Instance),
@@ -443,6 +438,8 @@ type Solution struct {
 	exchangeAppFromB ExchangeApp //记录这个解的移动的方向
 	exchangeAppToA   ExchangeApp //记录这个解的移动的方向
 	exchangeAppToB   ExchangeApp //记录这个解的移动的方向
+
+	lock sync.RWMutex
 }
 
 type SolutionSlice []*Solution
@@ -468,6 +465,7 @@ type Scheduler struct {
 	candidateSetLen int                 //取机器数目的一半
 
 	searchFile string
+	lock       sync.RWMutex
 }
 
 func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Instance, appKV map[string]*Application, machineKV map[string]*Machine) *Scheduler {
@@ -496,7 +494,7 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 
 func (s *Scheduler) tabuSearch() {
 	// fmt.Println(s.candidateSetLen)
-	// s.getInitNeiborSet()
+	// s.getInitNeiborSet(s.bestSolution)
 	// s.getCandidateNeibor()
 	// fmt.Println(len(s.candidates))
 	// for _, candidate := range s.solutions {
@@ -514,20 +512,26 @@ func (s *Scheduler) tabuSearch() {
 func (s *Scheduler) startSearch() {
 	nowSolution := s.bestSolution
 	var localBestSolution *Solution
+	round := 0
 	for {
-		//得到候选集
-		s.getInitNeiborSet(nowSolution)
-		s.getCandidateNeibor()
+		// //得到候选集
+		// s.getInitNeiborSet(nowSolution)
+		// s.getCandidateNeibor()
 		//初始化候选集
+		round++
+		// fmt.Printf("Round %d\n", round)
 		if len(s.tabuList) == 0 {
 			for _, candidateX := range s.candidates {
 				candidateX.isCandidate = true
 			}
 		} else {
+			s.lock.Lock()
 			for tabu := range s.tabuList {
 				for _, candidateX := range s.candidates {
 					if tabu == candidateX.exchangeAppFromA || tabu == candidateX.exchangeAppToA ||
 						tabu == candidateX.exchangeAppFromB || tabu == candidateX.exchangeAppToB {
+						// fmt.Printf("enter tabu:\n")
+						// os.Exit(0)
 						candidateX.isCandidate = false
 					} else {
 						candidateX.isCandidate = true
@@ -537,11 +541,12 @@ func (s *Scheduler) startSearch() {
 					}
 				}
 			}
+			s.lock.Unlock()
 		}
 		//从候选集中选择分数最低的解
 		i := 0
 		for _, candidateS := range s.candidates {
-			// println(candidateS.isCandidate)
+			// println(candidateS.totalScore)
 			if candidateS.isCandidate {
 				if i == 0 {
 					localBestSolution = candidateS
@@ -552,6 +557,7 @@ func (s *Scheduler) startSearch() {
 				i++
 			}
 		}
+		// time.Sleep(time.Second)
 		//设置局部最优解的特赦值
 		if localBestSolution.totalScore < nowSolution.permitValue {
 			localBestSolution.permitValue = localBestSolution.totalScore
@@ -560,22 +566,27 @@ func (s *Scheduler) startSearch() {
 		}
 		//更新tabulist
 		s.updateTabuList() //todo: pair移除tabulist之后要释放候选解
+		s.lock.Lock()
 		s.tabuList[localBestSolution.exchangeAppFromA] = TabuLen
 		s.tabuList[localBestSolution.exchangeAppFromB] = TabuLen
 		s.tabuList[localBestSolution.exchangeAppToA] = TabuLen
 		s.tabuList[localBestSolution.exchangeAppToB] = TabuLen
+		s.lock.Unlock()
 		//如果局部最优解由于当前最优解，则将局部最优解设置为当前最优解
 		if localBestSolution.totalScore < s.bestSolution.totalScore {
-			fmt.Printf("New bestsolution: %0.4f --> %0.4f\n", s.bestSolution.totalScore, localBestSolution.totalScore)
-			s.bestSolution = localBestSolution
+			fmt.Printf("New bestsolution: %0.8f --> %0.4f\n", s.bestSolution.totalScore, localBestSolution.totalScore)
+			s.bestSolution = nil
+			s.bestSolution = s.getNewNeiborFromNowSolution(localBestSolution)
 		}
 		//更新候选集，即按照localBestSolution的交换规则交换实例
-		// s.updateCandidates(localBestSolution)
+		s.updateCandidates(localBestSolution)
 		nowSolution = localBestSolution
 	}
 }
 
 func (s *Scheduler) updateTabuList() {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	for key := range s.tabuList {
 		s.tabuList[key]--
 		if s.tabuList[key] == 0 {
@@ -615,43 +626,46 @@ func (s *Scheduler) updateCandidates(localBestSolution *Solution) {
 				s.swapCandidate(candidate, appB, appA, machine1, machine2, machine3)
 			}
 		} else {
-			fmt.Println(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB])
-			canswap := s.trySwap(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate, true)
-			fmt.Println(canswap)
-			if canswap {
-				s.doSwap(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB])
-				fmt.Printf("candidate swap (%s) <-> (%s): %f\n",
-					appA, appB, candidate.totalScore)
-			}
+			// fmt.Println(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB])
+			// canswap := s.trySwap(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate, true)
+			// fmt.Println(canswap)
+			s.tabuTrySwap(candidate.machineKV[machine1].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate)
+			// fmt.Printf("candidate swap (%s) <-> (%s): %f\n",
+			// 	appA, appB, candidate.totalScore)
+			// if canswap {
+			// }
 
 		}
 	}
 }
 
 func (s *Scheduler) swapCandidate(candidate *Solution, appA string, appB string, machine1 string, machine2 string, machine3 string) {
-	canswap := s.trySwap(candidate.machineKV[machine3].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate, true)
-	fmt.Println(canswap)
-	if canswap {
-		s.doSwap(candidate.machineKV[machine3].appKV[appA], candidate.machineKV[machine2].appKV[appB])
-		appC := candidate.exchangeAppFromA.appB
-		candidate.exchangeAppFromA = ExchangeApp{appB, machine1, appC, machine3}
-		candidate.exchangeAppFromB = ExchangeApp{appC, machine3, appB, machine1}
-		candidate.exchangeAppToA = ExchangeApp{appB, machine3, appC, machine1}
-		candidate.exchangeAppToB = ExchangeApp{appC, machine1, appB, machine3}
-		fmt.Printf("candidate swap (%s) <-> (%s): %f\n",
-			appA, appB, candidate.totalScore)
-	}
+	// canswap := s.trySwap(candidate.machineKV[machine3].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate, true)
+	// fmt.Println(canswap)
+	s.tabuTrySwap(candidate.machineKV[machine3].appKV[appA], candidate.machineKV[machine2].appKV[appB], candidate)
+	appC := candidate.exchangeAppFromA.appB
+	candidate.exchangeAppFromA = ExchangeApp{appB, machine1, appC, machine3}
+	candidate.exchangeAppFromB = ExchangeApp{appC, machine3, appB, machine1}
+	candidate.exchangeAppToA = ExchangeApp{appB, machine3, appC, machine1}
+	candidate.exchangeAppToB = ExchangeApp{appC, machine1, appB, machine3}
+	fmt.Printf("candidate swap (%s) <-> (%s): %f\n",
+	// 	appA, appB, candidate.totalScore)
+	// if canswap {
+	// }
 }
 
 func (s *Scheduler) getInitNeiborSet(nowSolution *Solution) {
-	s.getNewNeiborFromNowSolution(0, s.bestSolution)
-	s.getNewNeiborFromNowSolution(1, nowSolution)
+	// s.getNewNeiborFromNowSolution(0, s.bestSolution)
+	// s.getNewNeiborFromNowSolution(1, nowSolution)
+	s.solutions[0] = s.bestSolution
+	s.solutions[1] = nowSolution
 	s.solutions = s.solutions[:2]
 	for i := 2; i < InitNeiborSize+2; i++ {
 		machineAIndex := rand.Intn(len(s.bestSolution.machines))
 		machineBIndex := rand.Intn(len(s.bestSolution.machines))
 		// s.getNewNeibor(i) //生成第i个邻居
-		s.getNewNeiborFromNowSolution(i, nowSolution)
+		newSolve := s.getNewNeiborFromNowSolution(nowSolution)
+		s.solutions = append(s.solutions, newSolve)
 		// fmt.Printf("solve %d score: %0.2f\n", i, TotalScore(s.solutions[i-1].machines))
 		swaped := false
 		for _, instA := range s.solutions[i].machines[machineAIndex].appKV {
@@ -696,7 +710,9 @@ func (s *Scheduler) getInitNeiborSet(nowSolution *Solution) {
 	}
 }
 
-func (s *Scheduler) getNewNeiborFromNowSolution(index int, nowSolution *Solution) {
+func (s *Scheduler) getNewNeiborFromNowSolution(nowSolution *Solution) *Solution {
+	nowSolution.lock.Lock()
+	defer nowSolution.lock.Unlock()
 	s1 := *nowSolution
 	appKV := make(map[string]*Application)
 	for _, app := range s1.appKV {
@@ -746,8 +762,10 @@ func (s *Scheduler) getNewNeiborFromNowSolution(index int, nowSolution *Solution
 		machineKV[m2.Id] = m2
 	}
 	for _, inst := range s1.instKV {
-		instKV[inst.Id].Machine = machineKV[inst.Machine.Id]
-		instKV[inst.Id].deployed = true
+		if inst.Machine != nil {
+			instKV[inst.Id].Machine = machineKV[inst.Machine.Id]
+			instKV[inst.Id].deployed = true
+		}
 	}
 	totalScore := TotalScore(machines)
 	s2 := &Solution{
@@ -759,7 +777,7 @@ func (s *Scheduler) getNewNeiborFromNowSolution(index int, nowSolution *Solution
 		isCandidate: false,
 		permitValue: totalScore,
 	}
-	s.solutions = append(s.solutions, s2)
+	return s2
 }
 
 func (s *Scheduler) getNewNeibor(index int) {
@@ -776,7 +794,7 @@ func (s *Scheduler) getNewNeibor(index int) {
 }
 
 func (s *Scheduler) getCandidateNeibor() {
-	candidateNum := 20 //supposed to be scheduler.candidateSetLen
+	candidateNum := CandidateLen //supposed to be scheduler.candidateSetLen
 	// scoreMapToNeibor := make(map[float64]int)
 	// for i, solution := range s.solutions {
 	// 	scoreMapToNeibor[solution.totalScore] = i
@@ -909,6 +927,33 @@ func hasConflict(inst1, inst2 *Instance) bool {
 	return result
 }
 
+func (s *Scheduler) tabuTrySwap(inst1, inst2 *Instance, solution *Solution) {
+	m1 := inst1.Machine
+	m2 := inst2.Machine
+	if m1.Id > m2.Id { //令m1总是Id较小的机器，即可避免死锁
+		m1 = inst2.Machine
+		m2 = inst1.Machine
+	}
+	m1.lock.Lock()
+	m2.lock.Lock()
+	defer m2.lock.Unlock()
+	defer m1.lock.Unlock()
+	var cpu1 [98]float64
+	var cpu2 [98]float64
+	machineCpu1 := inst1.Machine.cpuUsage()
+	machineCpu2 := inst2.Machine.cpuUsage()
+	for i := 0; i < 98; i++ {
+		cpu1[i] = machineCpu1[i] - inst1.App.Cpu[i] + inst2.App.Cpu[i]
+		cpu2[i] = machineCpu2[i] - inst2.App.Cpu[i] + inst1.App.Cpu[i]
+	}
+	score1 := cpuScore(cpu1[0:98], inst1.Machine.CpuCapacity)
+	score2 := cpuScore(cpu2[0:98], inst2.Machine.CpuCapacity)
+	delta := score1 + score2 - (inst1.Machine.score() + inst2.Machine.score())
+	solution.totalScore += delta
+
+	s.doSwap(inst1, inst2)
+}
+
 func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine1 := inst1.Machine
 	machine2 := inst2.Machine
@@ -983,6 +1028,8 @@ func main() {
 
 	machines, instKV, appKV, machineKV := ReadData()
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV, machineKV)
+	scheduler.getInitNeiborSet(scheduler.bestSolution)
+	scheduler.getCandidateNeibor()
 	fmt.Println(scheduler.solutions[0].totalScore)
 
 	for i := 0; i < cores; i++ {
