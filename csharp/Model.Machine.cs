@@ -196,6 +196,7 @@ namespace Tianchi {
 
       AppCountKv[inst.App] = AppCountKv.GetValueOrDefault(inst.App, 0) + 1;
 
+      //每类App只需保存一个inst作为代表即可
       if (!AppInstKv.ContainsKey(inst.App)) AppInstKv[inst.App] = inst;
 
       //inst之前已经部署到某台机器上了，需要迁移
@@ -221,12 +222,22 @@ namespace Tianchi {
       _avail.Invalid();
       _xUsage.Invalid();
 
-      if (AppCountKv.ContainsKey(inst.App)) {
-        AppCountKv[inst.App] -= 1;
-        if (AppCountKv[inst.App] == 0) {
-          AppCountKv.Remove(inst.App);
-          AppInstKv.Remove(inst.App);
-        }
+      AppCountKv[inst.App] -= 1;
+      if (AppCountKv[inst.App] == 0) {
+        AppCountKv.Remove(inst.App);
+        AppInstKv.Remove(inst.App);
+      } else {
+        //恰好要移除的 inst 是该类 App 的代表，
+        //移除后需要找一个替补，而且计数表明肯定存在替补
+        var found = false;
+        foreach (var i in InstSet)
+          if (i.App == inst.App) {
+            AppInstKv[i.App] = i;
+            found = true;
+            break;
+          }
+
+        if (!found) throw new Exception($"RemoveInst: app_{inst.App.Id}, inst_{inst.Id}");
       }
 
       inst.Machine = null;
@@ -260,11 +271,9 @@ namespace Tianchi {
     // 检查App间的冲突
     public bool HasConflictWithInst(Instance inst) {
       var appB = inst.App;
-
       var appBCnt = AppCountKv.ContainsKey(appB) ? AppCountKv[appB] : 0;
-      
-      var list = AppCountKv.ToList();
-      foreach (var kv in list) { //取kv的快照
+
+      foreach (var kv in AppCountKv) {
         //<appA, appB, bLimit>
         var appA = kv.Key; //已部署的应用\
         if (appA == null) continue;
@@ -300,7 +309,7 @@ namespace Tianchi {
              $"{Avail.Mem.Min:0.0},{100 * UtilMemAvg:0.0}%,{100 * UtilMemMax:0.0}%," + //mem
              $"{Avail.Disk:0},{100 * UtilDisk:0.0}%," + //disk
              $"{Avail.P:0}," + //P
-             $"{InstSet.Count},\"[{InstSet.ToStr(i => i.R.Disk)}]\"";
+             $"{InstSet.Count},\"[{InstSet.ToStr(i => "n_" + i.Id)}]\"";
     }
 
     //输出机器的资源占用情况

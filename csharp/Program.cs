@@ -8,7 +8,7 @@ namespace Tianchi {
     //命令行则在项目根目录执行 dotnet run --project cssharp/tianchi.csproj
     private static void Main() {
       //DataSetPreA.Run("search-result/search_PreA_5592_30_5590m");
-      DataSetPreB.Run("search-result/search_PreB_6636_09_4813m");
+      DataSetPreB.Run("search-result/search_PreB_6626_60_4813m");
 
       Console.WriteLine("==End==");
     }

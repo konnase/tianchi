@@ -23,7 +23,7 @@ namespace Tianchi {
       var solution = DataSet.DefaultSolution.Clone();
       if (string.IsNullOrEmpty(searchFile)) solution = Fit();
 
-      LocalSearch.Run(solution, searchFile);
+      NaiveSearch.Run(solution, searchFile);
     }
 
     //搜索结果为：

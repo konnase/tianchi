@@ -7,7 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace Tianchi {
-  public static class LocalSearch {
+  public static class NaiveSearch {
     private static double _searchTotalScore; //共享的累积量，dotnet不支持volatile double...
     private static Solution _solution;
     private static Machine[] _machines;
@@ -16,7 +16,7 @@ namespace Tianchi {
 
     //可以直接从 solution 搜索，
     //也可以从磁盘保存的搜索结果继续搜索
-    public static void Run(Solution solution, string searchFile = "", int taskCnt = 6) {
+    public static void Run(Solution solution, string searchFile = "", int taskCnt = 14) {
       _solution = solution;
       _machines = solution.Machines;
 
@@ -41,7 +41,7 @@ namespace Tianchi {
           _stop = true;
           Console.WriteLine($"Executing timeout");
         },
-        null, 60 * 60 * 1000, Timeout.Infinite);
+        null, 24 * 60 * 60 * 1000, Timeout.Infinite); // 24 hours
 
       var tasks = new List<Task>(taskCnt);
       for (var i = 0; i < taskCnt; i++) {
@@ -56,7 +56,7 @@ namespace Tianchi {
 
       timer.Dispose();
 
-      Console.WriteLine($"{_solution.TotalScore:0.000000}");
+      Console.WriteLine($"{_solution.TotalScore:0.000000} vs {_searchTotalScore:0.000000}");
       SaveSearchResult();
     }
 
@@ -93,10 +93,6 @@ namespace Tianchi {
           try {
             lock (m2) {
               foreach (var inst2 in m2.InstSet.ToList()) { //ToList()即取快照
-                if (inst2 == null) {
-                  continue;
-                }
-
                 var deltaMove = TryMove(m1, inst2);
                 if (deltaMove > 0.0) continue;
 
@@ -117,10 +113,6 @@ namespace Tianchi {
             foreach (var inst1 in m1.AppInstKv.Values.ToList())
               lock (m2) {
                 foreach (var inst2 in m2.AppInstKv.Values.ToList()) {
-                  if (inst1 == null || inst2 == null) {
-                    continue;
-                  }
-
                   if (inst1.App == inst2.App) continue;
                   if (m2 != inst2.Machine) continue; //inst2刚在本线程的上轮循环swap了
 
@@ -128,7 +120,6 @@ namespace Tianchi {
                   if (deltaSwap > 0.0) continue;
 
                   UpdateScore(deltaSwap);
-
 
                   Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
                                     $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
@@ -192,7 +183,8 @@ namespace Tianchi {
       //期望delta是负数，且绝对值越大越好
       if (delta >= 0.0 || delta < 0.0 && delta > -0.00001) return double.MaxValue;
 
-      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
+      if (HasConflict(inst1, inst2)) return double.MaxValue;
+      if (HasConflict(inst2, inst1)) return double.MaxValue;
 
       m1 = inst1.Machine;
       m2 = inst2.Machine;
@@ -208,6 +200,7 @@ namespace Tianchi {
     private static bool HasConflict(Instance instOld, Instance instNew) {
       var m = instOld.Machine;
       var appCountKv = m.AppCountKv; //直接修改
+
       var appOld = instOld.App;
 
       //appOld的所有实例都在之前的循环move到别的机器了
