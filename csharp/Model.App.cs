@@ -4,14 +4,13 @@ using System.Collections.Generic;
 namespace Tianchi {
   public class App {
     // 大部分<aid, bid>只有一项记录，仅少数app有几百项，
-    // 这里使用 SortedList，对性能影响不大
-    private readonly SortedList<int, int> _xRules = new SortedList<int, int>();
+    private readonly Dictionary<int, int> _xRules = new Dictionary<int, int>();
     public readonly int Id;
 
     public readonly Resource R;
 
     // 实例个数，仅用于统计分析
-    public int InstanceCount;
+    public int InstCount;
 
     // ReSharper disable once SuggestBaseTypeForParameter
     private App(string[] fields) {
@@ -28,14 +27,11 @@ namespace Tianchi {
 
     public void AddXRule(int otherAppId, int k) {
       k += Id == otherAppId ? 1 : 0; //Hack: 同类应用自身的冲突限制需要特别处理
-      _xRules.Add(otherAppId, k);
+      _xRules[otherAppId] = k;
     }
 
-    public int XLimit(App otherApp) {
-      if (_xRules.Count == 0 || !_xRules.ContainsKey(otherApp.Id))
-        return int.MaxValue; //MaxValue即没有限制
-
-      return _xRules[otherApp.Id];
+    public int XLimit(int otherAppId) {
+      return !_xRules.ContainsKey(otherAppId) ? int.MaxValue : _xRules[otherAppId];
     }
 
     public static App Parse(string[] fields) {

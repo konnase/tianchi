@@ -30,14 +30,20 @@ namespace Tianchi {
       return this;
     }
 
-    public Resource Copy(Resource r) {
-      Cpu.Copy(r.Cpu);
-      Mem.Copy(r.Mem);
+    public Resource CopyFrom(Resource r) {
+      Cpu.CopyFrom(r.Cpu);
+      Mem.CopyFrom(r.Mem);
       Disk = r.Disk;
       P = r.P;
       M = r.M;
       Pm = r.Pm;
       return this;
+    }
+
+    public Resource Clone() {
+      var r = new Resource();
+      r.CopyFrom(this);
+      return r;
     }
 
     public Resource Reset() {
