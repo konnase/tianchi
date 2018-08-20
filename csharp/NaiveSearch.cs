@@ -93,6 +93,8 @@ namespace Tianchi {
           try {
             lock (m2) {
               foreach (var inst2 in m2.InstSet.ToList()) { //ToList()即取快照
+                
+                //TODO: 这里是将 m2 的 move 到 m1，可以遍历m2的所有实例
                 var deltaMove = TryMove(m1, inst2);
                 if (deltaMove > 0.0) continue;
 
