@@ -17,13 +17,8 @@ init_deploy*
 machine*
 analyse*
 
-data/scheduling_preliminary_b*
-data/b.csv
-data/b0.csv
+data/*.csv
 
-./lower_bound
-search-result/search_*
-search
 main
 
 *.exe

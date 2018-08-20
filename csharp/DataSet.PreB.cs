@@ -23,6 +23,7 @@ namespace Tianchi {
     public static void Run(string searchFile = "") {
       var sol = DataSet.DefaultSolution.Clone();
       if (string.IsNullOrEmpty(searchFile)) sol = Fit();
+      //TODO: 把python data set b的ffd移植过来
 
       NaiveSearch.Run(sol, searchFile);
     }
