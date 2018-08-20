@@ -93,7 +93,7 @@ namespace Tianchi {
           try {
             lock (m2) {
               foreach (var inst2 in m2.InstSet.ToList()) { //ToList()即取快照
-                
+
                 //TODO: 这里是将 m2 的 move 到 m1，可以遍历m2的所有实例
                 var deltaMove = TryMove(m1, inst2);
                 if (deltaMove > 0.0) continue;
@@ -185,8 +185,7 @@ namespace Tianchi {
       //期望delta是负数，且绝对值越大越好
       if (delta >= 0.0 || delta < 0.0 && delta > -0.00001) return double.MaxValue;
 
-      if (HasConflict(inst1, inst2)) return double.MaxValue;
-      if (HasConflict(inst2, inst1)) return double.MaxValue;
+      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
 
       m1 = inst1.Machine;
       m2 = inst2.Machine;

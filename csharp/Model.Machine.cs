@@ -7,12 +7,12 @@ namespace Tianchi {
   public class MachineType {
     private const int TsCount = Resource.TsCount;
 
-    public static int LargeDiskCap;
+    public static int CapDiskLarge;
 
     public static readonly Dictionary<string, MachineType> Kv =
       new Dictionary<string, MachineType>(5);
 
-    public bool IsLargeMachine => CapDisk == LargeDiskCap;
+    public bool IsLargeMachine => CapDisk == CapDiskLarge;
 
     public Resource Capacity { get; private set; }
     public double CapCpu { get; private set; }
@@ -309,7 +309,7 @@ namespace Tianchi {
              $"{Avail.Mem.Min:0.0},{100 * UtilMemAvg:0.0}%,{100 * UtilMemMax:0.0}%," + //mem
              $"{Avail.Disk:0},{100 * UtilDisk:0.0}%," + //disk
              $"{Avail.P:0}," + //P
-             $"{InstSet.Count},\"[{InstSet.ToStr(i => "n_" + i.Id)}]\"";
+             $"{InstSet.Count},\"[{InstSet.ToStr(i => "inst_" + i.Id)}]\"";
     }
 
     //输出机器的资源占用情况

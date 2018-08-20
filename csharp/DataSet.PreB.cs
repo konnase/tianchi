@@ -15,7 +15,7 @@ namespace Tianchi {
         "data/scheduling_preliminary_b_app_interference_20180726.csv"
       );
 
-      MachineType.LargeDiskCap = 2457;
+      MachineType.CapDiskLarge = 2457;
 
       return ds;
     }

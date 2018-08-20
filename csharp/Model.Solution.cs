@@ -34,18 +34,10 @@ namespace Tianchi {
     public double TotalScore => AllInstDeployed ? ActualScore : 1e9;
     public double ActualScore => Machines.Sum(m => m.Score);
 
-    public string ScoreResult {
-      get {
-        var s = string.Empty;
-        //if (!AllInstDeployed) 
-        //  s += $"NOT ALL instances are deployed! " +
-        //       $"ActualScore: {ActualScore:0.00} ";
-
-        s += $"TotalScore: {TotalScore:0.00} of {UsedMachineCount} machines" +
-             $" = [{ActualScore / UsedMachineCount:0.00}]";
-        return s;
-      }
-    }
+    public string ScoreResult => $"TotalScore: {TotalScore:0.00} of " +
+                                 $"{UsedMachineCount} machines = " +
+                                 $"[{ActualScore / UsedMachineCount:0.00}] ; " +
+                                 $"UndeployedInst: {UndeployedInst.Count}";
 
     public List<Instance> UndeployedInst => Instances.Where(inst => !inst.Deployed).ToList();
 
@@ -92,7 +84,7 @@ namespace Tianchi {
         });
     }
 
-    // 读取机器，并按磁盘大小（降序）和Id排序（升序）
+    // 读取机器，并按磁盘大小（降序）和Id（升序）排序
     private void ReadMachine(string csv) {
       var list = new List<Machine>(10000);
       Ext.ReadCsv(csv, line => {

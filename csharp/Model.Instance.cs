@@ -14,7 +14,7 @@ namespace Tianchi {
     public Resource R => App.R;
 
     public Instance Clone() {
-      return new Instance(Id, App); //只有machine在不同的solution是不同的对象
+      return new Instance(Id, App); //Machine字段在不同的Solution是不同的对象
     }
 
     public override string ToString() {
