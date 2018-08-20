@@ -226,9 +226,9 @@ namespace Tianchi {
       if (AppCountKv[inst.App] == 0) {
         AppCountKv.Remove(inst.App);
         AppInstKv.Remove(inst.App);
-      } else {
-        //恰好要移除的 inst 是该类 App 的代表，
-        //移除后需要找一个替补，而且计数表明肯定存在替补
+      } else if (AppInstKv[inst.App] == inst) {
+        //要移除的 inst 恰好是该类 App 的代表，
+        //移除后需要找一个替补，而且计数不为0，表明肯定存在替补
         var found = false;
         foreach (var i in InstSet)
           if (i.App == inst.App) {
