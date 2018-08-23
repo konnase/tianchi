@@ -1,68 +1,3 @@
-## Usage
-
-### Lower Bound
-
-```bash
-g++ code/lower_bound.cpp -O2 -o lb && ./lb < request > search
-```
-
-### Search
-
-```bash
-python code/main.py -m 5 --uh=0.6 --ul=0.6  -s search-result/search_xxx
-```
-
-### FFD
-
-```bash
-python code/main.py --data_dir=data --method=1 --uh=0.7 --ul=0.6
-python code/main.py -m 1 --uh=0.7 --ul=0.6 # use default data dir project_path/data/
-```
-
-Method enum:
-
-```python
-class Method(Enum):
-    FFD = 1
-    Knapsack = 2 # ?
-    Analyse = 3
-    Search = 5
-```
-
-### Generate submit.csv from search result
-
-```bash
-python code/build_submit.py --search=search-result/search_xxx   # the result will be outputed to data/submit.csv
-```
-
-
-### 检查搜索结果
-```bash
-dotnet judge/verifysearch.dll search6991 # hard coded [search-result] path
-
-python code/main.py -m 3 --search=search-result/search6278 --uh=[default=1] --ul=[default=1]
-```
-
-### 官方评分 
-```bash
-
-java -jar judge/judge.jar data/b.csv submit.csv # Decompress the data/b.csv.tgz first !!!
-
-python code/judge.py # hard coded dataset b and submit.csv
-
-```
-
-### 运行dotnet
-```bash
-dotnet run --project csharp/tianchi.csproj  ./
-# 终端输出结束后，提交文件保存在了 submit.csv
-
-# 或者在 csharp 目录执行
-cd csharp
-dotnet run ../
-```
-> 注意： `.gitignore`中忽略了 `submit*` ；如果需要添加 `submit.csv` 到仓库，请使用 `git add -f submit.csv`
-> 
 -----
 
 阿里巴巴全球调度算法大赛
@@ -70,37 +5,14 @@ https://tianchi.aliyun.com/competition/information.htm?raceId=231663
 
 -----
 
-# 数据集 B 2018-07-26
+> 注意： `.gitignore`中忽略了 `submit*` ；如果需要添加 `submit.csv` 到仓库，请使用 `git add -f submit.csv`
 
-## 机器
+参考：[ROADEF/EURO Challenge 2012 - Google 机器重分配问题专刊 - Springer](https://link.springer.com/article/10.1007/s10479-016-2203-7)
 
-**集群共6000台机器，分为下面2种配置，各3000台。**
+# 2018-8-20
 
-Disk 规格变大了，不再是紧缺资源。
+初赛相关文件（代码和原始数据除外）归档到了 [/archive](/archive) 目录。
 
-| cpu | mem  | disk | p   | m   | pm  | cnt  | cpu/mem |
-| --- | ---: | ---: | --- | --- | --- | ---- | :-----: |
-| 32  | 64   | 1440 | 7   | 3   | 7   | 3000 | 0.50    |
-| 92  | 288  | 2457 | 7   | 7   | 9   | 3000 | 0.32    |
+**有些没有被 git 跟踪的本地文件，如果有必要归档，如 初赛数据集B的最终提交文件，最优的搜索结果等，也请添加进来。**
 
-资源总量为：
-CPU  ：  372,000 个核 ； Mem  ： 1,056,000 GB 
-
-统计详情可见 [init_deploy_b.csv](init_deploy_b.csv) 和 [app_util_b.csv](app_util_b.csv)。
-## 应用和实例
-
-**共有 9338 个应用， 68224 个实例。**
-申请资源占总容量的比例：
-```
-        Total,   Util
-Disk: 4567563, 39.07%
-P   :    1465,  3.49%
-M   :       0,  0.00%
-PM  :    1465,  3.05%
-```
-
-CPU: Max 55.1%, Min 31.5%, Avg 45.3%
-
-Mem: Max 60.0%, Min 58.7%, Avg 59.6%
-
-![CPU和内存资源利用率](/util_b.png)
+> 初赛相关文件建议添加 `pre` 前缀；复赛相关建议添加 `semi` 前缀。

@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"bytes"
 )
 
 const (
@@ -330,6 +331,15 @@ func TotalScore(machines []*Machine) float64 {
 	return s
 }
 
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
 func ReadLines(input string) []string {
 	f, err := os.Open(input)
 	if err != nil {
@@ -411,6 +421,7 @@ type Scheduler struct {
 	appKV  map[string]*Application
 
 	totalScore float64 //todo: 共享变量，不影响计算过程，只用于输出
+	done       bool
 }
 
 func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Instance, appKV map[string]*Application) *Scheduler {
@@ -418,6 +429,7 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 		machines: machine,
 		instKV:   instKV,
 		appKV:    appKV,
+		done:     false,
 	}
 
 	lines := ReadLines(searchFile)
@@ -441,7 +453,7 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 	return scheduler
 }
 
-func (s *Scheduler) search() {
+func (s *Scheduler) search(wait *sync.WaitGroup) {
 	shuffledIndex := rand.Perm(len(s.machines))
 
 	for _, i := range shuffledIndex {
@@ -449,8 +461,22 @@ func (s *Scheduler) search() {
 			if i == j {
 				continue
 			}
+			// ignore empty machine
+			if s.machines[i].diskUsage() == 0 || s.machines[j].diskUsage() == 0 {
+				continue
+			}
 			for _, inst1 := range s.machines[i].appKV {
+				// try move
+				if s.tryMove(s.machines[j], inst1) {
+					fmt.Printf("move (%s) -> (%s): %f\n", s.machines[j].Id, inst1.Id, s.totalScore)
+				}
+				// try swap
 				for _, inst2 := range s.machines[j].appKV {
+					if s.done {
+						fmt.Printf("goroutine %d done\n", getGID())
+						wait.Done()
+						return
+					}
 					if inst1.App == inst2.App {
 						continue
 					}
@@ -468,6 +494,42 @@ func (s *Scheduler) search() {
 	}
 }
 
+// tryMove move inst from machine1 to machine2
+func (s *Scheduler) tryMove(machine2 *Machine, inst *Instance) bool {
+	machine1 := inst.Machine
+	if machine1.Id == machine2.Id {
+		return false
+	}
+	machine1.lock.Lock()
+	machine2.lock.Lock()
+	defer machine1.lock.Unlock()
+	defer machine2.lock.Unlock()
+	if !machine2.canPutInst(inst) {
+		return false
+	}
+
+	var cpu1 [98]float64
+	var cpu2 [98]float64
+	machineCpu1 := machine1.cpuUsage()
+	machineCpu2 := machine2.cpuUsage()
+	for i := 0; i < 98; i++ {
+		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
+		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
+	}
+	score1 := cpuScore(cpu1[0:98], machine1.CpuCapacity)
+	score2 := cpuScore(cpu2[0:98], machine2.CpuCapacity)
+	delta := score1 + score2 - (machine1.score() + machine2.score())
+
+	if delta > 0 || -delta < 0.00001 {
+		return false
+	}
+
+	s.totalScore += delta
+	machine2.put(inst)
+	return true
+}
+
+// trySwap swaps inst1 and inst2
 func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	m1 := inst1.Machine
 	m2 := inst2.Machine
@@ -492,6 +554,10 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 		}
 	}
 
+	if hasConflict(inst1, inst2) || hasConflict(inst2, inst1) {
+		return false
+	}
+
 	var cpu1 [98]float64
 	var cpu2 [98]float64
 	machineCpu1 := inst1.Machine.cpuUsage()
@@ -505,10 +571,6 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance) bool {
 	delta := score1 + score2 - (inst1.Machine.score() + inst2.Machine.score())
 
 	if delta > 0 || -delta < 0.00001 {
-		return false
-	}
-
-	if hasConflict(inst1, inst2) || hasConflict(inst2, inst1) {
 		return false
 	}
 
@@ -536,6 +598,10 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine2 := inst2.Machine
 	machine1.put(inst2)
 	machine2.put(inst1)
+}
+
+func (s *Scheduler) Done() {
+	s.done = true
 }
 
 func (s *Scheduler) output() {
@@ -586,11 +652,15 @@ func main() {
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV)
 	fmt.Println(scheduler.totalScore)
 
+	var wg sync.WaitGroup
 	for i := 0; i < cores; i++ {
-		go scheduler.search()
+		wg.Add(1)
+		go scheduler.search(&wg)
 	}
 
 	<-stopChan
+	scheduler.Done()
+	wg.Wait()
 	scheduler.output()
 	fmt.Printf("total score: %.6f", TotalScore(scheduler.machines))
 }
