@@ -3,6 +3,8 @@ import numpy as np
 
 import config as cfg
 
+import time
+
 from scheduler.models import Instance, Machine, write_to_submit_csv, write_to_search
 
 
@@ -26,6 +28,7 @@ class FFD(object):
             # 使用 CPU_UTIL_THRESHOLD
             if m != inst.machine and m.can_put_inst(inst):
                 m.put_inst(inst)
+                print "deployed %s of %s on %s" % (inst.id, inst.app.id, m.id)
                 self.submit_result.append((inst.id, m.id))
                 break
         else:
@@ -36,6 +39,7 @@ class FFD(object):
 
     def resolve_init_conflict(self, machines):
         print "starting resolve_init_conflict"
+        time.sleep(2)
         # 初始部署就存在冲突的实例
         for inst in self.instances:
             if not inst.deployed and inst.machine is not None:
@@ -44,6 +48,7 @@ class FFD(object):
     # 初始部署就存在的cpu_util超高的机器
     def migrate_high_cpu_util(self, machines):
         print "starting migrate_high_cpu_util"
+        time.sleep(2)
         for machine in machines:
             if machine.cpu_util_max <= machine.CPU_UTIL_THRESHOLD:
                 continue
@@ -54,6 +59,7 @@ class FFD(object):
 
     def fit_large_inst(self, machines):
         print "starting fit_large_inst"
+        time.sleep(2)
         for app in self.apps:
             if app.disk > cfg.LARGE_DISK_INST \
                     or np.any(app.cpu > cfg.LARGE_CPU_INST) \
@@ -64,6 +70,7 @@ class FFD(object):
 
     def fit_all(self, machines):
         print "starting fit_all"
+        time.sleep(2)
         for app in self.apps:
             for inst in app.instances:
                 if not inst.deployed:
