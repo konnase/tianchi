@@ -1,20 +1,33 @@
 namespace Tianchi {
   public class Resource {
-    public const int TsCount = 98;
+    public const int Ts1470 = 1470; //复赛
+    public const int Ts98 = 98;
+    public const int Interval = Ts1470 / Ts98;
 
-    public Resource() {
-      Cpu = new Series(TsCount);
-      Mem = new Series(TsCount);
+    public Resource(bool isTs1470 = true) {
+      if (isTs1470) {
+        Cpu = new Series(Ts1470);
+        Mem = new Series(Ts1470);
+        TsLength = Ts1470;
+      } else {
+        Cpu = new Series(Ts98);
+        Mem = new Series(Ts98);
+        TsLength = Ts98;
+      }
     }
 
     public Resource(Series cpu, Series mem, int disk, int p, int m, int pm) {
+      //要求Cpu和Mem维度相同
       Cpu = cpu;
       Mem = mem;
       Disk = disk;
       P = p;
       M = m;
       Pm = pm;
+      TsLength = cpu.Length;
     }
+
+    public int TsLength { get; private set; }
 
     public bool IsValid => Disk != int.MinValue;
 
@@ -37,11 +50,12 @@ namespace Tianchi {
       P = r.P;
       M = r.M;
       Pm = r.Pm;
+      TsLength = r.TsLength;
       return this;
     }
 
     public Resource Clone() {
-      var r = new Resource();
+      var r = new Resource(TsLength == Ts1470);
       r.CopyFrom(this);
       return r;
     }
@@ -56,6 +70,7 @@ namespace Tianchi {
       return this;
     }
 
+    //支持不同维度资源相加 1470 + 98
     public Resource Add(Resource r) {
       Cpu.Add(r.Cpu);
       Mem.Add(r.Mem);

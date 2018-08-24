@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 
 namespace Tianchi {
   public static class BinPacking {
@@ -8,13 +7,12 @@ namespace Tianchi {
     //TODO: TPDS00 - An Opportunity Cost （Borg引用的E-PVM）边际成本
 
     public static void FirstFit(
-      IEnumerable<Instance> instances,
+      IEnumerable<AppInst> appInsts,
       IList<Machine> machines,
-      StreamWriter writer = null,
       bool forceMigrate = false, // 不管 inst 是否已经部署了，都要迁移
       bool onlyIdleMachine = false // 只部署到空闲机器上
     ) {
-      foreach (var inst in instances)
+      foreach (var inst in appInsts)
 
         if (forceMigrate || !inst.Deployed) {
           var len = machines.Count;
@@ -24,7 +22,7 @@ namespace Tianchi {
 
             if (onlyIdleMachine && !m.IsIdle) continue;
 
-            if (m.TryPutInst(inst, writer, m.CpuUtilLimit)) break; //FirstFit
+            if (m.TryPutAppInst(inst, m.CpuUtilLimit)) break; // First Fit
           }
         }
     }

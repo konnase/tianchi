@@ -1,18 +1,39 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 
 namespace Tianchi {
+  public static class Kv {
+    public static KeyValuePair<K, V> First<K, V>(this Dictionary<K, V> kv) {
+      if (kv == null || kv.Count == 0) throw new ArgumentException("kv is null or empty");
+
+      var e = kv.GetEnumerator();
+      using (e) {
+        e.MoveNext();
+        var result = new KeyValuePair<K, V>(e.Current.Key, e.Current.Value);
+        return result;
+      }
+    }
+  }
+
   public static class Ext {
     public static int Id(this string id) {
       if (string.IsNullOrEmpty(id)
           || !id.Contains('_')
           || !char.IsDigit(id.Last()))
         return int.MinValue;
+        
+        return int.Parse(id.Substring(id.IndexOf('_') + 1));
+    }
 
-      return int.Parse(id.Substring(id.IndexOf('_') + 1));
+    public static Tuple<int, int> IdPair(this string id) {
+      var ids = id.Split('-');
+      var jobId = int.Parse(ids[0]);
+      var taskId = int.Parse(ids[1]);
+      return new Tuple<int, int>(jobId, taskId);
     }
 
     public static void ReadCsv(string csvFile, Action<string[]> action) {
@@ -38,10 +59,10 @@ namespace Tianchi {
       }
     }
 
-    public static List<Instance> CsvToInstList(this string csv, Solution solution) {
+    public static List<AppInst> CsvToInstList(this string csv, Solution solution) {
       var fields = csv.Split(',');
-      var result = new List<Instance>(fields.Length);
-      result.AddRange(fields.Select(s => solution.GetInst(s.Id())));
+      var result = new List<AppInst>(fields.Length);
+      result.AddRange(fields.Select(s => solution.AppInstKv[s.Id()]));
 
       return result;
     }
@@ -98,10 +119,14 @@ namespace Tianchi {
     //}
 
     public static void ForEach<T>(this IEnumerable<T> iter, Action<T> action) {
+      if (iter == null) return;
+
       foreach (var i in iter) action(i);
     }
 
     public static void ForEach<T>(this IList<T> collection, Action<T, int> action) {
+      if (collection == null) return;
+
       for (var i = 0; i < collection.Count; i++) action(collection[i], i);
     }
 
@@ -115,7 +140,7 @@ namespace Tianchi {
     }
 
     public static void Shuffle<T>(this IList<T> list) {
-      list.Shuffle(new Random());
+      list.Shuffle(new Random(1)); // Fixed seed
     }
 
     public static int[] ToRangeArray(this int n) {
@@ -126,12 +151,15 @@ namespace Tianchi {
     }
 
     public static double Score(this Series cpuUsage, double cpuCap,
-      double alpha = 10, double beta = 0.5) {
+      int instCnt = 9, //复赛修改了评分公式，alpha = (1 + instCnt)
+      double alpha = 1, double beta = 0.5) {
+      Debug.Assert(cpuUsage.Length == Resource.Ts1470);
+
       var sum = 0.0;
-      const int cnt = Resource.TsCount;
-      for (var ts = 0; ts < cnt; ts++) {
-        var c = cpuUsage[ts] / cpuCap;
-        sum += c <= beta ? 1.0 : alpha * Math.Exp(c - beta) - alpha + 1.0;
+      const int cnt = Resource.Ts1470;
+      for (var t = 0; t < cnt; t++) {
+        var c = cpuUsage[t] / cpuCap;
+        sum += c <= beta ? 1.0 : 1.0 + (alpha + instCnt) * (Math.Exp(c - beta) - 1.0);
       }
 
       return sum / cnt;
