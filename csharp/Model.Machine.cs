@@ -1,17 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.Console;
+using static System.Math;
 
 namespace Tianchi {
   public class MachineType {
-    private const int Ts1470 = Resource.Ts1470;
+    private const int Ts1470 = Resource.Ts1470; // 兼容：复赛要考虑1470分钟个时间点
 
-    public static int CapDiskLarge;
+    public static int CapDiskLarge; // 注意：读入新的数据集之前，都需要适当修改此值
 
     public static readonly Dictionary<string, MachineType> Kv =
       new Dictionary<string, MachineType>(5);
 
-    public bool IsLargeMachine => CapDisk == CapDiskLarge;
+    public bool IsLargeMachine { get; private set; }
 
     public Resource Capacity { get; private set; }
     public double CapCpu { get; private set; }
@@ -33,6 +35,7 @@ namespace Tianchi {
         int.Parse(parts[4]),
         int.Parse(parts[5])
       );
+      mt.IsLargeMachine = CapDiskLarge == mt.CapDisk;
       return mt;
     }
 
@@ -47,7 +50,7 @@ namespace Tianchi {
   }
 
   public partial class Machine {
-    private readonly bool _isAlpha10; //初赛和复赛成本分数的alpha系数不同
+    private readonly bool _isAlpha10; // 兼容：初赛和复赛成本分数的alpha系数不同
 
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
@@ -62,16 +65,12 @@ namespace Tianchi {
 
     private double _score = double.MinValue;
 
-    public double CpuUtilLimit; //检查资源约束可以限制Cpu Util
-    public int InstCount { get; private set; }
+    public double CpuUtilLimit; // 检查资源约束时，可以限制Cpu Util
+    public int AppInstCount { get; private set; }
 
-    public MachineType T { get; }
+    public MachineType Type { get; }
 
-    public bool IsFull => Avail.Disk < 40.0
-                          || Avail.Mem.Max < 1.0
-                          || Avail.Cpu.Max < 0.5; //出现的最小的资源值，同适用于DataSet A和B
-
-    public bool IsIdle => InstCount == 0;
+    public bool IsIdle { get; private set; }
 
     // 机器按时间T平均后的成本分数
     public double Score {
@@ -83,7 +82,7 @@ namespace Tianchi {
             return _score;
           }
 
-          _score = _isAlpha10 ? _usage.Cpu.Score(CapCpu) : _usage.Cpu.Score(CapCpu, InstCount);
+          _score = _isAlpha10 ? _usage.Cpu.Score(CapCpu) : _usage.Cpu.Score(CapCpu, AppInstCount);
         }
 
         return _score;
@@ -97,8 +96,8 @@ namespace Tianchi {
       || Avail.P < 0
       || Avail.M < 0
       || Avail.Pm < 0
-      || Math.Round(Avail.Cpu.Min, 8) < 0
-      || Math.Round(Avail.Mem.Min, 8) < 0;
+      || Round(Avail.Cpu.Min, 8) < 0
+      || Round(Avail.Mem.Min, 8) < 0;
 
     public bool HasConflict {
       get {
@@ -137,18 +136,20 @@ namespace Tianchi {
 
     #endregion
 
-    #region 添加删除在线应用实例
+    #region 添加和删除在线应用实例
 
     // 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
     public bool TryPutAppInst(AppInst inst, double cpuUtilLimit = 1.0, bool ignoreCheck = false,
-      bool autoRemove = true) {
+      bool autoRemove = true) { // 兼容：分轮次迁移不自动迁移
+
       if (AppInstSet.Contains(inst)) return true; //已经存在inst了，幂等
 
-      if (!ignoreCheck && !CanPutInst(inst, cpuUtilLimit)) return false;
+      if (!ignoreCheck && !CanPutAppInst(inst, cpuUtilLimit)) return false;
 
       if (!AppInstSet.Add(inst)) throw new Exception($"[TryPutInst]: {inst}");
 
-      InstCount += 1;
+      AppInstCount += 1;
+      IsIdle = false;
       _usage.Add(inst.R);
 
       _score = double.MinValue;
@@ -160,27 +161,25 @@ namespace Tianchi {
       // 每类App只需保存一个inst作为代表即可
       AppKv.TryAdd(inst.App, inst);
 
-      if (autoRemove) {
-        // inst之前已经部署到某台机器上了，需要迁移
+      if (autoRemove)
         inst.Machine?.RemoveAppInst(inst);
-        inst.Machine = this;
-      } else {
-        // inst 同时占据 preMachine（可能为 null） 和 this 的资源，
-        // 需手动移除
+      else
         inst.PreMachine = inst.Machine;
-        inst.Machine = this;
-      }
 
+      inst.Machine = this;
       inst.Deployed = true;
 
       return true;
     }
 
-    public void RemoveAppInst(AppInst inst, bool updateDeployFlag = true) {
+    public void RemoveAppInst(AppInst inst,
+      // 兼容：如果从是 preMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
+      bool setDeployFlag = true) {
+      //
       if (!AppInstSet.Remove(inst)) return;
 
-      InstCount -= 1;
-
+      AppInstCount -= 1;
+      IsIdle = AppInstCount == 0;
       _usage.Subtract(inst.R);
 
       _score = double.MinValue;
@@ -192,8 +191,8 @@ namespace Tianchi {
         AppCountKv.Remove(inst.App);
         AppKv.Remove(inst.App);
       } else if (AppKv[inst.App] == inst) {
-        //要移除的 inst 恰好是该类 App 的代表，
-        //移除后需要找一个替补，而且计数不为0，表明肯定存在替补
+        //要移除的 inst 恰好是该类 App 的代表，移除后需要找一个替补
+        //因为计数不为0，肯定存在替补
         var found = false;
         foreach (var i in AppInstSet)
           if (i.App == inst.App) {
@@ -202,30 +201,29 @@ namespace Tianchi {
             break;
           }
 
-        if (!found) throw new Exception($"[RemoveInst]: {inst}");
+        if (!found)
+          throw new Exception($"[RemoveInst]: AppKv cannot find a substitution for {inst}");
       }
 
-      // 如果是从 PreMachine 调用的，不修改下面这两个字段
-      if (updateDeployFlag) {
-        inst.Machine = null;
-        inst.Deployed = false;
-      }
+      // 兼容：如果是从 PreMachine 调用的，不修改下面这两个字段
+      if (!setDeployFlag) return;
+
+      inst.Machine = null;
+      inst.Deployed = false;
     }
 
     public void ClearAppInstSet() {
-      var instList = AppInstSet.ToList();
-      var len = instList.Count;
-      for (var i = 0; i < len; i++) RemoveAppInst(instList[i]);
+      var list = AppInstSet.ToList(); // 取快照
+      foreach (var inst in list) RemoveAppInst(inst);
     }
 
-    public bool CanPutInst(AppInst inst, double cpuUtilLimit = 1.0) {
-      return !IsOverCapWithAppInst(inst, cpuUtilLimit) && !IsConflictWithAppInst(inst);
+    public bool CanPutAppInst(AppInst inst, double cpuUtilLimit = 1.0) {
+      return !IsOverCapacityWith(inst, cpuUtilLimit) && !IsConflictWith(inst);
     }
-
 
     // 检查当前累积使用的资源量 usage **加上r之后** 是否会超出 capacity，
     // 不会修改当前资源量
-    public bool IsOverCapWithAppInst(AppInst inst, double cpuUtilLimit = 1.0) {
+    public bool IsOverCapacityWith(AppInst inst, double cpuUtilLimit = 1.0) {
       var r = inst.R;
 
       return _usage.Disk + r.Disk > CapDisk
@@ -237,7 +235,7 @@ namespace Tianchi {
     }
 
     // 检查App间的冲突
-    public bool IsConflictWithAppInst(AppInst inst) {
+    public bool IsConflictWith(AppInst inst) {
       var appB = inst.App;
       var appBCnt = AppCountKv.GetValueOrDefault(appB, 0);
 
@@ -267,25 +265,24 @@ namespace Tianchi {
 
     #region 构造，解析，克隆
 
-    // ReSharper disable once SuggestBaseTypeForParameter
-    private Machine(string str, bool isAlpha10) {
+    private Machine(string str, bool isAlpha10) { // 兼容：初赛与复赛不同的成本计算公式
       var i = str.IndexOf(',');
       Id = str.Substring(0, i).Id();
 
-      T = MachineType.Get(str.Substring(i + 1));
-      InstCount = 0;
+      Type = MachineType.Get(str.Substring(i + 1));
+      AppInstCount = 0;
       _isAlpha10 = isAlpha10;
     }
 
     private Machine(int id, MachineType type, bool isAlpha10) {
       Id = id;
-      T = type;
-      InstCount = 0;
+      Type = type;
+      AppInstCount = 0;
       _isAlpha10 = isAlpha10;
     }
 
     public Machine Clone() {
-      return new Machine(Id, T, _isAlpha10);
+      return new Machine(Id, Type, _isAlpha10);
     }
 
     public static Machine Parse(string str, bool isAlpha10) {
@@ -294,13 +291,13 @@ namespace Tianchi {
 
     #endregion
 
-    #region 辅助
+    #region Utils
 
-    public Resource Capacity => T.Capacity;
-    public double CapCpu => T.CapCpu;
-    public int CapDisk => T.CapDisk;
-    public double CapMem => T.CapMem;
-    public bool IsLargeMachine => T.IsLargeMachine;
+    public Resource Capacity => Type.Capacity;
+    public double CapCpu => Type.CapCpu;
+    public int CapDisk => Type.CapDisk;
+    public double CapMem => Type.CapMem;
+    public bool IsLargeMachine => Type.IsLargeMachine;
 
     public double UtilCpuAvg => _usage.Cpu.Avg / CapCpu;
     public double UtilCpuMax => _usage.Cpu.Max / CapCpu;
@@ -336,26 +333,26 @@ namespace Tianchi {
              $"{Avail.Mem.Min:0.0},{100 * UtilMemAvg:0.0}%,{100 * UtilMemMax:0.0}%," + //mem
              $"{Avail.Disk:0},{100 * UtilDisk:0.0}%," + //disk
              $"{Avail.P:0}," + //P
-             $"{AppInstSet.Count},\"[{AppInstSet.ToStr(i => "inst_" + i.Id)}]\"";
+             $"{AppInstSet.Count},\"[{AppInstSet.ToStr(inst => "inst_" + inst.Id)}]\"";
     }
 
-    //输出机器的资源占用情况
+    // 输出机器的资源使用情况
     public static void PrintList(IEnumerable<Machine> machines) {
-      Console.WriteLine("cap_disk,mid,score," +
-                        "avl_cpu_min,util_cpu_max,util_cpu_avg," +
-                        "avl_mem_min,util_mem_max,util_mem_avg," +
-                        "avl_disk,util_disk,avl_p," +
-                        "inst_cnt,inst_list");
-      machines.ForEach(Console.WriteLine);
+      WriteLine("cap_disk,mid,score," +
+                "avl_cpu_min,util_cpu_max,util_cpu_avg," +
+                "avl_mem_min,util_mem_max,util_mem_avg," +
+                "avl_disk,util_disk,avl_p," +
+                "inst_cnt,inst_list");
+      machines.ForEach(WriteLine);
     }
 
     public string ToSearchStr() {
       return $"total({Score:0.00},{Id},{UtilCpuMax:0.00},{_usage.Disk}): " +
              $"{{{AppInstSet.ToStr(i => i.R.Disk)}}} " +
-             $"({InstsToStr()})";
+             $"({AppInstsToStr()})";
     }
 
-    public string InstsToStr() {
+    public string AppInstsToStr() {
       return $"{AppInstSet.ToStr(i => $"inst_{i.Id}")}";
     }
 
@@ -365,8 +362,8 @@ namespace Tianchi {
 
     public string FailedReason(AppInst inst) {
       return $"inst_{inst.Id},m_{Id}" +
-             $"{(IsOverCapWithAppInst(inst) ? ",R" : "")}" +
-             $"{(IsConflictWithAppInst(inst) ? ",X" : "")}";
+             $"{(IsOverCapacityWith(inst) ? ",R" : "")}" +
+             $"{(IsConflictWith(inst) ? ",X" : "")}";
     }
 
     #endregion

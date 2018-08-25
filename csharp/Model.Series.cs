@@ -84,10 +84,10 @@ namespace Tianchi {
       return false;
     }
 
-    public void CopyFrom(Series s) {
+    public Series CopyFrom(Series s) {
       if (s.Length == Length) {
         for (var i = 0; i < Length; i++) _data[i] = s._data[i];
-      } else if (s.Length == Resource.Ts98) {
+      } else if (s.Length == Resource.Ts98) { // 兼容：同时支持98和1470个点的Series
         var sLen = s.Length;
         const int interval = Resource.Interval;
         Debug.Assert(sLen * interval == Length);
@@ -98,6 +98,8 @@ namespace Tianchi {
       } else {
         throw new Exception($"[CopyFrom] Dimension mismatch: {Length} vs {s.Length}");
       }
+
+      return this;
     }
 
     public Series Clone() {
@@ -106,15 +108,16 @@ namespace Tianchi {
       return s;
     }
 
-    public void Reset() {
+    public Series Reset() {
       for (var i = 0; i < Length; i++) _data[i] = 0.0;
+      return this;
     }
 
-    // 将array各项累加到Series对应项
-    public void Add(Series s) {
+    // 将 s 累加到对应项
+    public Series Add(Series s) {
       if (s.Length == Length) { //相同维度
         for (var i = 0; i < Length; i++) _data[i] += s._data[i]; //这里不做超限检查
-      } else if (s.Length == Resource.Ts98) { //不同维度，且this(机器使用量) 1470 - 在线App 98
+      } else if (s.Length == Resource.Ts98) { //兼容：不同维度，且this(机器使用量) 1470 - 在线App 98
         var sLen = s.Length;
         const int interval = Resource.Interval;
         Debug.Assert(sLen * interval == Length);
@@ -125,9 +128,11 @@ namespace Tianchi {
       } else {
         throw new Exception($"[Add] Dimension mismatch: {Length} vs {s.Length}");
       }
+
+      return this;
     }
 
-    public void Subtract(Series s) {
+    public Series Subtract(Series s) {
       if (s.Length == Length) { //相同维度
         for (var i = 0; i < Length; i++) _data[i] -= s._data[i]; //这里不做超限检查
       } else if (s.Length == Resource.Ts98) { //不同维度，且this(机器使用量) 1470 - 在线App 98
@@ -141,15 +146,29 @@ namespace Tianchi {
       } else {
         throw new Exception($"[Subtract] Dimension mismatch: {Length} vs {s.Length}");
       }
+
+      return this;
     }
 
-    // 从总容量capacity中减去s，将this对应的值设置为差值
-    // 这里要求 this, capacity 和 s 维度相同
-    public void SubtractByCapacity(Series capacity, Series s) {
-      if (s.Length != capacity.Length || s.Length != Length)
-        throw new Exception($"[SubtractByCapacity] Dimension mismatch: {Length} vs {s.Length}");
+    // 将this对应的值设置总容量capacity中减去s的差值
+    // 注意：会覆盖 this 的旧值
+    public Series SubtractByCapacity(Series capacity, Series s) {
+      if (s.Length == Length && capacity.Length == Length) { //相同维度
+        for (var i = 0; i < Length; i++) _data[i] = capacity._data[i] - s._data[i]; //这里不做超限检查
+      } else if (s.Length == Resource.Ts98 && capacity.Length == Length) {
+        var sLen = s.Length;
+        const int interval = Resource.Interval;
+        Debug.Assert(sLen * interval == Length);
 
-      for (var i = 0; i < _data.Length; i++) _data[i] = capacity._data[i] - s._data[i]; //这里不做超限检查
+        for (var i = 0; i < sLen; i++)
+        for (var j = 0; j < interval; j++)
+          _data[i * interval + j] = capacity._data[i * interval + j] - s[i];
+      } else {
+        throw new Exception("[SubtractByCapacity] Dimension mismatch: " +
+                            $"this {Length} vs cap {capacity.Length}, s {s.Length}");
+      }
+
+      return this;
     }
 
     // 计算 当前序列 this + s 之后 向量的最大值
@@ -195,7 +214,7 @@ namespace Tianchi {
     }
 
     public static Series Parse(string[] parts) {
-      var length = parts.Length; //对App，还保持98个点
+      var length = parts.Length; // 兼容：对App，还保持98个点
       var s = new Series(length);
       for (var i = 0; i < length; i++) {
         var d = double.Parse(parts[i]);

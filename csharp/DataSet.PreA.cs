@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using TPL = System.Threading.Tasks;
+using static System.Console;
 
 namespace Tianchi {
   public static class DataSetPreA {
@@ -75,19 +75,19 @@ namespace Tianchi {
 
       BinPacking.FirstFit(appInsts, machines);
 
-      var info = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00},{vipDisk},{vipMem},{vipCpu}== ";
+      var msg = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00},{vipDisk},{vipMem},{vipCpu}== ";
       if (!sol.AppInstAllDeployed) {
         var undeployed = sol.AppInstCount - sol.AppInstDeployedCount;
-        info += $"undeployed: {undeployed} = " +
-                $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
-        info += sol.AppInstUndeployed[0].ToString();
+        msg += $"undeployed: {undeployed} = " +
+               $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
+        msg += sol.AppInstUndeployed[0].ToString();
       }
 
-      info += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
+      msg += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
 
-      Console.WriteLine(info);
+      WriteLine(msg);
 
-      if (saveSubmitCsv) Solution.AppSaveAndJudge(sol);
+      if (saveSubmitCsv) Solution.SaveAndJudgeApp(sol);
 
       return sol;
     }

@@ -1,6 +1,6 @@
 namespace Tianchi {
   public class Resource {
-    public const int Ts1470 = 1470; //复赛
+    public const int Ts1470 = 1470; // 兼容：复赛使用1470个数据点
     public const int Ts98 = 98;
     public const int Interval = Ts1470 / Ts98;
 
@@ -43,7 +43,7 @@ namespace Tianchi {
       return this;
     }
 
-    public Resource CopyFrom(Resource r) {
+    public Resource CopyFrom(Resource r) { // 兼容：支持从98维拷贝到1470维
       Cpu.CopyFrom(r.Cpu);
       Mem.CopyFrom(r.Mem);
       Disk = r.Disk;

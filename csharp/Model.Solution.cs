@@ -2,40 +2,45 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using static System.Console;
 
 namespace Tianchi {
   public class Solution {
+    //AppInstCsv里有实例Id和部署信息，分两次读取
+    private readonly string _appInstCsv;
     public readonly Dictionary<int, AppInst> AppInstKv;
     public readonly AppInst[] AppInsts;
     public readonly DataSet DataSet;
     public readonly Dictionary<int, Machine> MachineKv;
     public readonly Machine[] Machines;
 
-    private Solution(DataSet ds) {
+
+    private Solution(DataSet ds, string appInstCsv) {
       DataSet = ds;
       Machines = new Machine[MachineCount];
       MachineKv = new Dictionary<int, Machine>(MachineCount);
       AppInsts = new AppInst[AppInstCount];
       AppInstKv = new Dictionary<int, AppInst>(AppInstCount);
+      _appInstCsv = appInstCsv;
     }
 
     public int AppInstCount => DataSet.AppInstCount;
     public int MachineCount => DataSet.MachineCount;
 
-    public static Solution Read(DataSet dataSet, string machineCsv, string instCsv,
+    public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
       bool isAlpha10 = false, bool withInitDeploy = true) {
-      var solution = new Solution(dataSet);
+      var solution = new Solution(dataSet, appInstCsv);
       solution.ReadMachines(machineCsv, isAlpha10);
-      solution.ReadAppInsts(instCsv);
+      solution.ReadAppInsts(appInstCsv);
       solution.SetKv();
       if (withInitDeploy) solution.ReadInitDeploy();
       return solution;
     }
 
     // 使 this 与 src 的部署状态保持一致，既同步已部署的实例，也同步未部署的
-    private void CopyAppDeloy(Solution src) {
+    private void CopyAppDeploy(Solution src) {
       if (src.DataSet != DataSet)
-        throw new Exception($"[CopyDeloy]: Dataset {DataSet.Id} mismatch!");
+        throw new Exception($"[CopyAppDeploy]: DataSet {DataSet.Id} mismatch!");
 
       src.AppInsts.ForEach(inst => {
         var cloneInst = AppInstKv[inst.Id];
@@ -50,33 +55,33 @@ namespace Tianchi {
       });
     }
 
-    private void SetInitDeploy() {
-      CopyAppDeloy(DataSet.InitSolution);
+    private void SetInitAppDeploy() {
+      CopyAppDeploy(DataSet.InitSolution);
     }
 
     public Solution Clone(bool withDeploy = true) {
-      var clone = new Solution(DataSet);
+      var clone = new Solution(DataSet, _appInstCsv);
       Machines.ForEach((m, i) => clone.Machines[i] = m.Clone());
       AppInsts.ForEach((inst, i) => clone.AppInsts[i] = inst.Clone());
       //TODO: jobs
       clone.SetKv();
-      if (withDeploy) clone.CopyAppDeloy(this);
+      if (withDeploy) clone.CopyAppDeploy(this);
       return clone;
     }
 
-    #region 生成分轮次的 submit.csv
+    #region  兼容：生成分轮次的 submit.csv
 
     // 注意：会修改 clone 方案中的对象！
     // 要求 final 中所有实例都已经部署了，但 clone（初始部署） 可以有未部署的实例
     // clone 和 final 两个方案中 Inst 和 Machine 的Id值相同，但 Object 不同
-    public static void SaveSubmit(Solution final, Solution clone,
+    public static void SaveAppSubmit(Solution final, Solution clone,
       StreamWriter writer = null, int maxRound = 3) {
       var migrateKv = GetDiff(final, clone, false);
       var deployKv = GetDiff(final, clone, true);
 
-      Console.WriteLine($"[SaveSubmit]: {migrateKv.Count} to migrate; {deployKv.Count} to deploy");
+      WriteLine($"[SaveSubmit]: {migrateKv.Count} to migrate; {deployKv.Count} to deploy");
 
-      // TODO: 排序是否必要？
+      // TODO: 排序
       // 只对 migrateInstKv 排序 
       var sortedMigrate = (from kv in migrateKv
         orderby kv.Key.Machine.Id descending
@@ -109,7 +114,7 @@ namespace Tianchi {
           sortedMachines, writer, round);
 
       var migrateCnt = migrateKv.Count;
-      if (migrateCnt != 0) Console.WriteLine($"[SaveSubmit]: Migrating Failed {migrateCnt}#");
+      if (migrateCnt != 0) WriteLine($"[SaveSubmit]: Migrating Failed {migrateCnt}#");
 
       // 部署，只在最后一轮进行
       // 正常的话，完成迁移后，部署不会出现失败的实例
@@ -117,16 +122,16 @@ namespace Tianchi {
 
       var deployCnt = deployKv.Count;
       if (deployCnt != 0) {
-        Console.WriteLine($"[SaveSubmit]: Deploying Failed {deployCnt}#");
+        WriteLine($"[SaveSubmit]: Deploying Failed {deployCnt}#");
         var cnt = 0;
         foreach (var kv in deployKv) {
           cnt++;
-          Console.WriteLine($"[SaveSubmit]: {cnt} - {kv.Key}\t{clone.MachineKv[kv.Value]}");
+          WriteLine($"[SaveSubmit]: {cnt} - {kv.Key}\t{clone.MachineKv[kv.Value]}");
           if (cnt == 5) break;
         }
       }
 
-      if (migrateCnt + deployCnt == 0) Console.WriteLine("[SaveSubmit]: OK!");
+      if (migrateCnt + deployCnt == 0) WriteLine("[SaveSubmit]: OK!");
 
       writer?.Close();
     }
@@ -155,7 +160,7 @@ namespace Tianchi {
         // 需临时迁移到其它任意的机器
         if (failedCnt == 0) continue;
 
-        Console.WriteLine($"[SaveSubmit]: failedKv@{round} {failedKv.Count}#");
+        WriteLine($"[SaveSubmit]: failedKv@{round} {failedKv.Count}#");
         var cnt = 0;
 
         // 取快照，因为循环内部会修改 failedKv
@@ -177,7 +182,7 @@ namespace Tianchi {
           }
         }
 
-        Console.WriteLine($"[SaveSubmit]: failedKv@{round} {cnt}# migrated temporarily");
+        WriteLine($"[SaveSubmit]: failedKv@{round} {cnt}# migrated temporarily");
       }
     }
 
@@ -245,7 +250,7 @@ namespace Tianchi {
     // 读取机器，并按磁盘大小（降序）和Id（升序）排序
     private void ReadMachines(string csv, bool isAlpha10) {
       var list = new List<Machine>(10000);
-      Ext.ReadCsv(csv, line => {
+      Util.ReadCsv(csv, line => {
         var m = Machine.Parse(line, isAlpha10);
         list.Add(m);
       });
@@ -262,7 +267,7 @@ namespace Tianchi {
     // 读取实例，保持原有顺序！
     private void ReadAppInsts(string csv) {
       var i = 0;
-      Ext.ReadCsv(csv, parts => {
+      Util.ReadCsv(csv, parts => {
           var instId = parts[0].Id();
           var appId = parts[1].Id();
           var app = DataSet.AppKv[appId];
@@ -275,8 +280,8 @@ namespace Tianchi {
 
     // 读取数据集的初始部署
     // 注意：调用前需事先清空已有部署
-    public void ReadInitDeploy() {
-      Ext.ReadCsv(DataSet.AppInstCsv, parts => {
+    private void ReadInitDeploy() {
+      Util.ReadCsv(_appInstCsv, parts => {
           var mId = parts[2].Id();
 
           // 可能初始状态没有分配机器
@@ -288,15 +293,15 @@ namespace Tianchi {
           // 官方的评测代码在初始化阶段忽略资源和亲和性检查，直接将 inst 添加到机器上。
           // 在评价阶段，如果提交的代码中有 inst 的新部署目标，才会将其迁移；
           // 在迁移之前向旧机器放置实例，就可能存在不必要的资源或亲和性冲突；
-          // TODO: 早先版本初赛数据集B的初始部署错误地使用了 cpuUtilLimit 检查，
+          // Fixed: 早先版本初赛数据集B的初始部署错误地使用了 cpuUtilLimit 检查，
           // 这里的限值应该是 1.0
-          var canPut = m.CanPutInst(inst);
+          var canPut = m.CanPutAppInst(inst);
           m.TryPutAppInst(inst, ignoreCheck: true);
 
           // 因为 TryPutInst 函数会将 Deployed 置为true，
           // 而且添加inst后改变了机器状态，会增加资源使用和App个数，
           // 所以先保存判断结果，在机器上部署了实例后再修正 Deployed 标志
-          // TODO: 早先版本存在没有事先保存判断结果的Bug，反而获得了更好的分数
+          // Fixed: 早先版本存在没有事先保存判断结果的Bug，反而获得了更好的分数
           // 可能是因为迁移了那些负载较重机器上的实例，这里不保持这个Bug
           inst.Deployed = canPut; //m.CanPutInst(inst); 
         }
@@ -323,42 +328,42 @@ namespace Tianchi {
       Machines.ForEach(m => m.ClearAppInstSet());
     }
 
-    public static void AppSaveAndJudge(Solution final) {
+    public static void SaveAndJudgeApp(Solution final) {
       var csvSubmit = $"submit_{final.DataSet.Id}.csv";
       var writer = File.CreateText(csvSubmit);
 
       var init = final.DataSet.InitSolution.Clone();
-      SaveSubmit(final, init, writer);
+      SaveAppSubmit(final, init, writer);
 
-      Console.WriteLine($"== DataSet {final.DataSet.Id} Judge==");
-      AppJudgeSubmit(csvSubmit, init);
+      WriteLine($"== DataSet {final.DataSet.Id} Judge==");
+      JudgeAppSubmit(csvSubmit, init);
     }
 
     // 不是每个 Solution 对象都可以读入 submit，所以用静态方法
     // 注意：会修改 clone，将其重置为初始状态，之后读入 submit
-    public static void AppJudgeSubmit(string csvSubmit, Solution clone,
+    public static void JudgeAppSubmit(string csvSubmit, Solution clone,
       bool byRound = true, bool verbose = false) {
       if (!File.Exists(csvSubmit)) {
-        Console.WriteLine($"Error: Can not Find Submit File {csvSubmit}!");
+        WriteLine($"Error: Can not Find Submit File {csvSubmit}!");
         return;
       }
 
-      clone.SetInitDeploy();
+      clone.SetInitAppDeploy();
 
-      AppReadSubmit(csvSubmit, clone, byRound, verbose);
-      Console.Write($"[JudgeSubmit]: {clone.ScoreMsg}");
-      AppFinalCheck(clone, verbose);
+      ReadAppSubmit(csvSubmit, clone, byRound, verbose);
+      Write($"[JudgeSubmit]: {clone.ScoreMsg}");
+      FinalCheckApp(clone, verbose);
     }
 
-    private static void AppReadSubmit(string csvSubmit, Solution clone,
+    private static void ReadAppSubmit(string csvSubmit, Solution clone,
       bool byRound = true, bool verbose = false) {
-      if (byRound) {
-        AppReadSubmitbyRound(csvSubmit, clone, verbose);
+      if (byRound) { // 兼容：分轮次迁移
+        ReadAppSubmitByRound(csvSubmit, clone, verbose);
       } else {
         var failedCntResource = 0;
         var failedCntX = 0;
         var lineNo = 0;
-        Ext.ReadCsv(csvSubmit, parts => {
+        Util.ReadCsv(csvSubmit, parts => {
           if (failedCntResource + failedCntX > 0 && !verbose) return;
           var instId = parts[0].Id();
           var mId = parts[1].Id();
@@ -367,17 +372,17 @@ namespace Tianchi {
           lineNo++;
           inst.Machine?.RemoveAppInst(inst);
           if (!m.TryPutAppInst(inst)) {
-            if (m.IsOverCapWithAppInst(inst)) failedCntResource++;
-            if (m.IsConflictWithAppInst(inst)) failedCntX++;
-            Console.Write($"[{lineNo}] ");
-            Console.Write(m.FailedReason(inst));
-            Console.WriteLine($"\t{inst}  {m}");
+            if (m.IsOverCapacityWith(inst)) failedCntResource++;
+            if (m.IsConflictWith(inst)) failedCntX++;
+            Write($"[{lineNo}] ");
+            Write(m.FailedReason(inst));
+            WriteLine($"\t{inst}  {m}");
           }
         });
       }
     }
 
-    private static void AppReadSubmitbyRound(string csvSubmit, Solution clone, bool verbose) {
+    private static void ReadAppSubmitByRound(string csvSubmit, Solution clone, bool verbose) {
       var failedCntResource = 0;
       var failedCntX = 0;
       var lineNo = 0;
@@ -385,7 +390,7 @@ namespace Tianchi {
 
       var pendingSet = new HashSet<AppInst>(1000);
 
-      Ext.ReadCsv(csvSubmit, parts => {
+      Util.ReadCsv(csvSubmit, parts => {
         if (failedCntResource + failedCntX > 0 && !verbose) return;
         var round = int.Parse(parts[0]);
 
@@ -406,35 +411,35 @@ namespace Tianchi {
         if (m.TryPutAppInst(inst, autoRemove: false)) {
           pendingSet.Add(inst);
         } else {
-          if (m.IsOverCapWithAppInst(inst)) failedCntResource++;
-          if (m.IsConflictWithAppInst(inst)) failedCntX++;
-          Console.Write($"[ReadSubmitbyRound]: L{lineNo}@Round{round}");
-          Console.Write(m.FailedReason(inst));
-          Console.WriteLine($"\t{inst}\t{m}");
+          if (m.IsOverCapacityWith(inst)) failedCntResource++;
+          if (m.IsConflictWith(inst)) failedCntX++;
+          Write($"[ReadSubmitByRound]: L{lineNo}@Round{round}");
+          Write(m.FailedReason(inst));
+          WriteLine($"\t{inst}\t{m}");
         }
       });
     }
 
-    public static bool AppFinalCheck(Solution final, bool verbose = false) {
+    public static bool FinalCheckApp(Solution final, bool verbose = false) {
       var ok = true;
       if (!final.AppInstAllDeployed) {
-        Console.WriteLine(
+        WriteLine(
           $"[FinalCheck]: UndeployedInst {final.DataSet.AppInstCount - final.AppInstDeployedCount}");
         return false;
       }
 
       foreach (var m in final.Machines) {
         if (m.IsOverCapacity) {
-          Console.Write("[FinalCheck]: OverCapacity ");
-          Console.WriteLine(m);
+          Write("[FinalCheck]: OverCapacity ");
+          WriteLine(m);
           ok = false;
           if (!verbose) return false;
         }
 
         foreach (var x in m.ConflictList) {
-          Console.WriteLine($"[FinalCheck]: Conflict m_{m.Id}," +
-                            $"[app_{x.Item1.Id},app_{x.Item2.Id}," +
-                            $"{x.Item3} > k={x.Item4}]");
+          WriteLine($"[FinalCheck]: Conflict m_{m.Id}," +
+                    $"[app_{x.Item1.Id},app_{x.Item2.Id}," +
+                    $"{x.Item3} > k={x.Item4}]");
           ok = false;
           if (!verbose) return false;
         }

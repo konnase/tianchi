@@ -1,4 +1,4 @@
-using System;
+using static System.Console;
 
 namespace Tianchi {
   public static class Program {
@@ -8,11 +8,11 @@ namespace Tianchi {
     //命令行则在项目根目录执行 dotnet run --project cssharp/tianchi.csproj
     private static void Main() {
       foreach (var ds in DataSetSemi.SemiDSs) {
-        Console.Write($"JobCnt: {ds.JobCount}\t");
-        Console.WriteLine(ds.InitSolution.ScoreMsg);
+        Write($"JobCnt: {ds.JobCount}\t");
+        WriteLine(ds.InitSolution.ScoreMsg);
       }
 
-      Console.WriteLine("==End==");
+      WriteLine("==End==");
     }
   }
 }

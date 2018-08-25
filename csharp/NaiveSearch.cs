@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using TPL = System.Threading.Tasks;
+using static System.Console;
 
 namespace Tianchi {
   //TODO: Unnaive Search!
@@ -19,7 +20,7 @@ namespace Tianchi {
       long timeout = 24 * 60 * 60 * 1000, int taskCnt = 14) {
       if (!string.IsNullOrEmpty(searchFile)) {
         if (!File.Exists(searchFile)) {
-          Console.Error.WriteLine($"Error: Cannot find search file {searchFile}");
+          Error.WriteLine($"Error: Cannot find search file {searchFile}");
           Environment.Exit(-1);
         } else {
           ParseSearchResult(searchFile, solution); //用保存的结果覆盖 solution
@@ -28,15 +29,15 @@ namespace Tianchi {
 
       _searchTotalScore = solution.TotalScore;
 
-      Console.CancelKeyPress += (sender, e) => {
+      CancelKeyPress += (sender, e) => {
         _stop = true;
         e.Cancel = true; //等待搜索任务自己返回
-        Console.WriteLine($"{e.SpecialKey} received");
+        WriteLine($"{e.SpecialKey} received");
       };
 
       var timer = new Timer(obj => {
           _stop = true;
-          Console.WriteLine($"Executing timeout");
+          WriteLine("Executing timeout");
         },
         null, timeout, Timeout.Infinite); // 24 hours
 
@@ -53,7 +54,7 @@ namespace Tianchi {
 
       timer.Dispose();
 
-      Console.WriteLine($"{solution.TotalScore:0.000000} vs {_searchTotalScore:0.000000}");
+      WriteLine($"{solution.TotalScore:0.000000} vs {_searchTotalScore:0.000000}");
       SaveSearchResult(solution);
     }
 
@@ -70,7 +71,7 @@ namespace Tianchi {
       foreach (var i in shuffledIndexes) {
         foreach (var j in shuffledIndexes) {
           if (_stop) {
-            Console.WriteLine($"[Search@tid{tId}] Stopping ...");
+            WriteLine($"[Search@tid{tId}] Stopping ...");
             return false;
           }
 
@@ -98,7 +99,7 @@ namespace Tianchi {
 
                   //delta == 0.0 表示两个机器 cpu util 移动前后都没有超过 0.5
                   UpdateScore(deltaMove);
-                  //Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
+                  //WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
                   //                  $"move inst_{inst2.Id} @ m_{m2.Id} -> m_{m1.Id}");
                   hasChange = true;
                 }
@@ -121,7 +122,7 @@ namespace Tianchi {
 
                     UpdateScore(deltaSwap);
 
-                    //Console.WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
+                    //WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
                     //                  $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
                     hasChange = true;
                     break; //inst1已经swap了，外层循环继续检查下一个实例
@@ -133,17 +134,18 @@ namespace Tianchi {
             }
         }
 
-        Console.WriteLine($"[Search@tid{tId}]: {_searchTotalScore:0.000000} @ m_{machines[i].Id}");
+        WriteLine($"[Search@tid{tId}]: {_searchTotalScore:0.000000} @ m_{machines[i].Id}");
       }
 
       return hasChange;
     }
 
     //将inst移动到mDest，如果移动成功，返回负的分数差值，否则返回double.MaxValue
+    //TODO: Move到空机器
     private static double TryMove(Machine mDest, AppInst inst) {
       var delta = double.MaxValue;
 
-      if (!mDest.IsIdle && mDest.CanPutInst(inst)) {
+      if (!mDest.IsIdle && mDest.CanPutAppInst(inst)) {
         var mSrc = inst.Machine;
         var scoreBefore = mSrc.Score + mDest.Score;
         mDest.TryPutAppInst(inst, ignoreCheck: true);
@@ -214,7 +216,7 @@ namespace Tianchi {
       else
         appCountKv[appOld] = appOldCnt - 1;
 
-      var result = m.IsConflictWithAppInst(instNew);
+      var result = m.IsConflictWith(instNew);
       appCountKv[appOld] = appOldCnt; //恢复原状
 
       return result;
@@ -231,17 +233,17 @@ namespace Tianchi {
     }
 
     public static string SaveSearchResult(Solution solution) {
-      if (Solution.AppFinalCheck(solution)) return string.Empty;
+      if (Solution.FinalCheckApp(solution)) return string.Empty;
 
       var machines = solution.Machines;
 
       //保存到项目的search-result/目录下
-      var outputPath = $"search-result/" +
+      var outputPath = "search-result/" +
                        $"search_{solution.DataSet.Id}" +
                        $"_{solution.TotalScore:0.00}".Replace('.', '_') +
                        $"_{solution.UsedMachineCount}m";
 
-      Console.WriteLine($"Writing to {outputPath}");
+      WriteLine($"Writing to {outputPath}");
       var w = File.CreateText(outputPath);
 
       //保持确定的机器的顺序，而且保留空闲的机器

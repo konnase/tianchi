@@ -1,4 +1,4 @@
-﻿using System;
+﻿using static System.Console;
 
 namespace Tianchi {
   public static class DataSetSemi {
@@ -48,10 +48,10 @@ namespace Tianchi {
       foreach (var ds in SemiDSs) {
         var s = ds.InitSolution.TotalScore;
         sum += s;
-        Console.WriteLine($"{s:0.0000}");
+        WriteLine($"{s:0.0000}");
       }
 
-      Console.WriteLine($"=====\nAvg = {sum / 5:0.0000}");
+      WriteLine($"=====\nAvg = {sum / 5:0.0000}");
     }
 
     //搜索结果为：

@@ -70,7 +70,9 @@ namespace Tianchi {
     }
 
     private static Series GetSeries(string str) {
-      return FreqSeriesKv.GetValueOrDefault(str, Series.Parse(str.Split('|')));
+      if (!FreqSeriesKv.TryGetValue(str, out var s)) s = Series.Parse(str.Split('|'));
+
+      return s;
     }
 
     #endregion

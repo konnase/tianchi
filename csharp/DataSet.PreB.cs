@@ -1,7 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using TPL = System.Threading.Tasks;
+using static System.Console;
+using static System.Math;
 
 namespace Tianchi {
   public static class DataSetPreB {
@@ -45,13 +46,13 @@ namespace Tianchi {
     public static void ScanHighCpu(IList<Machine> machines, double start, double end,
       double step = 0.01) {
       for (var th = start; th < end; th += step) {
-        var highCpuUtilList = HighCpuUtilInsts(machines, th);
-        Console.WriteLine($"== {th:0.00}: {highCpuUtilList.Count}");
+        var highCpuUtilList = HighCpuUtilAppInsts(machines, th);
+        WriteLine($"== {th:0.00}: {highCpuUtilList.Count}");
       }
     }
 
     // threshold 也可以调参
-    public static List<AppInst> HighCpuUtilInsts(IList<Machine> machines, double threshold) {
+    public static List<AppInst> HighCpuUtilAppInsts(IList<Machine> machines, double threshold) {
       var instList = new List<AppInst>(3000);
       var u = new Series(Resource.Ts1470);
 
@@ -84,24 +85,24 @@ namespace Tianchi {
 
       foreach (var m in machines) m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
 
-      var instList = HighCpuUtilInsts(machines, Math.Min(cpuUtilH, cpuUtilL));
+      var instList = HighCpuUtilAppInsts(machines, Min(cpuUtilH, cpuUtilL));
       BinPacking.FirstFit(instList, machines, true);
 
       BinPacking.FirstFit(appInsts, machines);
 
-      var info = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00}== ";
+      var msg = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00}== ";
       if (!sol.AppInstAllDeployed) {
         var undeployed = sol.AppInstCount - sol.AppInstDeployedCount;
-        info += $"undeployed: {undeployed} = " +
-                $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
-        info += sol.AppInstUndeployed[0].ToString();
+        msg += $"undeployed: {undeployed} = " +
+               $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
+        msg += sol.AppInstUndeployed[0].ToString();
       }
 
-      info += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
+      msg += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
 
-      Console.WriteLine(info);
+      WriteLine(msg);
 
-      if (saveSubmitCsv) Solution.AppSaveAndJudge(sol);
+      if (saveSubmitCsv) Solution.SaveAndJudgeApp(sol);
 
       return sol;
     }
