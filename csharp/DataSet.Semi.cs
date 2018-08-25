@@ -16,24 +16,29 @@ namespace Tianchi {
         "data/app_resources.csv",
         "data/app_interference.csv",
         "data/machine_resources.a.csv",
-        "data/instance_deploy.a.csv"
+        "data/instance_deploy.a.csv",
+        "data/job_info.a.csv"
       );
 
       var semiB = DataSet.Read(DataSetId.SemiB, semiA.AppKv,
         "data/machine_resources.b.csv",
-        "data/instance_deploy.b.csv");
+        "data/instance_deploy.b.csv",
+        "data/job_info.b.csv");
 
       var semiC = DataSet.Read(DataSetId.SemiC, semiA.AppKv,
         "data/machine_resources.c.csv",
-        "data/instance_deploy.c.csv");
+        "data/instance_deploy.c.csv",
+        "data/job_info.c.csv");
 
       var semiD = DataSet.Read(DataSetId.SemiD, semiA.AppKv,
         "data/machine_resources.d.csv",
-        "data/instance_deploy.d.csv");
+        "data/instance_deploy.d.csv",
+        "data/job_info.d.csv");
 
       var semiE = DataSet.Read(DataSetId.SemiE, semiA.AppKv,
         "data/machine_resources.e.csv",
-        "data/instance_deploy.e.csv");
+        "data/instance_deploy.e.csv",
+        "data/job_info.e.csv");
 
       return new[] {semiA, semiB, semiC, semiD, semiE};
     }

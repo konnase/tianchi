@@ -194,11 +194,11 @@ namespace Tianchi {
       return ts;
     }
 
-    public static Series Parse(string[] fields) {
-      var length = fields.Length; //对App，还保持98个点
+    public static Series Parse(string[] parts) {
+      var length = parts.Length; //对App，还保持98个点
       var s = new Series(length);
       for (var i = 0; i < length; i++) {
-        var d = double.Parse(fields[i]);
+        var d = double.Parse(parts[i]);
         s._data[i] = d;
       }
 

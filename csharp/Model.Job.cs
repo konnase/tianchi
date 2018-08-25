@@ -46,16 +46,16 @@ namespace Tianchi {
 
     //1018-1,0.50,0.50,3,144,
     //1018-2,0.50,1.00,1,144,1018-1
-    public static void Parse(string[] fields, Dictionary<int, Job> jobKv) {
-      var idPairStr = fields[0];
+    public static void Parse(string[] parts, Dictionary<int, Job> jobKv) {
+      var idPairStr = parts[0];
       var idPair = idPairStr.IdPair();
       var jobId = idPair.Item1;
       var taskId = idPair.Item2;
 
-      var cpu = double.Parse(fields[1]);
-      var mem = double.Parse(fields[2]);
-      var instCnt = int.Parse(fields[3]);
-      var dur = int.Parse(fields[4]);
+      var cpu = double.Parse(parts[1]);
+      var mem = double.Parse(parts[2]);
+      var instCnt = int.Parse(parts[3]);
+      var dur = int.Parse(parts[4]);
 
       if (!jobKv.ContainsKey(jobId)) jobKv[jobId] = new Job(jobId);
 
@@ -74,7 +74,7 @@ namespace Tianchi {
 
       CacheList.Clear();
 
-      var preIdPairStr = fields[5]; //fields的第6个元素肯定存在，但可能为空串
+      var preIdPairStr = parts[5]; //parts的第6个元素肯定存在，但可能为空串
       //空串表明没有前驱
       if (string.IsNullOrEmpty(preIdPairStr)) {
         task.RelStartTime = 0; //task.Prev = null;
@@ -82,8 +82,8 @@ namespace Tianchi {
         return;
       }
 
-      //如果fields至少有一个元素
-      for (var i = 5; i < fields.Length; i++) SetPreTaskList(fields[i], job, task);
+      //否则parts至少有一个元素
+      for (var i = 5; i < parts.Length; i++) SetPreTaskList(parts[i], job, task);
 
       CacheList.Sort((t1, t2) => t1.Id.CompareTo(t2.Id));
       task.Prev = CacheList.ToArray();

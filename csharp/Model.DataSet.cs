@@ -69,22 +69,21 @@ namespace Tianchi {
     }
 
     private static void ReadApp(string csv, Dictionary<int, App> appKv) {
-      Ext.ReadCsv(csv, fields => appKv.Add(fields[0].Id(), App.Parse(fields)));
+      Ext.ReadCsv(csv, parts => appKv.Add(parts[0].Id(), App.Parse(parts)));
     }
 
     private static void ReadX(string csv, Dictionary<int, App> appKv) {
-      Ext.ReadCsv(csv, fields => {
-        var app = appKv[fields[0].Id()];
-        var otherAppId = fields[1].Id();
-        var k = int.Parse(fields[2]);
+      Ext.ReadCsv(csv, parts => {
+        var app = appKv[parts[0].Id()];
+        var otherAppId = parts[1].Id();
+        var k = int.Parse(parts[2]);
 
         app.AddXRule(otherAppId, k);
       });
     }
 
     private static void ReadJob(string csv, Dictionary<int, Job> jobKv) {
-      jobKv = new Dictionary<int, Job>(1100);
-      Ext.ReadCsv(csv, fields => JobTask.Parse(fields, jobKv));
+      Ext.ReadCsv(csv, parts => JobTask.Parse(parts, jobKv));
 
       foreach (var job in jobKv.Values) {
         var maxDur = 0;

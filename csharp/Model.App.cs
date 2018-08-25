@@ -13,15 +13,15 @@ namespace Tianchi {
     public int InstCount;
 
     // ReSharper disable once SuggestBaseTypeForParameter
-    private App(string[] fields) {
-      Id = fields[0].Id();
+    private App(string[] parts) {
+      Id = parts[0].Id();
       R = new Resource(
-        GetSeries(fields[1]),
-        GetSeries(fields[2]),
-        Convert.ToInt32(double.Parse(fields[3])),
-        int.Parse(fields[4]),
-        int.Parse(fields[5]),
-        int.Parse(fields[6])
+        GetSeries(parts[1]),
+        GetSeries(parts[2]),
+        Convert.ToInt32(double.Parse(parts[3])),
+        int.Parse(parts[4]),
+        int.Parse(parts[5]),
+        int.Parse(parts[6])
       );
     }
 
@@ -34,8 +34,8 @@ namespace Tianchi {
       return _xRules.GetValueOrDefault(otherAppId, int.MaxValue);
     }
 
-    public static App Parse(string[] fields) {
-      return new App(fields);
+    public static App Parse(string[] parts) {
+      return new App(parts);
     }
 
     #region Hack FreqSeriesKv 
@@ -59,7 +59,7 @@ namespace Tianchi {
       const string s7 =
         "32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000|32.000000";
 
-      kv[s1] = Series.Parse(s1.Split('|')); //App的仍保持98个数据点
+      kv[s1] = Series.Parse(s1.Split('|')); //App中仍保持98个数据点
       kv[s2] = Series.Parse(s2.Split('|'));
       kv[s3] = Series.Parse(s3.Split('|'));
       kv[s4] = Series.Parse(s4.Split('|'));

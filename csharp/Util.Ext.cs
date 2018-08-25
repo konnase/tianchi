@@ -59,10 +59,10 @@ namespace Tianchi {
       }
     }
 
-    public static List<AppInst> CsvToInstList(this string csv, Solution solution) {
-      var fields = csv.Split(',');
-      var result = new List<AppInst>(fields.Length);
-      result.AddRange(fields.Select(s => solution.AppInstKv[s.Id()]));
+    public static List<AppInst> CsvToAppInstList(this string csv, Solution solution) {
+      var parts = csv.Split(',');
+      var result = new List<AppInst>(parts.Length);
+      result.AddRange(parts.Select(s => solution.AppInstKv[s.Id()]));
 
       return result;
     }

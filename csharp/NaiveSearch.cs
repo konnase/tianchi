@@ -268,7 +268,7 @@ namespace Tianchi {
         var s = line.IndexOf("inst_");
         if (s < 0) continue; //跳过空闲机器
 
-        var instList = line.Substring(s, line.Length - s - 1).CsvToInstList(solution);
+        var instList = line.Substring(s, line.Length - s - 1).CsvToAppInstList(solution);
         foreach (var inst in instList)
           m.TryPutAppInst(inst, ignoreCheck: true); //TODO: ignoreCheck?
       }

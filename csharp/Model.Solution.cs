@@ -262,9 +262,9 @@ namespace Tianchi {
     // 读取实例，保持原有顺序！
     private void ReadAppInsts(string csv) {
       var i = 0;
-      Ext.ReadCsv(csv, fields => {
-          var instId = fields[0].Id();
-          var appId = fields[1].Id();
+      Ext.ReadCsv(csv, parts => {
+          var instId = parts[0].Id();
+          var appId = parts[1].Id();
           var app = DataSet.AppKv[appId];
           var inst = new AppInst(instId, app);
           app.InstCount++;
@@ -276,13 +276,13 @@ namespace Tianchi {
     // 读取数据集的初始部署
     // 注意：调用前需事先清空已有部署
     public void ReadInitDeploy() {
-      Ext.ReadCsv(DataSet.AppInstCsv, fields => {
-          var mId = fields[2].Id();
+      Ext.ReadCsv(DataSet.AppInstCsv, parts => {
+          var mId = parts[2].Id();
 
           // 可能初始状态没有分配机器
           if (mId == int.MinValue) return;
           var m = MachineKv[mId];
-          var instId = fields[0].Id();
+          var instId = parts[0].Id();
           var inst = AppInstKv[instId];
 
           // 官方的评测代码在初始化阶段忽略资源和亲和性检查，直接将 inst 添加到机器上。
@@ -358,10 +358,10 @@ namespace Tianchi {
         var failedCntResource = 0;
         var failedCntX = 0;
         var lineNo = 0;
-        Ext.ReadCsv(csvSubmit, fields => {
+        Ext.ReadCsv(csvSubmit, parts => {
           if (failedCntResource + failedCntX > 0 && !verbose) return;
-          var instId = fields[0].Id();
-          var mId = fields[1].Id();
+          var instId = parts[0].Id();
+          var mId = parts[1].Id();
           var inst = clone.AppInstKv[instId];
           var m = clone.MachineKv[mId];
           lineNo++;
@@ -385,12 +385,12 @@ namespace Tianchi {
 
       var pendingSet = new HashSet<AppInst>(1000);
 
-      Ext.ReadCsv(csvSubmit, fields => {
+      Ext.ReadCsv(csvSubmit, parts => {
         if (failedCntResource + failedCntX > 0 && !verbose) return;
-        var round = int.Parse(fields[0]);
+        var round = int.Parse(parts[0]);
 
-        var inst = clone.AppInstKv[fields[1].Id()];
-        var m = clone.MachineKv[fields[2].Id()];
+        var inst = clone.AppInstKv[parts[1].Id()];
+        var m = clone.MachineKv[parts[2].Id()];
 
         if (preRound == int.MinValue) {
           preRound = round;

@@ -18,20 +18,20 @@ namespace Tianchi {
     public double CapMem { get; private set; }
     public int CapDisk { get; private set; }
 
-    private static MachineType Parse(string[] fields) {
+    private static MachineType Parse(string[] parts) {
       var mt = new MachineType {
-        CapCpu = double.Parse(fields[0]),
-        CapMem = double.Parse(fields[1]),
-        CapDisk = int.Parse(fields[2])
+        CapCpu = double.Parse(parts[0]),
+        CapMem = double.Parse(parts[1]),
+        CapDisk = int.Parse(parts[2])
       };
 
       mt.Capacity = new Resource(
         new Series(Ts1470, mt.CapCpu),
         new Series(Ts1470, mt.CapMem),
         mt.CapDisk,
-        int.Parse(fields[3]),
-        int.Parse(fields[4]),
-        int.Parse(fields[5])
+        int.Parse(parts[3]),
+        int.Parse(parts[4]),
+        int.Parse(parts[5])
       );
       return mt;
     }
