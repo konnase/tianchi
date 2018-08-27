@@ -23,7 +23,7 @@ namespace Tianchi {
           Error.WriteLine($"Error: Cannot find search file {searchFile}");
           Environment.Exit(-1);
         } else {
-          ParseSearchResult(searchFile, solution); //用保存的结果覆盖 solution
+          ParseResult(searchFile, solution); //用保存的结果覆盖 solution
         }
       }
 
@@ -50,12 +50,14 @@ namespace Tianchi {
         tasks.Add(t);
       }
 
-      foreach (var t in tasks) t.Wait();
+      foreach (var t in tasks) {
+        t.Wait();
+      }
 
       timer.Dispose();
 
       WriteLine($"{solution.TotalScore:0.000000} vs {_searchTotalScore:0.000000}");
-      SaveSearchResult(solution);
+      SaveResult(solution);
     }
 
     private static bool TrySearch(Solution solution) {
@@ -75,7 +77,9 @@ namespace Tianchi {
             return false;
           }
 
-          if (i == j) continue;
+          if (i == j) {
+            continue;
+          }
 
           var m1 = machines[i];
           var m2 = machines[j];
@@ -88,14 +92,16 @@ namespace Tianchi {
           }
 
           // move inst 
-          if (Monitor.TryEnter(m1))
+          if (Monitor.TryEnter(m1)) {
             try {
               lock (m2) {
                 foreach (var inst2 in m2.AppInstSet.ToList()) { //ToList()即取快照
 
                   //TODO: 这里是将 m2 的 move 到 m1，可以遍历m2的所有实例
                   var deltaMove = TryMove(m1, inst2);
-                  if (deltaMove > 0.0) continue;
+                  if (deltaMove > 0.0) {
+                    continue;
+                  }
 
                   //delta == 0.0 表示两个机器 cpu util 移动前后都没有超过 0.5
                   UpdateScore(deltaMove);
@@ -107,18 +113,26 @@ namespace Tianchi {
             } finally {
               Monitor.Exit(m1);
             }
+          }
 
           // swap by app  
-          if (Monitor.TryEnter(m1))
+          if (Monitor.TryEnter(m1)) {
             try {
-              foreach (var inst1 in m1.AppKv.Values.ToList())
+              foreach (var inst1 in m1.AppKv.Values.ToList()) {
                 lock (m2) {
                   foreach (var inst2 in m2.AppKv.Values.ToList()) {
-                    if (inst1.App == inst2.App) continue;
-                    if (m2 != inst2.Machine) continue; //inst2刚在本线程的上轮循环swap了
+                    if (inst1.App == inst2.App) {
+                      continue;
+                    }
+
+                    if (m2 != inst2.Machine) {
+                      continue; //inst2刚在本线程的上轮循环swap了
+                    }
 
                     var deltaSwap = TrySwap(inst1, inst2, u1, u2, diff);
-                    if (deltaSwap > 0.0) continue;
+                    if (deltaSwap > 0.0) {
+                      continue;
+                    }
 
                     UpdateScore(deltaSwap);
 
@@ -129,9 +143,11 @@ namespace Tianchi {
                     //*/
                   }
                 }
+              }
             } finally {
               Monitor.Exit(m1);
             }
+          }
         }
 
         WriteLine($"[Search@tid{tId}]: {_searchTotalScore:0.000000} @ m_{machines[i].Id}");
@@ -145,10 +161,10 @@ namespace Tianchi {
     private static double TryMove(Machine mDest, AppInst inst) {
       var delta = double.MaxValue;
 
-      if (!mDest.IsIdle && mDest.CanPutAppInst(inst)) {
+      if (mDest.HasApp && mDest.CanPut(inst)) {
         var mSrc = inst.Machine;
         var scoreBefore = mSrc.Score + mDest.Score;
-        mDest.TryPutAppInst(inst, ignoreCheck: true);
+        mDest.TryPut(inst, ignoreCheck: true);
         var scoreAfter = mSrc.Score + mDest.Score;
 
         delta = scoreAfter - scoreBefore;
@@ -159,8 +175,9 @@ namespace Tianchi {
             // 即 move 前后两个机器的 cpu util 均小于 0.5，需要 move
             // ReSharper disable once CompareOfFloatsByEqualityOperator
             || delta == 0.0 && scoreAfter > 2.0
-            || delta < 0.0 && delta > -0.00001)
-          mSrc.TryPutAppInst(inst, ignoreCheck: true); //恢复原状
+            || delta < 0.0 && delta > -0.00001) {
+          mSrc.TryPut(inst, ignoreCheck: true); //恢复原状
+        }
       }
 
       return delta;
@@ -176,25 +193,33 @@ namespace Tianchi {
       diff.CopyFrom(inst1.R).Subtract(inst2.R);
 
       u1.CopyFrom(m1.Usage).Subtract(diff);
-      if (u1.IsOverCap(m1.Capacity)) return double.MaxValue;
+      if (u1.IsOverCap(m1.Capacity)) {
+        return double.MaxValue;
+      }
 
       u2.CopyFrom(m2.Usage).Add(diff);
-      if (u2.IsOverCap(m2.Capacity)) return double.MaxValue;
+      if (u2.IsOverCap(m2.Capacity)) {
+        return double.MaxValue;
+      }
 
       var scoreBefore = m1.Score + m2.Score;
       var delta = u1.Cpu.Score(m1.CapCpu) + u2.Cpu.Score(m2.CapCpu)
                   - scoreBefore;
 
       //期望delta是负数，且绝对值越大越好
-      if (delta >= 0.0 || delta < 0.0 && delta > -0.00001) return double.MaxValue;
+      if (delta >= 0.0 || delta < 0.0 && delta > -0.00001) {
+        return double.MaxValue;
+      }
 
-      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) return double.MaxValue;
+      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) {
+        return double.MaxValue;
+      }
 
       m1 = inst1.Machine;
       m2 = inst2.Machine;
 
-      m1.TryPutAppInst(inst2, ignoreCheck: true);
-      m2.TryPutAppInst(inst1, ignoreCheck: true);
+      m1.TryPut(inst2, ignoreCheck: true);
+      m2.TryPut(inst1, ignoreCheck: true);
 
       return delta;
     }
@@ -208,13 +233,16 @@ namespace Tianchi {
       var appOld = instOld.App;
 
       //appOld的所有实例都在之前的循环move到别的机器了
-      if (!appCountKv.ContainsKey(appOld)) return false;
+      if (!appCountKv.ContainsKey(appOld)) {
+        return false;
+      }
 
       var appOldCnt = appCountKv[appOld];
-      if (appOldCnt == 1)
+      if (appOldCnt == 1) {
         appCountKv.Remove(appOld);
-      else
+      } else {
         appCountKv[appOld] = appOldCnt - 1;
+      }
 
       var result = m.IsConflictWith(instNew);
       appCountKv[appOld] = appOldCnt; //恢复原状
@@ -232,8 +260,10 @@ namespace Tianchi {
       } while (init != Interlocked.CompareExchange(ref _searchTotalScore, update, init));
     }
 
-    public static string SaveSearchResult(Solution solution) {
-      if (Solution.FinalCheckApp(solution)) return string.Empty;
+    public static string SaveResult(Solution solution) {
+      if (Solution.FinalCheckApp(solution)) {
+        return string.Empty;
+      }
 
       var machines = solution.Machines;
 
@@ -241,21 +271,23 @@ namespace Tianchi {
       var outputPath = "search-result/" +
                        $"search_{solution.DataSet.Id}" +
                        $"_{solution.TotalScore:0.00}".Replace('.', '_') +
-                       $"_{solution.UsedMachineCount}m";
+                       $"_{solution.MachineCountHasApp}m";
 
       WriteLine($"Writing to {outputPath}");
       var w = File.CreateText(outputPath);
 
       //保持确定的机器的顺序，而且保留空闲的机器
       //使 search result 的行号与机器Id对应
-      foreach (var m in machines) w.WriteLine(m.ToSearchStr());
+      foreach (var m in machines) {
+        w.WriteLine(m.ToSearchStr());
+      }
 
       w.Close();
       return outputPath;
     }
 
-    public static void ParseSearchResult(string searchFile, Solution solution) {
-      solution.AppClearDeploy(); //重置状态
+    public static void ParseResult(string searchFile, Solution solution) {
+      solution.ClearAppDeploy(); //重置状态
       var machines = solution.Machines;
 
       //格式：
@@ -268,11 +300,14 @@ namespace Tianchi {
 
         // ReSharper disable once StringIndexOfIsCultureSpecific.1
         var s = line.IndexOf("inst_");
-        if (s < 0) continue; //跳过空闲机器
+        if (s < 0) {
+          continue; //跳过空闲机器
+        }
 
         var instList = line.Substring(s, line.Length - s - 1).CsvToAppInstList(solution);
-        foreach (var inst in instList)
-          m.TryPutAppInst(inst, ignoreCheck: true); //TODO: ignoreCheck?
+        foreach (var inst in instList) {
+          m.TryPut(inst, ignoreCheck: true); //TODO: ignoreCheck?
+        }
       }
 
       f.Close();

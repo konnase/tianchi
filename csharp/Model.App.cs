@@ -70,7 +70,9 @@ namespace Tianchi {
     }
 
     private static Series GetSeries(string str) {
-      if (!FreqSeriesKv.TryGetValue(str, out var s)) s = Series.Parse(str.Split('|'));
+      if (!FreqSeriesKv.TryGetValue(str, out var s)) {
+        s = Series.Parse(str.Split('|'));
+      }
 
       return s;
     }
@@ -81,7 +83,7 @@ namespace Tianchi {
   public class AppInst {
     public readonly App App;
     public readonly int Id;
-    public bool Deployed = false;
+    public bool IsDeployed = false;
 
     // Machine 字段在不同的 Solution 是不同的对象
     public Machine Machine;

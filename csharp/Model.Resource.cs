@@ -1,18 +1,23 @@
 namespace Tianchi {
   public class Resource {
-    public const int Ts1470 = 1470; // 兼容：复赛使用1470个数据点
-    public const int Ts98 = 98;
-    public const int Interval = Ts1470 / Ts98;
+    public const int T1470 = 1470; // 兼容：复赛使用1470个数据点
+    public const int T98 = 98;
+    public const int Interval = T1470 / T98;
 
-    public Resource(bool isTs1470 = true) {
-      if (isTs1470) {
-        Cpu = new Series(Ts1470);
-        Mem = new Series(Ts1470);
-        TsLength = Ts1470;
+    /// <summary>
+    ///   cpu或mem的数据点长度
+    /// </summary>
+    private int _length;
+
+    public Resource(bool isT1470 = true) {
+      if (isT1470) {
+        Cpu = new Series(T1470);
+        Mem = new Series(T1470);
+        _length = T1470;
       } else {
-        Cpu = new Series(Ts98);
-        Mem = new Series(Ts98);
-        TsLength = Ts98;
+        Cpu = new Series(T98);
+        Mem = new Series(T98);
+        _length = T98;
       }
     }
 
@@ -24,10 +29,8 @@ namespace Tianchi {
       P = p;
       M = m;
       Pm = pm;
-      TsLength = cpu.Length;
+      _length = cpu.Length;
     }
-
-    public int TsLength { get; private set; }
 
     public bool IsValid => Disk != int.MinValue;
 
@@ -50,12 +53,12 @@ namespace Tianchi {
       P = r.P;
       M = r.M;
       Pm = r.Pm;
-      TsLength = r.TsLength;
+      _length = r._length;
       return this;
     }
 
     public Resource Clone() {
-      var r = new Resource(TsLength == Ts1470);
+      var r = new Resource(_length == T1470);
       r.CopyFrom(this);
       return r;
     }
@@ -81,6 +84,18 @@ namespace Tianchi {
       return this;
     }
 
+    public Resource Add(JobBatch batch) {
+      Cpu.Add(batch.Cpu * batch.Size, batch.StartTime, batch.Duration);
+      Mem.Add(batch.Mem * batch.Size, batch.StartTime, batch.Duration);
+      return this;
+    }
+
+    public Resource Subtract(JobBatch batch) {
+      Cpu.Subtract(batch.Cpu * batch.Size, batch.StartTime, batch.Duration);
+      Mem.Subtract(batch.Mem * batch.Size, batch.StartTime, batch.Duration);
+      return this;
+    }
+
     //注意，返回的不是新的对象，而是 a，因而连续的表达式是从左到右结合的
     //即 a-b+c 相当于 a.Subtract(b).Add(c)，每一次计算都会修改 a 的值！
     //public static Resource operator +(Resource a, Resource b) => a.Add(b);
@@ -100,11 +115,11 @@ namespace Tianchi {
     //注意，返回的不是新的对象，而是 a，因而连续的表达式是从左到右结合的
     //public static Resource operator -(Resource a, Resource b) => a.Subtract(b);
 
-    // 计算总容量 capacity 与 r 的差值，分别赋给 this 对应的维度
+    // 计算总容量 capacity 与 r 的差值，赋给 this 对应的维度
     // 即 this = capacity - r
-    public Resource SubtractByCapacity(Resource capacity, Resource r) {
-      Cpu.SubtractByCapacity(capacity.Cpu, r.Cpu);
-      Mem.SubtractByCapacity(capacity.Mem, r.Mem);
+    public Resource DiffOf(Resource capacity, Resource r) {
+      Cpu.DiffOf(capacity.Cpu, r.Cpu);
+      Mem.DiffOf(capacity.Mem, r.Mem);
       Disk = capacity.Disk - r.Disk;
       P = capacity.P - r.P;
       M = capacity.M - r.M;

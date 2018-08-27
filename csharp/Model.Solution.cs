@@ -5,15 +5,15 @@ using System.Linq;
 using static System.Console;
 
 namespace Tianchi {
-  public class Solution {
+  public partial class Solution {
     //AppInstCsv里有实例Id和部署信息，分两次读取
     private readonly string _appInstCsv;
-    public readonly Dictionary<int, AppInst> AppInstKv;
-    public readonly AppInst[] AppInsts;
-    public readonly DataSet DataSet;
-    public readonly Dictionary<int, Machine> MachineKv;
-    public readonly Machine[] Machines;
 
+    public readonly Dictionary<int, AppInst> AppInstKv; //仅用于查询
+    public readonly AppInst[] AppInsts; //在线实例是固定的
+    public readonly DataSet DataSet;
+    public readonly Dictionary<int, Machine> MachineKv; //仅用于查询
+    public readonly Machine[] Machines; //在线实例的部署状态保存在机器对象中
 
     private Solution(DataSet ds, string appInstCsv) {
       DataSet = ds;
@@ -27,31 +27,37 @@ namespace Tianchi {
     public int AppInstCount => DataSet.AppInstCount;
     public int MachineCount => DataSet.MachineCount;
 
+    #region 从文件读机器和在线实例数据，克隆
+
     public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
       bool isAlpha10 = false, bool withInitDeploy = true) {
       var solution = new Solution(dataSet, appInstCsv);
-      solution.ReadMachines(machineCsv, isAlpha10);
-      solution.ReadAppInsts(appInstCsv);
+      solution.ReadMachine(machineCsv, isAlpha10);
+      solution.ReadAppInst(appInstCsv);
       solution.SetKv();
-      if (withInitDeploy) solution.ReadInitDeploy();
+      if (withInitDeploy) {
+        solution.ReadInitDeploy();
+      }
+
       return solution;
     }
 
     // 使 this 与 src 的部署状态保持一致，既同步已部署的实例，也同步未部署的
     private void CopyAppDeploy(Solution src) {
-      if (src.DataSet != DataSet)
+      if (src.DataSet != DataSet) {
         throw new Exception($"[CopyAppDeploy]: DataSet {DataSet.Id} mismatch!");
+      }
 
       src.AppInsts.ForEach(inst => {
         var cloneInst = AppInstKv[inst.Id];
         if (inst.Machine == null) {
-          cloneInst.Machine?.RemoveAppInst(cloneInst);
+          cloneInst.Machine?.Remove(cloneInst);
         } else {
           var cloneM = MachineKv[inst.Machine.Id]; //Id相同，但object不同
-          cloneM.TryPutAppInst(cloneInst, ignoreCheck: true);
+          cloneM.TryPut(cloneInst, ignoreCheck: true);
         }
 
-        cloneInst.Deployed = inst.Deployed;
+        cloneInst.IsDeployed = inst.IsDeployed;
       });
     }
 
@@ -63,17 +69,25 @@ namespace Tianchi {
       var clone = new Solution(DataSet, _appInstCsv);
       Machines.ForEach((m, i) => clone.Machines[i] = m.Clone());
       AppInsts.ForEach((inst, i) => clone.AppInsts[i] = inst.Clone());
-      //TODO: jobs
       clone.SetKv();
-      if (withDeploy) clone.CopyAppDeploy(this);
+      if (withDeploy) {
+        clone.CopyAppDeploy(this);
+      }
+
+      //Job的部署状态保存在 BatchKv，创建Solution时就会创建空白的 BatchKv，
+      //其中保存的 JobBatch 是不可变对象，不复制
       return clone;
     }
 
-    #region  兼容：生成分轮次的 submit.csv
+    #endregion
 
+    #region  生成分轮次的 submit.csv
+
+    //TODO: Test on Semi DataSets 
     // 注意：会修改 clone 方案中的对象！
     // 要求 final 中所有实例都已经部署了，但 clone（初始部署） 可以有未部署的实例
     // clone 和 final 两个方案中 Inst 和 Machine 的Id值相同，但 Object 不同
+    // 写完之后不关闭文件！
     public static void SaveAppSubmit(Solution final, Solution clone,
       StreamWriter writer = null, int maxRound = 3) {
       var migrateKv = GetDiff(final, clone, false);
@@ -109,12 +123,15 @@ namespace Tianchi {
       }
 
       // 循环结束了还有一轮的机会
-      if (migrateKv.Count > 0)
+      if (migrateKv.Count > 0) {
         Migrate(clone, migrateKv, failedKv, pendingSet, sortedMigrate,
           sortedMachines, writer, round);
+      }
 
       var migrateCnt = migrateKv.Count;
-      if (migrateCnt != 0) WriteLine($"[SaveSubmit]: Migrating Failed {migrateCnt}#");
+      if (migrateCnt != 0) {
+        WriteLine($"[SaveSubmit]: Migrating Failed {migrateCnt}#");
+      }
 
       // 部署，只在最后一轮进行
       // 正常的话，完成迁移后，部署不会出现失败的实例
@@ -127,13 +144,15 @@ namespace Tianchi {
         foreach (var kv in deployKv) {
           cnt++;
           WriteLine($"[SaveSubmit]: {cnt} - {kv.Key}\t{clone.MachineKv[kv.Value]}");
-          if (cnt == 5) break;
+          if (cnt == 5) {
+            break;
+          }
         }
       }
 
-      if (migrateCnt + deployCnt == 0) WriteLine("[SaveSubmit]: OK!");
-
-      writer?.Close();
+      if (migrateCnt + deployCnt == 0) {
+        WriteLine("[SaveSubmit]: OK!");
+      }
     }
 
     private static void Migrate(Solution clone, Dictionary<AppInst, int> migrateKv,
@@ -149,16 +168,19 @@ namespace Tianchi {
 
         failedCnt = failedKv.Count;
 
-        if (preFailedCnt == int.MaxValue)
+        if (preFailedCnt == int.MaxValue) {
           preFailedCnt = failedCnt;
-        else if (preFailedCnt != failedCnt)
+        } else if (preFailedCnt != failedCnt) {
           preFailedCnt = failedCnt;
-        else
+        } else {
           break;
+        }
 
         // failedKv 中不同实例的源机器和目标机器存在循环，导致死锁
         // 需临时迁移到其它任意的机器
-        if (failedCnt == 0) continue;
+        if (failedCnt == 0) {
+          continue;
+        }
 
         WriteLine($"[SaveSubmit]: failedKv@{round} {failedKv.Count}#");
         var cnt = 0;
@@ -169,10 +191,12 @@ namespace Tianchi {
           var inst = kv.Key;
           var mIdDest = kv.Value;
           foreach (var m in machines) {
-            if (m.Id == mIdDest || inst.Machine == m) continue;
+            if (m.Id == mIdDest || inst.Machine == m) {
+              continue;
+            }
 
             // First Fit 到其它机器上
-            if (m.TryPutAppInst(inst, autoRemove: false)) {
+            if (m.TryPut(inst, autoRemove: false)) {
               pendingSet.Add(inst);
               writer?.WriteLine($"{round},inst_{inst.Id},m_{m.Id}");
               failedKv.Remove(inst);
@@ -193,18 +217,21 @@ namespace Tianchi {
       failedKv.Clear();
 
       ICollection<KeyValuePair<AppInst, int>> list;
-      if (sortedList != null)
+      if (sortedList != null) {
         list = sortedList;
-      else
+      } else {
         list = instKv.ToList();
+      }
 
       foreach (var kv in list) {
         var inst = kv.Key;
-        if (!instKv.ContainsKey(inst)) continue;
+        if (!instKv.ContainsKey(inst)) {
+          continue;
+        }
 
         var mIdDest = kv.Value;
         var mDest = clone.MachineKv[mIdDest];
-        if (mDest.TryPutAppInst(inst, autoRemove: false)) {
+        if (mDest.TryPut(inst, autoRemove: false)) {
           pendingSet.Add(inst);
           instKv.Remove(inst);
           writer?.WriteLine($"{round},inst_{inst.Id},m_{mDest.Id}");
@@ -215,7 +242,9 @@ namespace Tianchi {
     }
 
     private static void ReleasePendingSet(HashSet<AppInst> pendingSet) {
-      foreach (var inst in pendingSet) inst.PreMachine?.RemoveAppInst(inst, false);
+      foreach (var inst in pendingSet) {
+        inst.PreMachine?.Remove(inst, false);
+      }
 
       pendingSet.Clear();
     }
@@ -231,7 +260,9 @@ namespace Tianchi {
         } else if (!isDeploy && instA.Machine != null) {
           var mIdSrc = instA.Machine.Id;
           var mIdDest = instZ.Machine.Id;
-          if (mIdSrc != mIdDest) diffKv[instA] = mIdDest;
+          if (mIdSrc != mIdDest) {
+            diffKv[instA] = mIdDest;
+          }
         }
       }
 
@@ -248,7 +279,7 @@ namespace Tianchi {
     }
 
     // 读取机器，并按磁盘大小（降序）和Id（升序）排序
-    private void ReadMachines(string csv, bool isAlpha10) {
+    private void ReadMachine(string csv, bool isAlpha10) {
       var list = new List<Machine>(10000);
       Util.ReadCsv(csv, line => {
         var m = Machine.Parse(line, isAlpha10);
@@ -265,7 +296,7 @@ namespace Tianchi {
     }
 
     // 读取实例，保持原有顺序！
-    private void ReadAppInsts(string csv) {
+    private void ReadAppInst(string csv) {
       var i = 0;
       Util.ReadCsv(csv, parts => {
           var instId = parts[0].Id();
@@ -285,7 +316,10 @@ namespace Tianchi {
           var mId = parts[2].Id();
 
           // 可能初始状态没有分配机器
-          if (mId == int.MinValue) return;
+          if (mId == int.MinValue) {
+            return;
+          }
+
           var m = MachineKv[mId];
           var instId = parts[0].Id();
           var inst = AppInstKv[instId];
@@ -295,15 +329,15 @@ namespace Tianchi {
           // 在迁移之前向旧机器放置实例，就可能存在不必要的资源或亲和性冲突；
           // Fixed: 早先版本初赛数据集B的初始部署错误地使用了 cpuUtilLimit 检查，
           // 这里的限值应该是 1.0
-          var canPut = m.CanPutAppInst(inst);
-          m.TryPutAppInst(inst, ignoreCheck: true);
+          var canPut = m.CanPut(inst);
+          m.TryPut(inst, ignoreCheck: true);
 
           // 因为 TryPutInst 函数会将 Deployed 置为true，
           // 而且添加inst后改变了机器状态，会增加资源使用和App个数，
           // 所以先保存判断结果，在机器上部署了实例后再修正 Deployed 标志
           // Fixed: 早先版本存在没有事先保存判断结果的Bug，反而获得了更好的分数
           // 可能是因为迁移了那些负载较重机器上的实例，这里不保持这个Bug
-          inst.Deployed = canPut; //m.CanPutInst(inst); 
+          inst.IsDeployed = canPut; //m.CanPutInst(inst); 
         }
       );
     }
@@ -312,48 +346,48 @@ namespace Tianchi {
 
     #region  Judge
 
-    public int UsedMachineCount => Machines.Sum(m => m.IsIdle ? 0 : 1);
-    public int AppInstDeployedCount => AppInsts.Sum(inst => inst.Deployed ? 1 : 0);
-    public bool AppInstAllDeployed => AppInsts.Length == AppInstDeployedCount;
-    public List<AppInst> AppInstUndeployed => AppInsts.Where(inst => !inst.Deployed).ToList();
-    public double TotalScore => AppInstAllDeployed ? ActualScore : 1e9;
+    public int MachineCountHasApp => Machines.Sum(m => m.HasApp ? 1 : 0);
+
+    //
+    public int DeployedAppInstCount => AppInsts.Sum(inst => inst.IsDeployed ? 1 : 0);
+    public bool AllAppInstDeployed => AppInsts.Length == DeployedAppInstCount;
+
+    public List<AppInst> UndeployedAppInst => AppInsts.Where(inst => !inst.IsDeployed).ToList();
+    //
+
+    //
+    public double TotalScore => AllAppInstDeployed && AllJobDeployed ? ActualScore : 1e9;
     public double ActualScore => Machines.Sum(m => m.Score);
 
     public string ScoreMsg => $"TotalScore: {TotalScore:0.00} of " +
-                              $"{UsedMachineCount} machines = " +
-                              $"[{ActualScore / UsedMachineCount:0.00}] ; " +
-                              $"UndeployedInst: {AppInstUndeployed.Count}";
+                              $"{MachineCountHasApp} | {MachineCountHasJob} machines[App|Job] = " +
+                              $"[{ActualScore / MachineCountHasApp:0.00}] ; " +
+                              $"AllDeployed[App|Job]? {AllAppInstDeployed} | {AllJobDeployed} " +
+                              $"UndeployedAppInst: {UndeployedAppInst.Count}";
 
-    public void AppClearDeploy() {
-      Machines.ForEach(m => m.ClearAppInstSet());
+    public void ClearAppDeploy() {
+      Machines.ForEach(m => m.ClearApps());
     }
 
+    //仅处理在线应用
     public static void SaveAndJudgeApp(Solution final) {
       var csvSubmit = $"submit_{final.DataSet.Id}.csv";
       var writer = File.CreateText(csvSubmit);
 
-      var init = final.DataSet.InitSolution.Clone();
-      SaveAppSubmit(final, init, writer);
-
+      var clone = final.DataSet.InitSolution.Clone();
+      SaveAppSubmit(final, clone, writer);
+      writer.Close();
       WriteLine($"== DataSet {final.DataSet.Id} Judge==");
-      JudgeAppSubmit(csvSubmit, init);
+
+      clone.SetInitAppDeploy();
+
+      ReadAppSubmit(csvSubmit, clone);
+      Write($"[JudgeSubmit]: {clone.ScoreMsg}");
+      FinalCheckApp(clone);
     }
 
     // 不是每个 Solution 对象都可以读入 submit，所以用静态方法
     // 注意：会修改 clone，将其重置为初始状态，之后读入 submit
-    public static void JudgeAppSubmit(string csvSubmit, Solution clone,
-      bool byRound = true, bool verbose = false) {
-      if (!File.Exists(csvSubmit)) {
-        WriteLine($"Error: Can not Find Submit File {csvSubmit}!");
-        return;
-      }
-
-      clone.SetInitAppDeploy();
-
-      ReadAppSubmit(csvSubmit, clone, byRound, verbose);
-      Write($"[JudgeSubmit]: {clone.ScoreMsg}");
-      FinalCheckApp(clone, verbose);
-    }
 
     private static void ReadAppSubmit(string csvSubmit, Solution clone,
       bool byRound = true, bool verbose = false) {
@@ -364,20 +398,35 @@ namespace Tianchi {
         var failedCntX = 0;
         var lineNo = 0;
         Util.ReadCsv(csvSubmit, parts => {
-          if (failedCntResource + failedCntX > 0 && !verbose) return;
+          if (parts.Length == 1 && parts[0] == "#") {
+            return false;
+          }
+
+          if (failedCntResource + failedCntX > 0 && !verbose) {
+            return false;
+          }
+
           var instId = parts[0].Id();
           var mId = parts[1].Id();
           var inst = clone.AppInstKv[instId];
           var m = clone.MachineKv[mId];
           lineNo++;
-          inst.Machine?.RemoveAppInst(inst);
-          if (!m.TryPutAppInst(inst)) {
-            if (m.IsOverCapacityWith(inst)) failedCntResource++;
-            if (m.IsConflictWith(inst)) failedCntX++;
+          inst.Machine?.Remove(inst);
+          if (!m.TryPut(inst)) {
+            if (m.IsOverCapacityWith(inst)) {
+              failedCntResource++;
+            }
+
+            if (m.IsConflictWith(inst)) {
+              failedCntX++;
+            }
+
             Write($"[{lineNo}] ");
-            Write(m.FailedReason(inst));
+            Write(m.FailureMsg(inst));
             WriteLine($"\t{inst}  {m}");
           }
+
+          return true;
         });
       }
     }
@@ -391,7 +440,14 @@ namespace Tianchi {
       var pendingSet = new HashSet<AppInst>(1000);
 
       Util.ReadCsv(csvSubmit, parts => {
-        if (failedCntResource + failedCntX > 0 && !verbose) return;
+        if (parts.Length == 1 && parts[0] == "#") {
+          return false;
+        }
+
+        if (failedCntResource + failedCntX > 0 && !verbose) {
+          return false;
+        }
+
         var round = int.Parse(parts[0]);
 
         var inst = clone.AppInstKv[parts[1].Id()];
@@ -401,30 +457,40 @@ namespace Tianchi {
           preRound = round;
         } else if (preRound != round) { // 开始新一轮，释放上一轮迁移的机器
           preRound = round;
-          foreach (var i in pendingSet) i.PreMachine?.RemoveAppInst(i, false);
+          foreach (var i in pendingSet) {
+            i.PreMachine?.Remove(i, false);
+          }
 
           pendingSet.Clear();
         }
 
         lineNo++;
 
-        if (m.TryPutAppInst(inst, autoRemove: false)) {
+        if (m.TryPut(inst, autoRemove: false)) {
           pendingSet.Add(inst);
         } else {
-          if (m.IsOverCapacityWith(inst)) failedCntResource++;
-          if (m.IsConflictWith(inst)) failedCntX++;
+          if (m.IsOverCapacityWith(inst)) {
+            failedCntResource++;
+          }
+
+          if (m.IsConflictWith(inst)) {
+            failedCntX++;
+          }
+
           Write($"[ReadSubmitByRound]: L{lineNo}@Round{round}");
-          Write(m.FailedReason(inst));
+          Write(m.FailureMsg(inst));
           WriteLine($"\t{inst}\t{m}");
         }
+
+        return true;
       });
     }
 
     public static bool FinalCheckApp(Solution final, bool verbose = false) {
       var ok = true;
-      if (!final.AppInstAllDeployed) {
+      if (!final.AllAppInstDeployed) {
         WriteLine(
-          $"[FinalCheck]: UndeployedInst {final.DataSet.AppInstCount - final.AppInstDeployedCount}");
+          $"[FinalCheck]: UndeployedInst {final.DataSet.AppInstCount - final.DeployedAppInstCount}");
         return false;
       }
 
@@ -433,7 +499,9 @@ namespace Tianchi {
           Write("[FinalCheck]: OverCapacity ");
           WriteLine(m);
           ok = false;
-          if (!verbose) return false;
+          if (!verbose) {
+            return false;
+          }
         }
 
         foreach (var x in m.ConflictList) {
@@ -441,7 +509,9 @@ namespace Tianchi {
                     $"[app_{x.Item1.Id},app_{x.Item2.Id}," +
                     $"{x.Item3} > k={x.Item4}]");
           ok = false;
-          if (!verbose) return false;
+          if (!verbose) {
+            return false;
+          }
         }
       }
 

@@ -8,8 +8,17 @@ namespace Tianchi {
     //命令行则在项目根目录执行 dotnet run --project cssharp/tianchi.csproj
     private static void Main() {
       foreach (var ds in DataSetSemi.SemiDSs) {
-        Write($"JobCnt: {ds.JobCount}\t");
-        WriteLine(ds.InitSolution.ScoreMsg);
+        var sol = ds.InitSolution.Clone();
+        Write($"[{ds.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
+        if (sol.JobTaskCount == 0) {
+          WriteLine();
+          continue;
+        }
+
+        JobDeploy.FirstFit(sol);
+        WriteLine($"AllJobDeployed? {sol.AllJobDeployed}; Score: {sol.ActualScore: 0.0000}");
+
+        Solution.SaveAndJudge(sol);
       }
 
       WriteLine("==End==");

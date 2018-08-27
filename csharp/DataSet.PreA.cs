@@ -36,7 +36,9 @@ namespace Tianchi {
         tasks.Add(t);
       }
 
-      foreach (var t in tasks) t.Wait();
+      foreach (var t in tasks) {
+        t.Wait();
+      }
     }
 
     public static void ScanVip() {
@@ -50,7 +52,9 @@ namespace Tianchi {
         //TPL.Task.Run(() => Fit(vipDisk: 300, vipMem: 12, vipCpu: 6)),
         TPL.Task.Run(() => Fit(vipDisk: 300, vipMem: 12, vipCpu: 8))
       };
-      foreach (var t in tasks) t.Wait();
+      foreach (var t in tasks) {
+        t.Wait();
+      }
     }
 
 
@@ -63,12 +67,14 @@ namespace Tianchi {
       var machines = sol.Machines;
       var appInsts = sol.AppInsts;
 
-      foreach (var m in machines) m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
+      foreach (var m in machines) {
+        m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
+      }
 
       var vips = (from inst in appInsts
-        where !inst.Deployed && (inst.R.Disk >= vipDisk
-                                 || inst.R.Mem.Avg >= vipMem
-                                 || inst.R.Cpu.Avg >= vipCpu)
+        where !inst.IsDeployed && (inst.R.Disk >= vipDisk
+                                   || inst.R.Mem.Avg >= vipMem
+                                   || inst.R.Cpu.Avg >= vipCpu)
         select inst).ToList();
 
       BinPacking.FirstFit(vips, machines, onlyIdleMachine: true);
@@ -76,18 +82,20 @@ namespace Tianchi {
       BinPacking.FirstFit(appInsts, machines);
 
       var msg = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00},{vipDisk},{vipMem},{vipCpu}== ";
-      if (!sol.AppInstAllDeployed) {
-        var undeployed = sol.AppInstCount - sol.AppInstDeployedCount;
+      if (!sol.AllAppInstDeployed) {
+        var undeployed = sol.AppInstCount - sol.DeployedAppInstCount;
         msg += $"undeployed: {undeployed} = " +
-               $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
-        msg += sol.AppInstUndeployed[0].ToString();
+               $" {sol.AppInstCount} - {sol.DeployedAppInstCount}\t e.g. ";
+        msg += sol.UndeployedAppInst[0].ToString();
       }
 
-      msg += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
+      msg += $"\t{sol.ActualScore:0.00},{sol.MachineCountHasApp}";
 
       WriteLine(msg);
 
-      if (saveSubmitCsv) Solution.SaveAndJudgeApp(sol);
+      if (saveSubmitCsv) {
+        Solution.SaveAndJudgeApp(sol);
+      }
 
       return sol;
     }

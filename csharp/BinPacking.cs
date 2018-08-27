@@ -12,19 +12,25 @@ namespace Tianchi {
       bool forceMigrate = false, // 不管 inst 是否已经部署了，都要迁移
       bool onlyIdleMachine = false // 只部署到空闲机器上
     ) {
-      foreach (var inst in appInsts)
-
-        if (forceMigrate || !inst.Deployed) {
+      foreach (var inst in appInsts) {
+        if (forceMigrate || !inst.IsDeployed) {
           var len = machines.Count;
           for (var i = 0; i < len; i++) {
             var m = machines[i];
-            if (inst.Machine == m) continue;
+            if (inst.Machine == m) {
+              continue;
+            }
 
-            if (onlyIdleMachine && !m.IsIdle) continue;
+            if (onlyIdleMachine && m.HasApp) {
+              continue;
+            }
 
-            if (m.TryPutAppInst(inst, m.CpuUtilLimit)) break; // First Fit
+            if (m.TryPut(inst, m.CpuUtilLimit)) {
+              break; // First Fit
+            }
           }
         }
+      }
     }
   }
 }

@@ -40,7 +40,9 @@ namespace Tianchi {
         tasks.Add(t);
       }
 
-      foreach (var t in tasks) t.Wait();
+      foreach (var t in tasks) {
+        t.Wait();
+      }
     }
 
     public static void ScanHighCpu(IList<Machine> machines, double start, double end,
@@ -54,21 +56,27 @@ namespace Tianchi {
     // threshold 也可以调参
     public static List<AppInst> HighCpuUtilAppInsts(IList<Machine> machines, double threshold) {
       var instList = new List<AppInst>(3000);
-      var u = new Series(Resource.Ts1470);
+      var u = new Series(Resource.T1470);
 
       foreach (var m in machines) {
-        if (m.IsIdle) continue;
+        if (!m.HasApp) {
+          continue;
+        }
 
         var th = m.CapCpu * threshold;
         var usageCpu = m.Usage.Cpu;
 
-        if (usageCpu.Max < th) continue;
+        if (usageCpu.Max < th) {
+          continue;
+        }
 
         u.CopyFrom(usageCpu);
         var insts = m.AppInstSet.ToList().OrderByDescending(inst => inst.R.Cpu.Max);
         foreach (var i in insts) {
           u.Subtract(i.R.Cpu);
-          if (u.Max < th) break;
+          if (u.Max < th) {
+            break;
+          }
 
           instList.Add(i); // 将 inst 加入待迁移列表，需要 ForceMigrate
         }
@@ -83,7 +91,9 @@ namespace Tianchi {
       var machines = sol.Machines;
       var appInsts = sol.AppInsts;
 
-      foreach (var m in machines) m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
+      foreach (var m in machines) {
+        m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
+      }
 
       var instList = HighCpuUtilAppInsts(machines, Min(cpuUtilH, cpuUtilL));
       BinPacking.FirstFit(instList, machines, true);
@@ -91,18 +101,20 @@ namespace Tianchi {
       BinPacking.FirstFit(appInsts, machines);
 
       var msg = $"==Fit@{cpuUtilH:0.00},{cpuUtilL:0.00}== ";
-      if (!sol.AppInstAllDeployed) {
-        var undeployed = sol.AppInstCount - sol.AppInstDeployedCount;
+      if (!sol.AllAppInstDeployed) {
+        var undeployed = sol.AppInstCount - sol.DeployedAppInstCount;
         msg += $"undeployed: {undeployed} = " +
-               $" {sol.AppInstCount} - {sol.AppInstDeployedCount}\t e.g. ";
-        msg += sol.AppInstUndeployed[0].ToString();
+               $" {sol.AppInstCount} - {sol.DeployedAppInstCount}\t e.g. ";
+        msg += sol.UndeployedAppInst[0].ToString();
       }
 
-      msg += $"\t{sol.ActualScore:0.00},{sol.UsedMachineCount}";
+      msg += $"\t{sol.ActualScore:0.00},{sol.MachineCountHasApp}";
 
       WriteLine(msg);
 
-      if (saveSubmitCsv) Solution.SaveAndJudgeApp(sol);
+      if (saveSubmitCsv) {
+        Solution.SaveAndJudgeApp(sol);
+      }
 
       return sol;
     }

@@ -7,27 +7,35 @@ using System.Text;
 using static System.Math;
 
 namespace Tianchi {
-  public static class ExtensionCommon {
+  public static class CommonExtension {
     public static void Init<T>(this T[] array, T v) {
-      for (var i = 0; i < array.Length; i++) array[i] = v;
+      for (var i = 0; i < array.Length; i++) {
+        array[i] = v;
+      }
     }
 
     public static void Init<T>(this T[,] array, T v) {
       for (var i = 0; i < array.GetUpperBound(0); i++)
-      for (var j = 0; j < array.GetUpperBound(1); j++)
+      for (var j = 0; j < array.GetUpperBound(1); j++) {
         array[i, j] = v;
+      }
     }
 
     public static string ToStr<TElement, TResult>(this ICollection<TElement> list,
       Func<TElement, TResult> func) {
       var result = new List<TResult>(list.Count);
-      foreach (var i in list) result.Add(func(i));
+      foreach (var i in list) {
+        result.Add(func(i));
+      }
 
       return result.ToStr();
     }
 
     public static string ToStr<T>(this ICollection<T> list) {
-      if (list.Count == 0) return string.Empty;
+      if (list.Count == 0) {
+        return string.Empty;
+      }
+
       var s = new StringBuilder();
 
       foreach (var p in list) {
@@ -39,15 +47,23 @@ namespace Tianchi {
     }
 
     public static void ForEach<T>(this IEnumerable<T> enumerable, Action<T> action) {
-      if (enumerable == null) return;
+      if (enumerable == null) {
+        return;
+      }
 
-      foreach (var i in enumerable) action(i);
+      foreach (var i in enumerable) {
+        action(i);
+      }
     }
 
     public static void ForEach<T>(this IList<T> collection, Action<T, int> action) {
-      if (collection == null) return;
+      if (collection == null) {
+        return;
+      }
 
-      for (var i = 0; i < collection.Count; i++) action(collection[i], i);
+      for (var i = 0; i < collection.Count; i++) {
+        action(collection[i], i);
+      }
     }
 
     public static void Shuffle<T>(this IList<T> list, Random rnd) {
@@ -65,18 +81,21 @@ namespace Tianchi {
 
     public static int[] ToRangeArray(this int n) {
       var result = new int[n];
-      for (var i = 0; i < n; i++) result[i] = i;
+      for (var i = 0; i < n; i++) {
+        result[i] = i;
+      }
 
       return result;
     }
   }
 
-  public static class ExtensionUtil {
+  public static class UtilExtension {
     public static int Id(this string id) {
       if (string.IsNullOrEmpty(id)
           || !id.Contains('_')
-          || !char.IsDigit(id.Last()))
+          || !char.IsDigit(id.Last())) {
         return int.MinValue;
+      }
 
       return int.Parse(id.Substring(id.IndexOf('_') + 1));
     }
@@ -99,10 +118,10 @@ namespace Tianchi {
     public static double Score(this Series cpuUsage, double cpuCap,
       int appInstCnt = 9, // 兼容：复赛修改了评分公式，alpha = (1 + appInstCnt)
       double alpha = 1, double beta = 0.5) {
-      Debug.Assert(cpuUsage.Length == Resource.Ts1470);
+      Debug.Assert(cpuUsage.Length == Resource.T1470);
 
       var sum = 0.0;
-      const int cnt = Resource.Ts1470;
+      const int cnt = Resource.T1470;
       for (var t = 0; t < cnt; t++) {
         var c = cpuUsage[t] / cpuCap;
         sum += c <= beta ? 1.0 : 1.0 + (alpha + appInstCnt) * (Exp(c - beta) - 1.0);
@@ -113,24 +132,56 @@ namespace Tianchi {
   }
 
   public static class Util {
+    /// <summary>
+    ///   如果func返回false，则提前终止循环，
+    ///   用于读取submit时处理 #
+    /// </summary>
+    public static void ReadCsv(string csvFile, Func<string[], bool> func) {
+      using (var csv = File.OpenText(csvFile)) {
+        string line;
+        while (null != (line = csv.ReadLine())) {
+          if (!func(line.Split(','))) {
+            return;
+          }
+        }
+      }
+    }
+
+    public static void ReadCsv(string csvFile, Func<string, bool> func) {
+      using (var csv = File.OpenText(csvFile)) {
+        string line;
+        while (null != (line = csv.ReadLine())) {
+          if (!func(line)) {
+            return;
+          }
+        }
+      }
+    }
+
     public static void ReadCsv(string csvFile, Action<string[]> action) {
       using (var csv = File.OpenText(csvFile)) {
         string line;
-        while (null != (line = csv.ReadLine())) action(line.Split(','));
+        while (null != (line = csv.ReadLine())) {
+          action(line.Split(','));
+        }
       }
     }
 
     public static void ReadCsv(string csvFile, Action<string> action) {
       using (var csv = File.OpenText(csvFile)) {
         string line;
-        while (null != (line = csv.ReadLine())) action(line);
+        while (null != (line = csv.ReadLine())) {
+          action(line);
+        }
       }
     }
 
     public static int GetLineCount(string csv, bool withHeader = false) {
       var cnt = 0;
       using (var f = File.OpenText(csv)) {
-        while (null != f.ReadLine()) cnt++;
+        while (null != f.ReadLine()) {
+          cnt++;
+        }
       }
 
       return withHeader ? Max(cnt - 1, 0) : cnt;

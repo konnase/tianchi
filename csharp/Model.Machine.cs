@@ -6,8 +6,6 @@ using static System.Math;
 
 namespace Tianchi {
   public class MachineType {
-    private const int Ts1470 = Resource.Ts1470; // 兼容：复赛要考虑1470分钟个时间点
-
     public static int CapDiskLarge; // 注意：读入新的数据集之前，都需要适当修改此值
 
     public static readonly Dictionary<string, MachineType> Kv =
@@ -28,8 +26,8 @@ namespace Tianchi {
       };
 
       mt.Capacity = new Resource(
-        new Series(Ts1470, mt.CapCpu),
-        new Series(Ts1470, mt.CapMem),
+        new Series(Resource.T1470, mt.CapCpu), // 兼容：复赛要考虑1470分钟个时间点
+        new Series(Resource.T1470, mt.CapMem),
         mt.CapDisk,
         int.Parse(parts[3]),
         int.Parse(parts[4]),
@@ -70,14 +68,14 @@ namespace Tianchi {
 
     public MachineType Type { get; }
 
-    public bool IsIdle { get; private set; }
+    public bool HasApp { get; private set; }
 
     // 机器按时间T平均后的成本分数
     public double Score {
       get {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
         if (_score == double.MinValue) {
-          if (IsIdle) {
+          if (!HasApp && !HasJob) {
             _score = 0.0;
             return _score;
           }
@@ -107,7 +105,9 @@ namespace Tianchi {
           foreach (var ku in AppCountKv) {
             var appA = ku.Key;
             //因为遍历了两遍app列表，所以这里只需单向检测即可
-            if (appBCnt > appA.XLimit(appB.Id)) return true;
+            if (appBCnt > appA.XLimit(appB.Id)) {
+              return true;
+            }
           }
         }
 
@@ -125,8 +125,9 @@ namespace Tianchi {
             var appA = ku.Key;
             //因为遍历了两遍app列表，所以这里只需单向检测即可
             var appBLimit = appA.XLimit(appB.Id);
-            if (appBCnt > appBLimit)
+            if (appBCnt > appBLimit) {
               list.Add(new Tuple<App, App, int, int>(appA, appB, appBCnt, appBLimit));
+            }
           }
         }
 
@@ -139,17 +140,23 @@ namespace Tianchi {
     #region 添加和删除在线应用实例
 
     // 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
-    public bool TryPutAppInst(AppInst inst, double cpuUtilLimit = 1.0, bool ignoreCheck = false,
+    public bool TryPut(AppInst inst, double cpuUtilLimit = 1.0, bool ignoreCheck = false,
       bool autoRemove = true) { // 兼容：分轮次迁移不自动迁移
 
-      if (AppInstSet.Contains(inst)) return true; //已经存在inst了，幂等
+      if (AppInstSet.Contains(inst)) {
+        return true; //已经存在inst了，幂等
+      }
 
-      if (!ignoreCheck && !CanPutAppInst(inst, cpuUtilLimit)) return false;
+      if (!ignoreCheck && !CanPut(inst, cpuUtilLimit)) {
+        return false;
+      }
 
-      if (!AppInstSet.Add(inst)) throw new Exception($"[TryPutInst]: {inst}");
+      if (!AppInstSet.Add(inst)) {
+        throw new Exception($"[TryPutInst]: {inst}");
+      }
 
       AppInstCount += 1;
-      IsIdle = false;
+      HasApp = true;
       _usage.Add(inst.R);
 
       _score = double.MinValue;
@@ -161,25 +168,28 @@ namespace Tianchi {
       // 每类App只需保存一个inst作为代表即可
       AppKv.TryAdd(inst.App, inst);
 
-      if (autoRemove)
-        inst.Machine?.RemoveAppInst(inst);
-      else
+      if (autoRemove) {
+        inst.Machine?.Remove(inst);
+      } else {
         inst.PreMachine = inst.Machine;
+      }
 
       inst.Machine = this;
-      inst.Deployed = true;
+      inst.IsDeployed = true;
 
       return true;
     }
 
-    public void RemoveAppInst(AppInst inst,
+    public void Remove(AppInst inst,
       // 兼容：如果从是 preMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
       bool setDeployFlag = true) {
       //
-      if (!AppInstSet.Remove(inst)) return;
+      if (!AppInstSet.Remove(inst)) {
+        return;
+      }
 
       AppInstCount -= 1;
-      IsIdle = AppInstCount == 0;
+      HasApp = AppInstCount != 0;
       _usage.Subtract(inst.R);
 
       _score = double.MinValue;
@@ -194,30 +204,36 @@ namespace Tianchi {
         //要移除的 inst 恰好是该类 App 的代表，移除后需要找一个替补
         //因为计数不为0，肯定存在替补
         var found = false;
-        foreach (var i in AppInstSet)
+        foreach (var i in AppInstSet) {
           if (i.App == inst.App) {
             AppKv[i.App] = i;
             found = true;
             break;
           }
+        }
 
-        if (!found)
+        if (!found) {
           throw new Exception($"[RemoveInst]: AppKv cannot find a substitution for {inst}");
+        }
       }
 
       // 兼容：如果是从 PreMachine 调用的，不修改下面这两个字段
-      if (!setDeployFlag) return;
+      if (!setDeployFlag) {
+        return;
+      }
 
       inst.Machine = null;
-      inst.Deployed = false;
+      inst.IsDeployed = false;
     }
 
-    public void ClearAppInstSet() {
+    public void ClearApps() {
       var list = AppInstSet.ToList(); // 取快照
-      foreach (var inst in list) RemoveAppInst(inst);
+      foreach (var inst in list) {
+        Remove(inst);
+      }
     }
 
-    public bool CanPutAppInst(AppInst inst, double cpuUtilLimit = 1.0) {
+    public bool CanPut(AppInst inst, double cpuUtilLimit = 1.0) {
       return !IsOverCapacityWith(inst, cpuUtilLimit) && !IsConflictWith(inst);
     }
 
@@ -242,20 +258,24 @@ namespace Tianchi {
       foreach (var kv in AppCountKv) {
         //<appA, appB, bLimit>
         var appA = kv.Key; //已部署的应用\
-        if (appA == null) continue;
+        if (appA == null) {
+          continue;
+        }
 
         var bLimit = appA.XLimit(appB.Id);
 
-        if (appBCnt + 1 > bLimit)
+        if (appBCnt + 1 > bLimit) {
           return true;
+        }
 
         //同时，已部署的应用不会与将要部署的inst的规则冲突
         //<appB, appA, aLimit>
         var aLimit = appB.XLimit(appA.Id);
         var appACnt = kv.Value;
 
-        if (appACnt > aLimit)
+        if (appACnt > aLimit) {
           return true;
+        }
       }
 
       return false;
@@ -313,7 +333,9 @@ namespace Tianchi {
 
     public Resource Avail {
       get {
-        if (!_avail.IsValid) _avail.SubtractByCapacity(Capacity, _usage);
+        if (!_avail.IsValid) {
+          _avail.DiffOf(Capacity, _usage);
+        }
 
         return _avail;
       }
@@ -321,7 +343,9 @@ namespace Tianchi {
 
     public Resource Usage {
       get {
-        if (!_xUsage.IsValid) _xUsage.CopyFrom(_usage);
+        if (!_xUsage.IsValid) {
+          _xUsage.CopyFrom(_usage);
+        }
 
         return _xUsage;
       }
@@ -360,7 +384,7 @@ namespace Tianchi {
       return $"{AppInstSet.ToStr(i => $"app_{i.App.Id}")}";
     }
 
-    public string FailedReason(AppInst inst) {
+    public string FailureMsg(AppInst inst) {
       return $"inst_{inst.Id},m_{Id}" +
              $"{(IsOverCapacityWith(inst) ? ",R" : "")}" +
              $"{(IsConflictWith(inst) ? ",X" : "")}";
