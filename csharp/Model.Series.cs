@@ -118,11 +118,11 @@ namespace Tianchi {
 
     // 将 s 累加到对应项
     public Series Add(Series s) {
-      if (s.Length == Length) { //相同维度
+      if (s.Length == Length) {
         for (var i = 0; i < Length; i++) {
-          _data[i] += s._data[i]; //这里不做超限检查
+          _data[i] += s._data[i];
         }
-      } else if (s.Length == Resource.T98) { //兼容：不同维度，且this(机器使用量) 1470 - 在线App 98
+      } else if (s.Length == Resource.T98) { //兼容：不同维度，且this(机器使用量) 1470 + 在线App 98
         var sLen = s.Length;
         const int interval = Resource.Interval;
 
@@ -168,7 +168,7 @@ namespace Tianchi {
     }
 
     public Series Subtract(Series s) {
-      if (s.Length == Length) { //相同维度
+      if (s.Length == Length) {
         for (var i = 0; i < Length; i++) {
           _data[i] -= s._data[i]; //这里不做超限检查
         }

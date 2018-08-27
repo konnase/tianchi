@@ -158,7 +158,7 @@ namespace Tianchi {
       }
     }
 
-    // 这里cpu输出合计最大时刻ts=45的值，mem则是平均值，只使用初赛 DataSet B
+    // 这里Cpu输出合计最大时刻 t=45的值，Mem则是平均值，只使用初赛 DataSet B
     public void PrintInstRequest() {
       WriteLine(AppInstCount);
       foreach (var inst in InitSolution.AppInsts) {
@@ -169,7 +169,7 @@ namespace Tianchi {
       }
     }
 
-    // 分时的集群总体CPU和Mem利用率 
+    // 分时的集群总体Cpu和Mem利用率 
     public void PrintAvgUtilByTs() {
       WriteLine("aid,ts,cpu,mem");
       foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {

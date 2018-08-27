@@ -134,7 +134,7 @@ namespace Tianchi {
   public static class Util {
     /// <summary>
     ///   如果func返回false，则提前终止循环，
-    ///   用于读取submit时处理 #
+    ///   用于读取submit时处理 '#'
     /// </summary>
     public static void ReadCsv(string csvFile, Func<string[], bool> func) {
       using (var csv = File.OpenText(csvFile)) {

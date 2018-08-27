@@ -332,12 +332,12 @@ namespace Tianchi {
           var canPut = m.CanPut(inst);
           m.TryPut(inst, ignoreCheck: true);
 
-          // 因为 TryPutInst 函数会将 Deployed 置为true，
+          // 因为 TryPut 函数会将 Deployed 置为true，
           // 而且添加inst后改变了机器状态，会增加资源使用和App个数，
           // 所以先保存判断结果，在机器上部署了实例后再修正 Deployed 标志
           // Fixed: 早先版本存在没有事先保存判断结果的Bug，反而获得了更好的分数
           // 可能是因为迁移了那些负载较重机器上的实例，这里不保持这个Bug
-          inst.IsDeployed = canPut; //m.CanPutInst(inst); 
+          inst.IsDeployed = canPut; //m.CanPut(inst); 
         }
       );
     }

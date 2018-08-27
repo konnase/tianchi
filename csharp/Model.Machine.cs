@@ -63,14 +63,14 @@ namespace Tianchi {
 
     private double _score = double.MinValue;
 
-    public double CpuUtilLimit; // 检查资源约束时，可以限制Cpu Util
+    public double CpuUtilLimit; // 检查资源约束时，可以限制 Cpu Util
     public int AppInstCount { get; private set; }
 
     public MachineType Type { get; }
 
     public bool HasApp { get; private set; }
 
-    // 机器按时间T平均后的成本分数
+    // 机器按时间 T 平均后的成本分数
     public double Score {
       get {
         // ReSharper disable once CompareOfFloatsByEqualityOperator
@@ -152,7 +152,7 @@ namespace Tianchi {
       }
 
       if (!AppInstSet.Add(inst)) {
-        throw new Exception($"[TryPutInst]: {inst}");
+        throw new Exception($"[TryPut]: {inst}");
       }
 
       AppInstCount += 1;
@@ -181,7 +181,7 @@ namespace Tianchi {
     }
 
     public void Remove(AppInst inst,
-      // 兼容：如果从是 preMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
+      // 兼容：如果从是 PreMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
       bool setDeployFlag = true) {
       //
       if (!AppInstSet.Remove(inst)) {
@@ -237,7 +237,7 @@ namespace Tianchi {
       return !IsOverCapacityWith(inst, cpuUtilLimit) && !IsConflictWith(inst);
     }
 
-    // 检查当前累积使用的资源量 usage **加上r之后** 是否会超出 capacity，
+    // 检查当前累积使用的资源量 usage **加上 r 之后** 是否会超出 capacity，
     // 不会修改当前资源量
     public bool IsOverCapacityWith(AppInst inst, double cpuUtilLimit = 1.0) {
       var r = inst.R;
@@ -257,7 +257,7 @@ namespace Tianchi {
 
       foreach (var kv in AppCountKv) {
         //<appA, appB, bLimit>
-        var appA = kv.Key; //已部署的应用\
+        var appA = kv.Key; //appA是已部署的应用
         if (appA == null) {
           continue;
         }
