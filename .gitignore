@@ -27,5 +27,4 @@ debug
 data/init_neibor_set.csv
 */.vs/*
 search-result/
-
-
+**/target/*
