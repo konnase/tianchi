@@ -1,6 +1,9 @@
 # 使用Maven构建jar
-从官方下载的 `AlibabaSchedulerEvaluatorRun_20180709.java` 拷贝到了 `src/main/java` 下面。
-这是`maven`约定的项目结构，并且重命名为 `AlibabaSchedulerEvaluatorRun.java` ，这是 `javac` 的强制要求，即文件名与其中的 `public class` 类名一致。
+从官方下载的 `AlibabaSchedulerEvaluatorRun_20180709.java` 
+
++ 拷贝到了 `src/main/java` 下面，这是`maven`约定的项目结构，
++ 并且重命名为 `AlibabaSchedulerEvaluatorRun.java` ，这是 `javac` 的强制要求，即文件名与其中的 `public class` 类名一致。
+
 使用提供的 `pom.xml` 和 `src/META-INF/MANIFEST.MF` ，在 `pom.xml` 所在目录执行
 ```
 mvn package
