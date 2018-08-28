@@ -9,7 +9,7 @@ namespace Tianchi {
     public static int CapDiskLarge; // 注意：读入新的数据集之前，都需要适当修改此值
 
     public static readonly Dictionary<string, MachineType> Kv =
-      new Dictionary<string, MachineType>(5);
+      new Dictionary<string, MachineType>(capacity: 5);
 
     public bool IsLargeMachine { get; private set; }
 
@@ -39,7 +39,7 @@ namespace Tianchi {
 
     public static MachineType Get(string type) {
       if (!Kv.TryGetValue(type, out var mt)) {
-        mt = Parse(type.Split(','));
+        mt = Parse(type.Split(separator: ','));
         Kv[type] = mt;
       }
 
@@ -57,7 +57,7 @@ namespace Tianchi {
     // 分应用汇总的实例个数
     public readonly Dictionary<App, int> AppCountKv = new Dictionary<App, int>();
 
-    public readonly HashSet<AppInst> AppInstSet = new HashSet<AppInst>(20);
+    public readonly HashSet<AppInst> AppInstSet = new HashSet<AppInst>(capacity: 20);
     public readonly Dictionary<App, AppInst> AppKv = new Dictionary<App, AppInst>();
     public readonly int Id;
 
@@ -80,7 +80,9 @@ namespace Tianchi {
             return _score;
           }
 
-          _score = _isAlpha10 ? _usage.Cpu.Score(CapCpu) : _usage.Cpu.Score(CapCpu, AppInstCount);
+          _score = _isAlpha10
+            ? _usage.Cpu.Score(CapCpu)
+            : _usage.Cpu.Score(CapCpu, AppInstCount);
         }
 
         return _score;
@@ -94,8 +96,8 @@ namespace Tianchi {
       || Avail.P < 0
       || Avail.M < 0
       || Avail.Pm < 0
-      || Round(Avail.Cpu.Min, 8) < 0
-      || Round(Avail.Mem.Min, 8) < 0;
+      || Round(Avail.Cpu.Min, digits: 8) < 0
+      || Round(Avail.Mem.Min, digits: 8) < 0;
 
     public bool HasConflict {
       get {
@@ -126,7 +128,8 @@ namespace Tianchi {
             //因为遍历了两遍app列表，所以这里只需单向检测即可
             var appBLimit = appA.XLimit(appB.Id);
             if (appBCnt > appBLimit) {
-              list.Add(new Tuple<App, App, int, int>(appA, appB, appBCnt, appBLimit));
+              list.Add(new Tuple<App, App, int, int>(appA, appB, appBCnt,
+                appBLimit));
             }
           }
         }
@@ -163,7 +166,7 @@ namespace Tianchi {
       _avail.Invalid();
       _xUsage.Invalid();
 
-      AppCountKv[inst.App] = AppCountKv.GetValueOrDefault(inst.App, 0) + 1;
+      AppCountKv[inst.App] = AppCountKv.GetValueOrDefault(inst.App, defaultValue: 0) + 1;
 
       // 每类App只需保存一个inst作为代表即可
       AppKv.TryAdd(inst.App, inst);
@@ -234,7 +237,8 @@ namespace Tianchi {
     }
 
     public bool CanPut(AppInst inst, double cpuUtilLimit = 1.0) {
-      return !IsOverCapacityWith(inst, cpuUtilLimit) && !IsConflictWith(inst);
+      return !IsOverCapacityWith(inst, cpuUtilLimit) &&
+             !IsConflictWith(inst);
     }
 
     // 检查当前累积使用的资源量 usage **加上 r 之后** 是否会超出 capacity，
@@ -253,7 +257,7 @@ namespace Tianchi {
     // 检查App间的冲突
     public bool IsConflictWith(AppInst inst) {
       var appB = inst.App;
-      var appBCnt = AppCountKv.GetValueOrDefault(appB, 0);
+      var appBCnt = AppCountKv.GetValueOrDefault(appB, defaultValue: 0);
 
       foreach (var kv in AppCountKv) {
         //<appA, appB, bLimit>
@@ -286,8 +290,8 @@ namespace Tianchi {
     #region 构造，解析，克隆
 
     private Machine(string str, bool isAlpha10) { // 兼容：初赛与复赛不同的成本计算公式
-      var i = str.IndexOf(',');
-      Id = str.Substring(0, i).Id();
+      var i = str.IndexOf(value: ',');
+      Id = str.Substring(startIndex: 0, length: i).Id();
 
       Type = MachineType.Get(str.Substring(i + 1));
       AppInstCount = 0;

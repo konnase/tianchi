@@ -34,7 +34,8 @@ namespace Tianchi {
       ReadApp(appCsv, appKv);
       ReadX(xCsv, appKv);
 
-      return Read(dataSetId, appKv, machineCsv, instCsv, jobCsv, isAlpha10);
+      return Read(dataSetId, appKv, machineCsv, instCsv,
+        jobCsv, isAlpha10);
     }
 
     public static DataSet Read(DataSetId dataSetId, Dictionary<int, App> appKv,
@@ -43,21 +44,24 @@ namespace Tianchi {
       var instCnt = Util.GetLineCount(instCsv);
       var mCnt = Util.GetLineCount(machineCsv);
 
-      var dataSet = new DataSet(dataSetId, appCnt, instCnt, mCnt) {AppKv = appKv};
+      var dataSet =
+        new DataSet(dataSetId, appCnt, instCnt, mCnt) {AppKv = appKv};
 
       if (string.IsNullOrEmpty(jobCsv)) {
         dataSet.JobKv = null;
       } else {
-        dataSet.JobKv = new Dictionary<int, Job>(1100);
+        dataSet.JobKv = new Dictionary<int, Job>(capacity: 1100);
         ReadJob(jobCsv, dataSet.JobKv);
       }
 
-      dataSet.InitSolution = Solution.Read(dataSet, machineCsv, instCsv, isAlpha10);
+      dataSet.InitSolution = Solution.Read(dataSet, machineCsv,
+        instCsv, isAlpha10);
       return dataSet;
     }
 
     private static void ReadApp(string csv, Dictionary<int, App> appKv) {
-      Util.ReadCsv(csv, parts => appKv.Add(parts[0].Id(), App.Parse(parts)));
+      Util.ReadCsv(csv,
+        parts => appKv.Add(parts[0].Id(), App.Parse(parts)));
     }
 
     private static void ReadX(string csv, Dictionary<int, App> appKv) {
@@ -91,7 +95,7 @@ namespace Tianchi {
                 $"Machine#: {MachineCount}");
 
       //以下输出初始数据中违反约束的情况
-      Solution.FinalCheckApp(InitSolution, true);
+      Solution.CheckAppInterference(InitSolution, verbose: true);
 
       //初始数据中，忽略了约束，被强制部署到机器上的实例
       var xInsts = InitSolution.AppInsts
@@ -123,8 +127,8 @@ namespace Tianchi {
     public void PrintRequestUtil() {
       var total = new Resource();
       InitSolution.Machines.ForEach(m => total.Add(m.Capacity));
-      var totalCpu = total.Cpu[0];
-      var totalMem = total.Mem[0];
+      var totalCpu = total.Cpu[i: 0];
+      var totalMem = total.Mem[i: 0];
 
       var req = new Resource();
       InitSolution.AppInsts.ForEach(inst => req.Add(inst.R));
@@ -162,7 +166,7 @@ namespace Tianchi {
     public void PrintInstRequest() {
       WriteLine(AppInstCount);
       foreach (var inst in InitSolution.AppInsts) {
-        WriteLine($"{Ceiling(inst.R.Cpu[45])} " +
+        WriteLine($"{Ceiling(inst.R.Cpu[i: 45])} " +
                   $"{Ceiling(inst.R.Mem.Avg)} " +
                   $"{inst.R.Disk} " +
                   $"inst_{inst.Id}");

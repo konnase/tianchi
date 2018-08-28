@@ -45,9 +45,9 @@ namespace Tianchi {
       }
     }
 
-    public static void ScanHighCpu(IList<Machine> machines, double start, double end,
+    public static void ScanHighCpu(IList<Machine> machines, double begin, double end,
       double step = 0.01) {
-      for (var th = start; th < end; th += step) {
+      for (var th = begin; th < end; th += step) {
         var highCpuUtilList = HighCpuUtilAppInsts(machines, th);
         WriteLine($"== {th:0.00}: {highCpuUtilList.Count}");
       }
@@ -55,7 +55,7 @@ namespace Tianchi {
 
     // threshold 也可以调参
     public static List<AppInst> HighCpuUtilAppInsts(IList<Machine> machines, double threshold) {
-      var instList = new List<AppInst>(3000);
+      var instList = new List<AppInst>(capacity: 3000);
       var u = new Series(Resource.T1470);
 
       foreach (var m in machines) {
@@ -95,8 +95,9 @@ namespace Tianchi {
         m.CpuUtilLimit = m.IsLargeMachine ? cpuUtilH : cpuUtilL;
       }
 
-      var instList = HighCpuUtilAppInsts(machines, Min(cpuUtilH, cpuUtilL));
-      BinPacking.FirstFit(instList, machines, true);
+      var instList = HighCpuUtilAppInsts(machines,
+        Min(cpuUtilH, cpuUtilL));
+      BinPacking.FirstFit(instList, machines, forceMigrate: true);
 
       BinPacking.FirstFit(appInsts, machines);
 
@@ -105,7 +106,7 @@ namespace Tianchi {
         var undeployed = sol.AppInstCount - sol.DeployedAppInstCount;
         msg += $"undeployed: {undeployed} = " +
                $" {sol.AppInstCount} - {sol.DeployedAppInstCount}\t e.g. ";
-        msg += sol.UndeployedAppInst[0].ToString();
+        msg += sol.UndeployedAppInst[index: 0].ToString();
       }
 
       msg += $"\t{sol.ActualScore:0.00},{sol.MachineCountHasApp}";

@@ -90,60 +90,68 @@ namespace Tianchi {
     // 写完之后不关闭文件！
     public static void SaveAppSubmit(Solution final, Solution clone,
       StreamWriter writer = null, int maxRound = 3) {
-      var migrateKv = GetDiff(final, clone, false);
-      var deployKv = GetDiff(final, clone, true);
+      // <inst, mIdDest>
+      var migrateInstKv = GetDiff(final, clone, isDeploy: false);
+      var deployInstKv = GetDiff(final, clone, isDeploy: true);
 
-      WriteLine($"[SaveSubmit]: {migrateKv.Count} to migrate; {deployKv.Count} to deploy");
+      WriteLine("[SaveAppSubmit]: " +
+                $"{migrateInstKv.Count} to migrate; " +
+                $"{deployInstKv.Count} to deploy.");
 
-      // TODO: 排序
+      // TODO: 排序策略
       // 只对 migrateInstKv 排序 
-      var sortedMigrate = (from kv in migrateKv
+      var sortedMigrate = (from kv in migrateInstKv
         orderby kv.Key.Machine.Id descending
         select kv).ToList();
 
       // 机器只排序一次，把大型的，空闲资源多的机器排到前面
+      // 用于临时腾挪
       var sortedMachines = (from m in clone.Machines
         orderby m.CapDisk descending, m.Usage.Disk, m.Id
         select m).ToList();
 
-      var pendingSet = new HashSet<AppInst>(1000);
-      var failedKv = new Dictionary<AppInst, int>();
+      var pendingInstSet = new HashSet<AppInst>(capacity: 1000);
+      var failedInstKv = new Dictionary<AppInst, int>(); //为了减少GC
 
       var round = 1;
 
       // 迁移
-      // 注意，round 是从1开始的，循环的轮次比 maxRound 少一轮
-      while (round < maxRound && migrateKv.Count > 0) {
-        Migrate(clone, migrateKv, failedKv, pendingSet, sortedMigrate,
-          sortedMachines, writer, round);
+      // 注意，round 是从1开始的，且循环的轮次比 maxRound 少一轮
+      while (round < maxRound && migrateInstKv.Count > 0) {
+        Migrate(clone, migrateInstKv, failedInstKv,
+          pendingInstSet,
+          sortedMigrate, sortedMachines, writer, round);
 
         // 释放了原机器上的资源，一轮就结束了
-        ReleasePendingSet(pendingSet);
+        ReleasePendingSet(pendingInstSet);
         round++;
       }
 
       // 循环结束了还有一轮的机会
-      if (migrateKv.Count > 0) {
-        Migrate(clone, migrateKv, failedKv, pendingSet, sortedMigrate,
-          sortedMachines, writer, round);
+      if (migrateInstKv.Count > 0) {
+        Migrate(clone, migrateInstKv, failedInstKv,
+          pendingInstSet,
+          sortedMigrate, sortedMachines, writer, round);
       }
 
-      var migrateCnt = migrateKv.Count;
+      var migrateCnt = migrateInstKv.Count;
       if (migrateCnt != 0) {
-        WriteLine($"[SaveSubmit]: Migrating Failed {migrateCnt}#");
+        WriteLine($"[SaveAppSubmit]: Migrating Failed {migrateCnt}#");
       }
 
       // 部署，只在最后一轮进行
-      // 正常的话，完成迁移后，部署不会出现失败的实例
-      Deploy(clone, deployKv, failedKv, pendingSet, writer, round);
+      // 正常的话，完成迁移后，部署不会出现失败的实例，也不必处理 pendingInstSet
+      Deploy(clone, deployInstKv, failedInstKv, pendingInstSet,
+        writer, round);
 
-      var deployCnt = deployKv.Count;
+
+      var deployCnt = deployInstKv.Count;
       if (deployCnt != 0) {
-        WriteLine($"[SaveSubmit]: Deploying Failed {deployCnt}#");
+        WriteLine($"[SaveAppSubmit]: Deployment failed {deployCnt}#");
         var cnt = 0;
-        foreach (var kv in deployKv) {
+        foreach (var kv in deployInstKv) {
           cnt++;
-          WriteLine($"[SaveSubmit]: {cnt} - {kv.Key}\t{clone.MachineKv[kv.Value]}");
+          WriteLine($"[SaveAppSubmit]: {cnt} - {kv.Key}\t{clone.MachineKv[kv.Value]}");
           if (cnt == 5) {
             break;
           }
@@ -151,53 +159,64 @@ namespace Tianchi {
       }
 
       if (migrateCnt + deployCnt == 0) {
-        WriteLine("[SaveSubmit]: OK!");
+        WriteLine("[SaveAppSubmit]: OK!");
       }
     }
+
+    /// <summary>
+    ///   TODO: Tuning this
+    /// </summary>
+    public static double HighUtilThreshold = 0.8;
 
     private static void Migrate(Solution clone, Dictionary<AppInst, int> migrateKv,
       Dictionary<AppInst, int> failedKv, HashSet<AppInst> pendingSet,
       List<KeyValuePair<AppInst, int>> sortedMigrate, List<Machine> machines,
       StreamWriter writer, int round) {
-      var failedCnt = int.MaxValue;
-      var preFailedCnt = int.MaxValue;
+      //
+      var prevFailedCnt = int.MaxValue;
 
-      // 循环，直到没有迁移失败的实例，或者无法再处理迁移失败的实例了
-      while (failedCnt != 0) {
-        Deploy(clone, migrateKv, failedKv, pendingSet, writer, round, sortedMigrate);
+      while (true) {
+        Deploy(clone, migrateKv, failedKv, pendingSet,
+          writer, round, sortedMigrate);
 
-        failedCnt = failedKv.Count;
+        var failedCnt = failedKv.Count;
 
-        if (preFailedCnt == int.MaxValue) {
-          preFailedCnt = failedCnt;
-        } else if (preFailedCnt != failedCnt) {
-          preFailedCnt = failedCnt;
-        } else {
+        // 没有迁移失败的实例，说明全部迁移成功了
+        // 或者无法再处理迁移失败的实例了
+        if (failedCnt == 0 || prevFailedCnt == failedCnt) {
           break;
         }
 
+        prevFailedCnt = failedCnt;
+
         // failedKv 中不同实例的源机器和目标机器存在循环，导致死锁
         // 需临时迁移到其它任意的机器
-        if (failedCnt == 0) {
-          continue;
-        }
 
-        WriteLine($"[SaveSubmit]: failedKv@{round} {failedKv.Count}#");
+        WriteLine($"[Migrate]: failedKv@r{round} {failedKv.Count}#");
         var cnt = 0;
 
         // 取快照，因为循环内部会修改 failedKv
         var list = failedKv.ToList();
         foreach (var kv in list) {
           var inst = kv.Key;
+          var mSrc = inst.Machine;
+          if (mSrc.UtilDisk < HighUtilThreshold &&
+              mSrc.UtilCpuMax < HighUtilThreshold &&
+              mSrc.UtilMemMax < HighUtilThreshold) {
+            continue; // inst 所在机器负载不重，就不临时迁移了
+          }
+
           var mIdDest = kv.Value;
           foreach (var m in machines) {
-            if (m.Id == mIdDest || inst.Machine == m) {
+            if (m.Id == mIdDest || m == mSrc) {
               continue;
             }
 
             // First Fit 到其它机器上
             if (m.TryPut(inst, autoRemove: false)) {
+              // inst 仍在 migrateInstKv 中，但要等下一轮才能继续迁移
               pendingSet.Add(inst);
+              // 兼容：与初赛提交文件格式不同
               writer?.WriteLine($"{round},inst_{inst.Id},m_{m.Id}");
               failedKv.Remove(inst);
               cnt++;
@@ -206,26 +225,27 @@ namespace Tianchi {
           }
         }
 
-        WriteLine($"[SaveSubmit]: failedKv@{round} {cnt}# migrated temporarily");
+        WriteLine($"[Migrate]: failedKv@{round} {cnt}# migrated temporarily");
       }
     }
 
     private static void Deploy(Solution clone, Dictionary<AppInst, int> instKv,
       Dictionary<AppInst, int> failedKv, HashSet<AppInst> pendingSet,
-      StreamWriter writer, int round, List<KeyValuePair<AppInst, int>> sortedList = null) {
+      StreamWriter writer, int round, List<KeyValuePair<AppInst, int>> sortedKv = null) {
       //
       failedKv.Clear();
 
       ICollection<KeyValuePair<AppInst, int>> list;
-      if (sortedList != null) {
-        list = sortedList;
+      if (sortedKv != null) {
+        list = sortedKv;
       } else {
-        list = instKv.ToList();
+        list = instKv.ToList(); //取快照
       }
 
       foreach (var kv in list) {
         var inst = kv.Key;
-        if (!instKv.ContainsKey(inst)) {
+        if (!instKv.ContainsKey(inst) ||
+            pendingSet.Contains(inst)) { //本轮已经迁移过了，等待下一轮吧
           continue;
         }
 
@@ -234,6 +254,7 @@ namespace Tianchi {
         if (mDest.TryPut(inst, autoRemove: false)) {
           pendingSet.Add(inst);
           instKv.Remove(inst);
+          // 兼容：与初赛提交文件格式不同
           writer?.WriteLine($"{round},inst_{inst.Id},m_{mDest.Id}");
         } else {
           failedKv[inst] = mIdDest;
@@ -243,7 +264,7 @@ namespace Tianchi {
 
     private static void ReleasePendingSet(HashSet<AppInst> pendingSet) {
       foreach (var inst in pendingSet) {
-        inst.PreMachine?.Remove(inst, false);
+        inst.PreMachine?.Remove(inst, setDeployFlag: false);
       }
 
       pendingSet.Clear();
@@ -252,16 +273,16 @@ namespace Tianchi {
     // 不会修改 init
     private static Dictionary<AppInst, int> GetDiff(Solution final, Solution init, bool isDeploy) {
       var diffKv = new Dictionary<AppInst, int>();
-      foreach (var instZ in final.AppInsts) {
-        var instA = init.AppInstKv[instZ.Id];
-        if (isDeploy && instA.Machine == null) {
-          var mIdDest = instZ.Machine.Id;
-          diffKv[instA] = mIdDest;
-        } else if (!isDeploy && instA.Machine != null) {
-          var mIdSrc = instA.Machine.Id;
-          var mIdDest = instZ.Machine.Id;
+      foreach (var instF in final.AppInsts) {
+        var instI = init.AppInstKv[instF.Id];
+        if (isDeploy && instI.Machine == null) {
+          var mIdDest = instF.Machine.Id;
+          diffKv[instI] = mIdDest;
+        } else if (!isDeploy && instI.Machine != null) {
+          var mIdSrc = instI.Machine.Id;
+          var mIdDest = instF.Machine.Id;
           if (mIdSrc != mIdDest) {
-            diffKv[instA] = mIdDest;
+            diffKv[instI] = mIdDest;
           }
         }
       }
@@ -280,7 +301,7 @@ namespace Tianchi {
 
     // 读取机器，并按磁盘大小（降序）和Id（升序）排序
     private void ReadMachine(string csv, bool isAlpha10) {
-      var list = new List<Machine>(10000);
+      var list = new List<Machine>(capacity: 10000);
       Util.ReadCsv(csv, line => {
         var m = Machine.Parse(line, isAlpha10);
         list.Add(m);
@@ -382,8 +403,9 @@ namespace Tianchi {
       clone.SetInitAppDeploy();
 
       ReadAppSubmit(csvSubmit, clone);
-      Write($"[JudgeSubmit]: {clone.ScoreMsg}");
-      FinalCheckApp(clone);
+      Write($"[SaveAndJudgeApp]: {clone.ScoreMsg}");
+      CheckAppInterference(clone);
+      CheckResource(clone);
     }
 
     // 不是每个 Solution 对象都可以读入 submit，所以用静态方法
@@ -435,9 +457,9 @@ namespace Tianchi {
       var failedCntResource = 0;
       var failedCntX = 0;
       var lineNo = 0;
-      var preRound = int.MinValue;
+      var prevRound = int.MinValue;
 
-      var pendingSet = new HashSet<AppInst>(1000);
+      var pendingSet = new HashSet<AppInst>(capacity: 1000);
 
       Util.ReadCsv(csvSubmit, parts => {
         if (parts.Length == 1 && parts[0] == "#") {
@@ -453,18 +475,23 @@ namespace Tianchi {
         var inst = clone.AppInstKv[parts[1].Id()];
         var m = clone.MachineKv[parts[2].Id()];
 
-        if (preRound == int.MinValue) {
-          preRound = round;
-        } else if (preRound != round) { // 开始新一轮，释放上一轮迁移的机器
-          preRound = round;
+        // 开始新一轮，释放上一轮迁移的机器
+        if (prevRound != round) {
+          prevRound = round;
           foreach (var i in pendingSet) {
-            i.PreMachine?.Remove(i, false);
+            i.PreMachine?.Remove(i, setDeployFlag: false);
           }
 
           pendingSet.Clear();
         }
 
         lineNo++;
+
+        if (inst.IsDeployed) {
+          Write($"[ReadAppSubmitByRound]: L{lineNo}@r{round} ");
+          Write("multiple deployment in the same round.");
+          WriteLine($"\t{inst}\t{m}");
+        }
 
         if (m.TryPut(inst, autoRemove: false)) {
           pendingSet.Add(inst);
@@ -477,7 +504,7 @@ namespace Tianchi {
             failedCntX++;
           }
 
-          Write($"[ReadSubmitByRound]: L{lineNo}@Round{round}");
+          Write($"[ReadAppSubmitByRound]: L{lineNo}@r{round} ");
           Write(m.FailureMsg(inst));
           WriteLine($"\t{inst}\t{m}");
         }
@@ -486,28 +513,31 @@ namespace Tianchi {
       });
     }
 
-    public static bool FinalCheckApp(Solution final, bool verbose = false) {
+    // 如果正常，不输出信息
+    public static bool CheckAppInterference(Solution final, bool verbose = false) {
       var ok = true;
-      if (!final.AllAppInstDeployed) {
-        WriteLine(
-          $"[FinalCheck]: UndeployedInst {final.DataSet.AppInstCount - final.DeployedAppInstCount}");
-        return false;
-      }
-
       foreach (var m in final.Machines) {
-        if (m.IsOverCapacity) {
-          Write("[FinalCheck]: OverCapacity ");
-          WriteLine(m);
+        foreach (var x in m.ConflictList) {
+          WriteLine($"[CheckAppInterference]: Conflict m_{m.Id}," +
+                    $"[app_{x.Item1.Id},app_{x.Item2.Id}," +
+                    $"{x.Item3} > k={x.Item4}]");
           ok = false;
           if (!verbose) {
             return false;
           }
         }
+      }
 
-        foreach (var x in m.ConflictList) {
-          WriteLine($"[FinalCheck]: Conflict m_{m.Id}," +
-                    $"[app_{x.Item1.Id},app_{x.Item2.Id}," +
-                    $"{x.Item3} > k={x.Item4}]");
+      return ok;
+    }
+
+    // 部署了App和Job之后，使用资源都不能超额
+    public static bool CheckResource(Solution final, bool verbose = false) {
+      var ok = true;
+      foreach (var m in final.Machines) {
+        if (m.IsOverCapacity) {
+          Write("[CheckResource]: OverCapacity ");
+          WriteLine(m);
           ok = false;
           if (!verbose) {
             return false;

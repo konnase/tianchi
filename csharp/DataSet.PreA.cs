@@ -26,7 +26,7 @@ namespace Tianchi {
     //使用的机器数量随cpuUtilLimit单调递减，之后基本稳定
     //但成本先下降，在0.6左右取得最小值，之后缓慢增长
     public static void ScanCpuUtilLimit() {
-      var tasks = new List<TPL.Task> {TPL.Task.Run(() => Fit(1.0, 1.0))};
+      var tasks = new List<TPL.Task> {TPL.Task.Run(() => Fit(cpuUtilH: 1.0, cpuUtilL: 1.0))};
 
       for (var h = 0.56; h < 0.64; h += 0.01)
       for (var l = 0.56; l < 0.64; l += 0.01) {
@@ -86,7 +86,7 @@ namespace Tianchi {
         var undeployed = sol.AppInstCount - sol.DeployedAppInstCount;
         msg += $"undeployed: {undeployed} = " +
                $" {sol.AppInstCount} - {sol.DeployedAppInstCount}\t e.g. ";
-        msg += sol.UndeployedAppInst[0].ToString();
+        msg += sol.UndeployedAppInst[index: 0].ToString();
       }
 
       msg += $"\t{sol.ActualScore:0.00},{sol.MachineCountHasApp}";

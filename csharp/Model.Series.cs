@@ -137,30 +137,30 @@ namespace Tianchi {
       return this;
     }
 
-    public Series Add(double value, int start, int length) {
-      var end = start + length;
+    public Series Add(double value, int begin, int length) {
+      var end = begin + length;
 
       if (end > Length) {
         throw new IndexOutOfRangeException(
-          $"[Series Add]: {start} + {length} = {end} > {Length}");
+          $"[Series Add]: {begin} + {length} = {end} > {Length}");
       }
 
-      for (var i = start; i < end; i++) {
+      for (var i = begin; i < end; i++) {
         _data[i] += value;
       }
 
       return this;
     }
 
-    public Series Subtract(double value, int start, int length) {
-      var end = start + length;
+    public Series Subtract(double value, int begin, int length) {
+      var end = begin + length;
 
       if (end > Length) {
         throw new IndexOutOfRangeException(
-          $"[Series Add]: {start} + {length} = {end} > {Length}");
+          $"[Series Add]: {begin} + {length} = {end} > {Length}");
       }
 
-      for (var i = start; i < end; i++) {
+      for (var i = begin; i < end; i++) {
         _data[i] -= value;
       }
 
@@ -241,17 +241,17 @@ namespace Tianchi {
     }
 
     // 返回一段区间内最大值的索引
-    public int IndexOfMax(int start, int length) {
-      var end = start + length;
+    public int IndexOfMax(int begin, int length) {
+      var end = begin + length;
 
       if (end > Length) {
         throw new IndexOutOfRangeException(
-          $"[Series Add]: {start} + {length} = {end} > {Length}");
+          $"[Series Add]: {begin} + {length} = {end} > {Length}");
       }
 
       var max = double.MinValue;
       var idx = -1;
-      for (var i = start; i < end; i++) {
+      for (var i = begin; i < end; i++) {
         var d = _data[i];
         if (max < d) {
           max = d;
@@ -280,7 +280,7 @@ namespace Tianchi {
         s.Append($"{i:0.00},");
       }
 
-      return s.Length > 1 ? s.ToString(0, s.Length - 1) : string.Empty;
+      return s.Length > 1 ? s.ToString(startIndex: 0, length: s.Length - 1) : string.Empty;
     }
   }
 }

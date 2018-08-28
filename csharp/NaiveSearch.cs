@@ -21,7 +21,7 @@ namespace Tianchi {
       if (!string.IsNullOrEmpty(searchFile)) {
         if (!File.Exists(searchFile)) {
           Error.WriteLine($"Error: Cannot find search file {searchFile}");
-          Environment.Exit(-1);
+          Environment.Exit(exitCode: -1);
         } else {
           ParseResult(searchFile, solution); //用保存的结果覆盖 solution
         }
@@ -39,7 +39,7 @@ namespace Tianchi {
           _stop = true;
           WriteLine("Executing timeout");
         },
-        null, timeout, Timeout.Infinite); // 24 hours
+        state: null, dueTime: timeout, period: Timeout.Infinite); // 24 hours
 
       var tasks = new List<TPL.Task>(taskCnt);
       for (var i = 0; i < taskCnt; i++) {
@@ -211,7 +211,8 @@ namespace Tianchi {
         return double.MaxValue;
       }
 
-      if (HasConflict(inst1, inst2) || HasConflict(inst2, inst1)) {
+      if (HasConflict(inst1, inst2) ||
+          HasConflict(inst2, inst1)) {
         return double.MaxValue;
       }
 
@@ -257,11 +258,13 @@ namespace Tianchi {
         init = _searchTotalScore;
         update = init + delta;
         // ReSharper disable once CompareOfFloatsByEqualityOperator
-      } while (init != Interlocked.CompareExchange(ref _searchTotalScore, update, init));
+      } while (init != Interlocked.CompareExchange(ref _searchTotalScore, update,
+                 init));
     }
 
     public static string SaveResult(Solution solution) {
-      if (Solution.FinalCheckApp(solution)) {
+      if (Solution.CheckAppInterference(solution) &&
+          Solution.CheckResource(solution)) {
         return string.Empty;
       }
 
@@ -270,7 +273,7 @@ namespace Tianchi {
       //保存到项目的search-result/目录下
       var outputPath = "search-result/" +
                        $"search_{solution.DataSet.Id}" +
-                       $"_{solution.TotalScore:0.00}".Replace('.', '_') +
+                       $"_{solution.TotalScore:0.00}".Replace(oldChar: '.', newChar: '_') +
                        $"_{solution.MachineCountHasApp}m";
 
       WriteLine($"Writing to {outputPath}");
@@ -304,7 +307,8 @@ namespace Tianchi {
           continue; //跳过空闲机器
         }
 
-        var instList = line.Substring(s, line.Length - s - 1).CsvToAppInstList(solution);
+        var instList = line.Substring(s, line.Length - s - 1)
+          .CsvToAppInstList(solution);
         foreach (var inst in instList) {
           m.TryPut(inst, ignoreCheck: true); //TODO: ignoreCheck?
         }

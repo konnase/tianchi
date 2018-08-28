@@ -85,14 +85,14 @@ namespace Tianchi {
     }
 
     public Resource Add(JobBatch batch) {
-      Cpu.Add(batch.Cpu * batch.Size, batch.StartTime, batch.Duration);
-      Mem.Add(batch.Mem * batch.Size, batch.StartTime, batch.Duration);
+      Cpu.Add(batch.Cpu * batch.Size, batch.BeginTime, batch.Duration);
+      Mem.Add(batch.Mem * batch.Size, batch.BeginTime, batch.Duration);
       return this;
     }
 
     public Resource Subtract(JobBatch batch) {
-      Cpu.Subtract(batch.Cpu * batch.Size, batch.StartTime, batch.Duration);
-      Mem.Subtract(batch.Mem * batch.Size, batch.StartTime, batch.Duration);
+      Cpu.Subtract(batch.Cpu * batch.Size, batch.BeginTime, batch.Duration);
+      Mem.Subtract(batch.Mem * batch.Size, batch.BeginTime, batch.Duration);
       return this;
     }
 

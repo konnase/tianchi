@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using static System.Math;
@@ -10,16 +9,18 @@ namespace Tianchi {
   #region Job 和 JobTask，两者是只读的
 
   public class Job {
-    // 没有后继任务的那些任务的列表
-    public readonly List<JobTask> EndTasks = new List<JobTask>(20);
+    // 入口任务
+    // 仅有1个入口任务的Job最多，
+    // 大部分Job的入口任务少于15，
+    // 所有Job的入口任务均不超过39个
+    public readonly List<JobTask> BeginTasks = new List<JobTask>(capacity: 15);
+
+    // 没有后继任务的那些任务
+    public readonly List<JobTask> EndTasks = new List<JobTask>(capacity: 20);
     public readonly int Id;
 
-    // 入口任务，仅有1个入口任务的Job最多，
-    // 大部分Job的入口任务少于15，所有Job入口任务不大于39个
-    public readonly List<JobTask> StartTasks = new List<JobTask>(15);
-
-    // <taskId, task>
-    public readonly Dictionary<int, JobTask> TaskKv = new Dictionary<int, JobTask>(25);
+    // <jobId, task>
+    public readonly Dictionary<int, JobTask> TaskKv = new Dictionary<int, JobTask>(capacity: 25);
 
     public Job(int id) {
       Id = id;
@@ -29,90 +30,91 @@ namespace Tianchi {
     public int TaskCount { get; private set; }
 
     /// <summary>
-    ///   注意：因为前驱一次即可全部读取（最多有17个前驱），但后继则不能
-    ///   所以读取了Job所有实例后才能调用此方法
+    ///   注意：前驱一次即可全部读取（最多有17个前驱），但后继则不能
+    ///   读取了Job所有实例后才能调用此方法
     /// </summary>
     public void UpdateTaskInfo() {
       TaskCount = TaskKv.Count;
 
-      var earliestCnt = 0;
-      while (earliestCnt != TaskCount) {
-        earliestCnt = 0;
+      var cnt = 0;
+      while (cnt != TaskCount) {
+        cnt = 0;
         foreach (var task in TaskKv.Values) {
-          if (task.StartEarliest == int.MinValue) {
-            if (SetStartEarliest(task)) {
-              earliestCnt++;
+          if (task.BeginEarliest == int.MinValue) {
+            if (SetBeginEarliest(task)) {
+              cnt++;
             }
           } else {
-            earliestCnt++;
+            cnt++;
           }
         }
       }
 
-      var maxDur = 0;
+      var last = 0;
       foreach (var task in TaskKv.Values) {
         if (task.Post.Count == 0) {
           task.IsEndTask = true;
           EndTasks.Add(task);
         }
 
-        var dur = task.StartEarliest + task.Duration;
-        if (maxDur < dur) {
-          maxDur = dur;
+        var end = task.BeginEarliest + task.Duration;
+        if (last < end) {
+          last = end;
         }
       }
 
-      TotalDuration = maxDur;
+      TotalDuration = last;
 
       foreach (var task in EndTasks) {
-        task.StartLatest = TotalDuration - task.Duration;
+        task.BeginLatest = TotalDuration - task.Duration;
       }
 
-      var latestCnt = 0;
-      while (latestCnt != TaskCount) {
-        latestCnt = 0;
+      cnt = 0;
+      while (cnt != TaskCount) {
+        cnt = 0;
         foreach (var task in TaskKv.Values) {
-          if (task.StartLatest == int.MinValue) {
-            if (SetStartLatest(task)) {
-              latestCnt++;
+          if (task.BeginLatest == int.MinValue) {
+            if (SetBeginLatest(task)) {
+              cnt++;
             }
           } else {
-            latestCnt++;
+            cnt++;
           }
         }
       }
     }
 
-    private static bool SetStartEarliest(JobTask task) {
-      var curStart = int.MinValue;
-      foreach (var pre in task.Prev) {
-        if (pre.StartEarliest == int.MinValue) {
+    private static bool SetBeginEarliest(JobTask task) {
+      var curBegin = int.MinValue;
+      // 由调用者保证Prev不是null
+      foreach (var prev in task.Prev) {
+        if (prev.BeginEarliest == int.MinValue) {
           return false;
         }
 
-        var end = pre.StartEarliest + pre.Duration;
-        if (curStart < end) {
-          curStart = end;
+        var prevEnd = prev.BeginEarliest + prev.Duration;
+        if (curBegin < prevEnd) {
+          curBegin = prevEnd;
         }
       }
 
-      task.StartEarliest = curStart;
+      task.BeginEarliest = curBegin;
       return true;
     }
 
-    private static bool SetStartLatest(JobTask task) {
+    private static bool SetBeginLatest(JobTask task) {
       var curEnd = int.MaxValue;
       foreach (var post in task.Post) {
-        if (post.StartLatest == int.MinValue) {
+        if (post.BeginLatest == int.MinValue) {
           return false;
         }
 
-        if (curEnd > post.StartLatest) {
-          curEnd = post.StartLatest;
+        if (curEnd > post.BeginLatest) {
+          curEnd = post.BeginLatest;
         }
       }
 
-      task.StartLatest = curEnd - task.Duration;
+      task.BeginLatest = curEnd - task.Duration;
       return true;
     }
   }
@@ -122,23 +124,24 @@ namespace Tianchi {
     public readonly int Id; // task id不含job id前缀
     public readonly Job Job;
     public readonly List<JobTask> Post = new List<JobTask>();
-    public double Cpu;
-    public int Duration; // 以分钟计的执行时间
-    public int InstCount;
-    public bool IsEndTask;
-    public bool IsStartTask;
-    public double Mem;
-    public JobTask[] Prev;
 
     /// <summary>
     ///   相对的最早开始时间
     /// </summary>
-    public int StartEarliest = int.MinValue;
+    public int BeginEarliest = int.MinValue;
 
     /// <summary>
     ///   相对的最晚开始时间
     /// </summary>
-    public int StartLatest = int.MinValue;
+    public int BeginLatest = int.MinValue;
+
+    public double Cpu;
+    public int Duration; // 以分钟计的执行时间
+    public int InstCount;
+    public bool IsBeginTask;
+    public bool IsEndTask;
+    public double Mem;
+    public JobTask[] Prev;
 
     public JobTask(Job job, string fullId, int id,
       double cpu = 0.0, double mem = 0.0, int instCnt = 0, int dur = 0) {
@@ -170,7 +173,8 @@ namespace Tianchi {
       }
 
       if (!job.TaskKv.TryGetValue(taskId, out var task)) {
-        task = new JobTask(job, fullId, taskId, cpu, mem, instCnt, dur);
+        task = new JobTask(job, fullId, taskId, cpu, mem,
+          instCnt, dur);
         job.TaskKv[taskId] = task;
       } else { //否则，该task是某个的前驱，已经填在坑里了，更新资源值
         task.Cpu = cpu;
@@ -179,35 +183,36 @@ namespace Tianchi {
         task.Duration = dur;
       }
 
-      var preIdPairStr = parts[5];
+      var prevFullId = parts[5];
       //parts的第6个元素肯定存在，但可能为空串
       //空串表明没有前驱
-      if (string.IsNullOrEmpty(preIdPairStr)) {
-        task.StartEarliest = 0;
+      if (string.IsNullOrEmpty(prevFullId)) {
+        task.BeginEarliest = 0;
         task.Prev = null;
-        task.IsStartTask = true;
-        job.StartTasks.Add(task);
+        task.IsBeginTask = true;
+        job.BeginTasks.Add(task);
         return;
       }
 
-      var preCnt = parts.Length - 5;
-      task.Prev = new JobTask[preCnt];
+      var prevCnt = parts.Length - 5;
+      task.Prev = new JobTask[prevCnt];
       //否则parts至少有一个非空的元素
       for (var i = 5; i < parts.Length; i++) {
-        SetPreTask(i - 5, parts[i], job, task);
+        SetPrevTask(i - 5, parts[i], task);
       }
     }
 
-    private static void SetPreTask(int idx, string preFullId, Job job, JobTask task) {
-      var preTaskId = preFullId.IdPair().Item2;
+    private static void SetPrevTask(int idx, string preFullId, JobTask task) {
+      var prevTaskId = preFullId.IdPair().Item2;
+      var job = task.Job;
 
-      if (!job.TaskKv.TryGetValue(preTaskId, out var preTask)) {
-        preTask = new JobTask(job, preFullId, preTaskId); //先占坑，具体的资源值等读到对应行再填
-        job.TaskKv[preTaskId] = preTask;
+      if (!job.TaskKv.TryGetValue(prevTaskId, out var prevTask)) {
+        prevTask = new JobTask(job, preFullId, prevTaskId); //先占坑，具体的资源值等读到对应行再填
+        job.TaskKv[prevTaskId] = prevTask;
       }
 
-      task.Prev[idx] = preTask;
-      preTask.Post.Add(task);
+      task.Prev[idx] = prevTask;
+      prevTask.Post.Add(task);
     }
   }
 
@@ -220,32 +225,32 @@ namespace Tianchi {
   ///   部署时才能确定，不可变对象
   /// </summary>
   public class JobBatch {
+    public readonly int BeginTime;
     public readonly Job Job;
-    public readonly JobTask JobTask;
 
     public readonly Machine Machine;
 
     // 同时部署在同一机器的一组实例的个数，不大于 Task 的总 InstCount
     public readonly int Size;
+    public readonly JobTask Task;
 
-    public readonly int StartTime;
-
-    public JobBatch(JobTask task, Machine machine, int size, int startTime) {
-      JobTask = task;
+    // 创建一个新Batch即部署一组Task的实例到某台机器
+    public JobBatch(JobTask task, Machine machine, int size, int beginTime) {
+      Task = task;
       Job = task.Job;
       Machine = machine;
       Size = size;
-      StartTime = startTime;
+      BeginTime = beginTime;
     }
 
-    public string FullId => JobTask.FullId;
-    public double Cpu => JobTask.Cpu;
-    public double Mem => JobTask.Mem;
-    public int Duration => JobTask.Duration;
-    public int EndTime => StartTime + JobTask.Duration;
+    public string FullId => Task.FullId;
+    public double Cpu => Task.Cpu;
+    public double Mem => Task.Mem;
+    public int Duration => Task.Duration;
+    public int EndTime => BeginTime + Task.Duration;
 
     public override string ToString() {
-      return $"{JobTask.FullId},machine_{Machine.Id},{StartTime},{Size}";
+      return $"{Task.FullId},machine_{Machine.Id},{BeginTime},{Size}";
     }
   }
 
@@ -258,9 +263,7 @@ namespace Tianchi {
     public static int UndeployedInstCount(this JobTask task, Solution solution) {
       var size = 0;
       if (solution.BatchKv.TryGetValue(task, out var set)) {
-        foreach (var batch in set) {
-          size += batch.Size;
-        }
+        size = set.Sum(batch => batch.Size);
       }
 
       //部署算法正确的话，不会出现负值
@@ -276,38 +279,38 @@ namespace Tianchi {
     }
 
     /// <summary>
-    ///   如果 task 全部部署了，返回最后一个batch的完成时间，
+    ///   如果 task 全部部署了，返回最晚的完成时间，
     ///   否则返回 int.MinValue
     /// </summary>
     public static int EndTime(this JobTask task, Solution solution) {
-      if (!solution.BatchKv.TryGetValue(task, out var list)) {
+      if (!solution.BatchKv.TryGetValue(task, out var set)) {
         return int.MinValue; //尚未部署
       }
 
-      var sum = 0;
+      var totalCnt = 0;
       var last = int.MinValue;
-      foreach (var batch in list) {
-        sum += batch.Size;
+      foreach (var batch in set) {
+        totalCnt += batch.Size;
         if (last < batch.EndTime) {
           last = batch.EndTime;
         }
       }
 
-      return sum == task.InstCount ? last : int.MinValue; //没有全部部署
+      return totalCnt == task.InstCount ? last : int.MinValue; //没有全部部署
     }
 
     /// <summary>
     ///   返回前驱的结束时刻
     ///   如果没有前驱，返回0；如果前驱尚未全部部署，返回int.MinValue
     /// </summary>
-    public static int EndTimeOfPre(this JobTask task, Solution solution) {
+    public static int EndTimeOfPrev(this JobTask task, Solution solution) {
       if (task.Prev == null) {
         return 0; //没有前驱
       }
 
       var last = int.MinValue;
-      foreach (var pre in task.Prev) {
-        var end = pre.EndTime(solution);
+      foreach (var prev in task.Prev) {
+        var end = prev.EndTime(solution);
         if (end == int.MinValue) {
           return int.MinValue; //前驱尚未全部部署
         }
@@ -338,6 +341,7 @@ namespace Tianchi {
   public partial class DataSet {
     //Job个数不等于行数，5个数据集的Job个数分别为 1085,478,546,1094和0
 
+    // JobKv在部署过程中是只读的
     public Dictionary<int, Job> JobKv { get; private set; }
 
     private static void ReadJob(string csv, Dictionary<int, Job> jobKv) {
@@ -357,7 +361,7 @@ namespace Tianchi {
     public int JobTaskCount => JobKv.Sum(kv => kv.Value.TaskCount);
 
     /// <summary>
-    ///   各 JobTask 的部署实例列表
+    ///   各 JobTask 部署实例
     /// </summary>
     public Dictionary<JobTask, HashSet<JobBatch>> BatchKv =>
       _batchKv ?? (_batchKv = new Dictionary<JobTask, HashSet<JobBatch>>(JobTaskCount));
@@ -374,6 +378,27 @@ namespace Tianchi {
       Machines.ForEach(m => m.ClearJobs());
     }
 
+    public static bool CheckTaskSequence(Solution solution) {
+      var batchKv = solution.BatchKv;
+      foreach (var kv in batchKv) {
+        var task = kv.Key;
+        var end = task.EndTime(solution);
+
+        foreach (var post in task.Post) {
+          var postBatchSet = batchKv[post];
+          foreach (var batch in postBatchSet) {
+            if (batch.BeginTime < end) { //可以等于？
+              WriteLine(
+                $"[CheckTaskSequence]: {post.FullId}@m_{batch.Machine.Id} begins before {task.FullId} finish!");
+              return false;
+            }
+          }
+        }
+      }
+
+      return true;
+    }
+
     // 写完之后不关闭文件！  
     public static void SaveJobSubmit(Solution solution, StreamWriter writer) {
       foreach (var batchList in solution.BatchKv.Values)
@@ -383,25 +408,26 @@ namespace Tianchi {
     }
 
     public static void ReadJobSubmit(string csvSubmit, Solution clone) {
-      var foundJobSubmit = false;
+      var foundJobLine = false;
       Util.ReadCsv(csvSubmit, line => {
-        if (line[0] == '#') {
-          foundJobSubmit = true;
+        if (line[index: 0] == '#') {
+          foundJobLine = true;
           return true;
         }
 
-        if (!foundJobSubmit) {
+        if (!foundJobLine) {
           return true;
         }
 
-        var parts = line.Split(',');
+        var parts = line.Split(separator: ',');
         var task = clone.GetTask(parts[0]);
         var m = clone.MachineKv[parts[1].Id()];
-        var startTime = int.Parse(parts[2]);
+        var beginTime = int.Parse(parts[2]);
         var size = int.Parse(parts[3]);
-        if (m.TryPut(task, startTime, size, out var batch, out _)) {
+        if (m.TryPut(task, beginTime, size, out var batch,
+          out _)) {
           if (batch.Size != size) {
-            WriteLine($"[JudgeJobSubmit]: {line}, Actual batch size={batch.Size}");
+            WriteLine($"[ReadJobSubmit]: {line}, Actual batch size={batch.Size}");
             return false;
           }
 
@@ -416,7 +442,7 @@ namespace Tianchi {
           return true;
         }
 
-        WriteLine($"[JudgeJobSubmit]: {line}, Cannot put task");
+        WriteLine($"[ReadJobSubmit]: {line}, Cannot put task");
         return false;
       });
     }
@@ -432,21 +458,27 @@ namespace Tianchi {
       writer.Close();
 
       WriteLine($"== DataSet {final.DataSet.Id} Judge==");
-      //从文件读入的部署会改变init的状态
-
+      //从文件读入部署会改变clone的状态
       clone.SetInitAppDeploy();
       clone.ClearJobDeploy();
 
       ReadAppSubmit(csvSubmit, clone);
       ReadJobSubmit(csvSubmit, clone);
       Write($"[SaveAndJudge]: {clone.DataSet.Id} ");
-
+      CheckAppInterference(clone);
+      CheckResource(clone);
+      CheckTaskSequence(clone);
       WriteLine(clone.ScoreMsg);
     }
   }
 
   public partial class Machine {
+    /// <summary>
+    ///   仅用于检查是否有重复部署
+    ///   TODO: 这里假设一台机器只能部署Task的一个batch（实例个数，beginTime），不考虑beginTime不同的batch并存
+    /// </summary>
     public readonly Dictionary<JobTask, JobBatch> BatchKv = new Dictionary<JobTask, JobBatch>();
+
     public bool HasJob => BatchKv.Count > 0;
 
     /// <summary>
@@ -454,15 +486,15 @@ namespace Tianchi {
     ///   如果无法部署，out 参数的 neckTs 是资源最紧张的那个时刻（目前没有用到该值）。
     ///   task 的使用资源是固定的，只有neckTs之后 *才可能* 有足够资源
     /// </summary>
-    public int CalcAvailBatchSize(JobTask task, int startTime, out int neckTs,
+    public int CalcAvailBatchSize(JobTask task, int beginTime, out int neckTs,
       double cpuUtilLimit = 1.0) {
       //
-      var maxTsCpu = _usage.Cpu.IndexOfMax(startTime, task.Duration);
+      var maxTsCpu = _usage.Cpu.IndexOfMax(beginTime, task.Duration);
       var maxCpu = _usage.Cpu[maxTsCpu];
       var maxSizeByCpu = (int) ((CapCpu * cpuUtilLimit - maxCpu) / task.Cpu);
       var lackCpu = maxSizeByCpu < 1;
 
-      var maxTsMem = _usage.Mem.IndexOfMax(startTime, task.Duration);
+      var maxTsMem = _usage.Mem.IndexOfMax(beginTime, task.Duration);
       var maxMem = _usage.Mem[maxTsCpu];
       var maxSizeByMem = (int) ((CapMem - maxMem) / task.Mem);
       var lackMem = maxSizeByMem < 1;
@@ -483,34 +515,32 @@ namespace Tianchi {
       return 0;
     }
 
-    public bool TryPut(JobTask task, int startTime,
+    public bool TryPut(JobTask task, int beginTime,
       int maxSize, // 实例个数既受资源限制，也不能超过task总的实例个数
       out JobBatch batch, out int neckTs,
       double cpuUtilLimit = 1.0) {
       //
-      Debug.Assert(maxSize > 0);
       batch = null;
 
-      var size = CalcAvailBatchSize(task, startTime, out neckTs, cpuUtilLimit);
+      var size = CalcAvailBatchSize(task, beginTime, out neckTs,
+        cpuUtilLimit);
       if (size < 1) {
         return false;
       }
 
       size = Min(size, maxSize);
-      batch = Put(task, startTime, size);
+      batch = Put(task, beginTime, size);
 
       return true;
     }
 
-    /// <summary>
-    ///   不做检查（时间，资源），直接放置
-    /// </summary>
-    public JobBatch Put(JobTask task, int startTime, int size) {
-      if (BatchKv.ContainsKey(task)) {
-        throw new Exception($"[Put]: {task.FullId} already has batch deployed on m_{Id}");
+    public JobBatch Put(JobTask task, int beginTime, int size) {
+      if (BatchKv.TryGetValue(task, out var x)) {
+        throw new Exception(
+          $"[Put]: {task.FullId} has {x.Size}@{x.BeginTime} min deployed on m_{Id} already");
       }
 
-      var batch = new JobBatch(task, this, size, startTime);
+      var batch = new JobBatch(task, this, size, beginTime);
       BatchKv[task] = batch;
 
       _usage.Add(batch);
@@ -519,7 +549,7 @@ namespace Tianchi {
     }
 
     public void Remove(JobBatch batch) {
-      if (BatchKv.Remove(batch.JobTask)) {
+      if (BatchKv.Remove(batch.Task)) {
         _usage.Subtract(batch);
         _score = double.MinValue;
       } else {
