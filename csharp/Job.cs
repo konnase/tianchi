@@ -214,6 +214,10 @@ namespace Tianchi {
       task.Prev[idx] = prevTask;
       prevTask.Post.Add(task);
     }
+
+    public override string ToString() {
+      return $"{FullId},{Cpu},{Mem},{InstCount},{Duration}";
+    }
   }
 
   #endregion
@@ -387,7 +391,7 @@ namespace Tianchi {
         foreach (var post in task.Post) {
           var postBatchSet = batchKv[post];
           foreach (var batch in postBatchSet) {
-            if (batch.BeginTime < end) { //可以等于？
+            if (batch.BeginTime < end) { //考虑到资源计算规则，BeginTime不能与end相同
               WriteLine(
                 $"[CheckTaskSequence]: {post.FullId}@m_{batch.Machine.Id} begins before {task.FullId} finish!");
               return false;
@@ -408,18 +412,11 @@ namespace Tianchi {
     }
 
     public static void ReadJobSubmit(string csvSubmit, Solution clone) {
-      var foundJobLine = false;
-      Util.ReadCsv(csvSubmit, line => {
-        if (line[index: 0] == '#') {
-          foundJobLine = true;
+      Util.ReadCsv(csvSubmit, parts => {
+        if (parts.Length == 3) { //App有3部分，Job有4部分
           return true;
         }
 
-        if (!foundJobLine) {
-          return true;
-        }
-
-        var parts = line.Split(separator: ',');
         var task = clone.GetTask(parts[0]);
         var m = clone.MachineKv[parts[1].Id()];
         var beginTime = int.Parse(parts[2]);
@@ -427,7 +424,7 @@ namespace Tianchi {
         if (m.TryPut(task, beginTime, size, out var batch,
           out _)) {
           if (batch.Size != size) {
-            WriteLine($"[ReadJobSubmit]: {line}, Actual batch size={batch.Size}");
+            WriteLine($"[ReadJobSubmit]: {batch}, Actual batch size={batch.Size}!");
             return false;
           }
 
@@ -442,9 +439,12 @@ namespace Tianchi {
           return true;
         }
 
-        WriteLine($"[ReadJobSubmit]: {line}, Cannot put task");
+        WriteLine($"[ReadJobSubmit]: {batch}, Cannot put task!");
         return false;
       });
+      if (!clone.AllJobDeployed) {
+        WriteLine("[ReadJobSubmit]: Not all tasks are deployed!");
+      }
     }
 
     public static void SaveAndJudge(Solution final) {
@@ -453,7 +453,6 @@ namespace Tianchi {
 
       var clone = final.DataSet.InitSolution.Clone();
       SaveAppSubmit(final, clone, writer);
-      writer.WriteLine("#");
       SaveJobSubmit(final, writer);
       writer.Close();
 
@@ -495,7 +494,7 @@ namespace Tianchi {
       var lackCpu = maxSizeByCpu < 1;
 
       var maxTsMem = _usage.Mem.IndexOfMax(beginTime, task.Duration);
-      var maxMem = _usage.Mem[maxTsCpu];
+      var maxMem = _usage.Mem[maxTsMem];
       var maxSizeByMem = (int) ((CapMem - maxMem) / task.Mem);
       var lackMem = maxSizeByMem < 1;
 
@@ -545,6 +544,9 @@ namespace Tianchi {
 
       _usage.Add(batch);
       _score = double.MinValue;
+      _avail.Invalid();
+      _xUsage.Invalid();
+
       return batch;
     }
 
@@ -552,6 +554,8 @@ namespace Tianchi {
       if (BatchKv.Remove(batch.Task)) {
         _usage.Subtract(batch);
         _score = double.MinValue;
+        _avail.Invalid();
+        _xUsage.Invalid();
       } else {
         throw new Exception($"[Remove]: cannot find {batch.FullId} on m_{Id}");
       }

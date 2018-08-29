@@ -88,7 +88,7 @@ namespace Tianchi {
     // 要求 final 中所有实例都已经部署了，但 clone（初始部署） 可以有未部署的实例
     // clone 和 final 两个方案中 Inst 和 Machine 的Id值相同，但 Object 不同
     // 写完之后不关闭文件！
-    public static void SaveAppSubmit(Solution final, Solution clone,
+    public static bool SaveAppSubmit(Solution final, Solution clone,
       StreamWriter writer = null, int maxRound = 3) {
       // <inst, mIdDest>
       var migrateInstKv = GetDiff(final, clone, isDeploy: false);
@@ -141,9 +141,7 @@ namespace Tianchi {
 
       // 部署，只在最后一轮进行
       // 正常的话，完成迁移后，部署不会出现失败的实例，也不必处理 pendingInstSet
-      Deploy(clone, deployInstKv, failedInstKv, pendingInstSet,
-        writer, round);
-
+      Deploy(clone, deployInstKv, failedInstKv, pendingInstSet, writer, round);
 
       var deployCnt = deployInstKv.Count;
       if (deployCnt != 0) {
@@ -158,9 +156,7 @@ namespace Tianchi {
         }
       }
 
-      if (migrateCnt + deployCnt == 0) {
-        WriteLine("[SaveAppSubmit]: OK!");
-      }
+      return migrateCnt + deployCnt == 0;
     }
 
     /// <summary>
@@ -420,7 +416,7 @@ namespace Tianchi {
         var failedCntX = 0;
         var lineNo = 0;
         Util.ReadCsv(csvSubmit, parts => {
-          if (parts.Length == 1 && parts[0] == "#") {
+          if (parts.Length == 4) {
             return false;
           }
 
@@ -462,7 +458,7 @@ namespace Tianchi {
       var pendingSet = new HashSet<AppInst>(capacity: 1000);
 
       Util.ReadCsv(csvSubmit, parts => {
-        if (parts.Length == 1 && parts[0] == "#") {
+        if (parts.Length == 4) {
           return false;
         }
 
@@ -538,6 +534,8 @@ namespace Tianchi {
         if (m.IsOverCapacity) {
           Write("[CheckResource]: OverCapacity ");
           WriteLine(m);
+          m.BatchKv.ForEach(kv => Write($"{kv.Value.Task.FullId},"));
+          WriteLine();
           ok = false;
           if (!verbose) {
             return false;

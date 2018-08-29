@@ -240,7 +240,7 @@ namespace Tianchi {
       return v;
     }
 
-    // 返回一段区间内最大值的索引
+    // 返回一段区间内最大值的索引，若有多个相等的最大值，返回 *最大的索引*
     public int IndexOfMax(int begin, int length) {
       var end = begin + length;
 

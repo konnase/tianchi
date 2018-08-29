@@ -16,7 +16,7 @@ namespace Tianchi {
         }
 
         JobDeploy.FirstFit(sol);
-        WriteLine($"AllJobDeployed? {sol.AllJobDeployed}; Score: {sol.ActualScore: 0.0000}");
+        //WriteLine($"AllJobDeployed? {sol.AllJobDeployed}; Score: {sol.ActualScore: 0.0000}");
 
         Solution.SaveAndJudge(sol);
       }
