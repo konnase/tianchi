@@ -11,13 +11,13 @@ namespace Tianchi {
 
     static DataSetPreB() {
       MachineType.CapDiskLarge = 2457;
+      Util.IsAlpha10 = true;
 
       DataSet = DataSet.Read(DataSetId.PreB,
         "data/scheduling_preliminary_b_app_resources_20180726.csv",
         "data/scheduling_preliminary_b_app_interference_20180726.csv",
         "data/scheduling_preliminary_b_machine_resources_20180726.csv",
-        "data/scheduling_preliminary_b_instance_deploy_20180726.csv",
-        isAlpha10: true
+        "data/scheduling_preliminary_b_instance_deploy_20180726.csv"
       );
 
       InitSolution = DataSet.InitSolution;

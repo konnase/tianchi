@@ -11,6 +11,7 @@ namespace Tianchi {
 
     private static DataSet[] Read() {
       MachineType.CapDiskLarge = 2457;
+      Util.IsAlpha10 = false;
 
       var semiA = DataSet.Read(DataSetId.SemiA,
         "data/app_resources.csv",

@@ -48,11 +48,9 @@ namespace Tianchi {
   }
 
   public partial class Machine {
-    private readonly bool _isAlpha10; // 兼容：初赛和复赛成本分数的alpha系数不同
-
     // 内部状态，随着实例部署动态加减各维度资源的使用量，
     // 不必每次都对整个实例列表求和
-    private readonly Resource _usage = new Resource();
+    private readonly Resource _usage = new Resource(isT1470: true);
 
     // 分应用汇总的实例个数
     public readonly Dictionary<App, int> AppCountKv = new Dictionary<App, int>();
@@ -80,9 +78,7 @@ namespace Tianchi {
             return _score;
           }
 
-          _score = _isAlpha10
-            ? _usage.Cpu.Score(CapCpu)
-            : _usage.Cpu.Score(CapCpu, AppInstCount);
+          _score = _usage.Cpu.Score(CapCpu, AppInstCount);
         }
 
         return _score;
@@ -289,28 +285,26 @@ namespace Tianchi {
 
     #region 构造，解析，克隆
 
-    private Machine(string str, bool isAlpha10) { // 兼容：初赛与复赛不同的成本计算公式
+    private Machine(string str) { // 兼容：初赛与复赛不同的成本计算公式
       var i = str.IndexOf(value: ',');
       Id = str.Substring(startIndex: 0, length: i).Id();
 
       Type = MachineType.Get(str.Substring(i + 1));
       AppInstCount = 0;
-      _isAlpha10 = isAlpha10;
     }
 
-    private Machine(int id, MachineType type, bool isAlpha10) {
+    private Machine(int id, MachineType type) {
       Id = id;
       Type = type;
       AppInstCount = 0;
-      _isAlpha10 = isAlpha10;
     }
 
     public Machine Clone() {
-      return new Machine(Id, Type, _isAlpha10);
+      return new Machine(Id, Type);
     }
 
-    public static Machine Parse(string str, bool isAlpha10) {
-      return new Machine(str, isAlpha10);
+    public static Machine Parse(string str) {
+      return new Machine(str);
     }
 
     #endregion
@@ -330,10 +324,10 @@ namespace Tianchi {
     public double UtilDisk => _usage.Disk * 1.0 / CapDisk;
 
     //返回给外部，隔离外部对剩余资源的意外修改
-    private readonly Resource _avail = new Resource().Invalid();
+    private readonly Resource _avail = new Resource(isT1470: true).Invalid();
 
     //返回给外部，隔离外部对累积资源的意外修改
-    private readonly Resource _xUsage = new Resource().Invalid();
+    private readonly Resource _xUsage = new Resource(isT1470: true).Invalid();
 
     public Resource Avail {
       get {

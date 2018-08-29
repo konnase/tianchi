@@ -30,9 +30,9 @@ namespace Tianchi {
     #region 从文件读机器和在线实例数据，克隆
 
     public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
-      bool isAlpha10 = false, bool withInitDeploy = true) {
+      bool withInitDeploy = true) {
       var solution = new Solution(dataSet, appInstCsv);
-      solution.ReadMachine(machineCsv, isAlpha10);
+      solution.ReadMachine(machineCsv);
       solution.ReadAppInst(appInstCsv);
       solution.SetKv();
       if (withInitDeploy) {
@@ -88,7 +88,7 @@ namespace Tianchi {
     // 要求 final 中所有实例都已经部署了，但 clone（初始部署） 可以有未部署的实例
     // clone 和 final 两个方案中 Inst 和 Machine 的Id值相同，但 Object 不同
     // 写完之后不关闭文件！
-    public static bool SaveAppSubmit(Solution final, Solution clone,
+    public static bool TrySaveAppSubmit(Solution final, Solution clone,
       StreamWriter writer = null, int maxRound = 3) {
       // <inst, mIdDest>
       var migrateInstKv = GetDiff(final, clone, isDeploy: false);
@@ -296,10 +296,10 @@ namespace Tianchi {
     }
 
     // 读取机器，并按磁盘大小（降序）和Id（升序）排序
-    private void ReadMachine(string csv, bool isAlpha10) {
+    private void ReadMachine(string csv) {
       var list = new List<Machine>(capacity: 10000);
       Util.ReadCsv(csv, line => {
-        var m = Machine.Parse(line, isAlpha10);
+        var m = Machine.Parse(line);
         list.Add(m);
       });
       var sorted = from m in list
@@ -392,7 +392,7 @@ namespace Tianchi {
       var writer = File.CreateText(csvSubmit);
 
       var clone = final.DataSet.InitSolution.Clone();
-      SaveAppSubmit(final, clone, writer);
+      TrySaveAppSubmit(final, clone, writer);
       writer.Close();
       WriteLine($"== DataSet {final.DataSet.Id} Judge==");
 

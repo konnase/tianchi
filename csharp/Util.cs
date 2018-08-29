@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -116,15 +115,16 @@ namespace Tianchi {
     }
 
     public static double Score(this Series cpuUsage, double cpuCap,
-      int appInstCnt = 9, // 兼容：复赛修改了评分公式，alpha = (1 + appInstCnt)
-      double alpha = 1, double beta = 0.5) {
-      Debug.Assert(cpuUsage.Length == Resource.T1470);
+      int appInstCnt) {
+      //
+      var alpha = Util.IsAlpha10 ? 10 : 1 + appInstCnt; // 兼容：复赛修改了评分公式
+      const double beta = 0.5;
 
       var sum = 0.0;
-      const int cnt = Resource.T1470;
+      var cnt = cpuUsage.Length;
       for (var t = 0; t < cnt; t++) {
         var c = cpuUsage[t] / cpuCap;
-        sum += c <= beta ? 1.0 : 1.0 + (alpha + appInstCnt) * (Exp(c - beta) - 1.0);
+        sum += 1.0 + alpha * (Exp(Max(c - beta, val2: 0.0)) - 1.0);
       }
 
       return sum / cnt;
@@ -132,6 +132,10 @@ namespace Tianchi {
   }
 
   public static class Util {
+    public const long Min = 60 * 1000;
+    public const long Hour = 60 * Min;
+    public static bool IsAlpha10 = false;
+
     /// <summary>
     ///   如果func返回false，则提前终止循环，
     ///   用于读取submit时处理 '#'

@@ -1,33 +1,33 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using TPL = System.Threading.Tasks;
 using static System.Console;
+using static Tianchi.Util;
 
 namespace Tianchi {
   //TODO: Unnaive Search!
   public static class NaiveSearch {
-    private static double _searchTotalScore; // 共享变量，dotnet没有volatile double
+    private static double _searchScore; // 共享变量，dotnet没有volatile double
 
     private static volatile bool _stop;
 
     // 可以直接从 solution 搜索，
-    // 也可以从磁盘保存的搜索结果继续搜索，默认超时时间是 24 h
+    // 也可以从磁盘保存的搜索结果继续搜索，默认超时时间是 5 h
     public static void Run(Solution solution, string searchFile = "",
-      long timeout = 24 * 60 * 60 * 1000, int taskCnt = 14) {
+      long timeout = 5 * Hour, int taskCnt = 14) {
       if (!string.IsNullOrEmpty(searchFile)) {
         if (!File.Exists(searchFile)) {
           Error.WriteLine($"Error: Cannot find search file {searchFile}");
           Environment.Exit(exitCode: -1);
         } else {
-          ParseResult(searchFile, solution); //用保存的结果覆盖 solution
+          ReadResult(solution, searchFile); //用保存的结果覆盖 solution
         }
       }
 
-      _searchTotalScore = solution.TotalScore;
+      _searchScore = solution.ActualScore;
 
       CancelKeyPress += (sender, e) => {
         _stop = true;
@@ -50,13 +50,11 @@ namespace Tianchi {
         tasks.Add(t);
       }
 
-      foreach (var t in tasks) {
-        t.Wait();
-      }
+      TPL.Task.WaitAll(tasks.ToArray());
 
       timer.Dispose();
 
-      WriteLine($"{solution.TotalScore:0.000000} vs {_searchTotalScore:0.000000}");
+      WriteLine($"== {solution.ActualScore:0.000000} vs {_searchScore:0.000000}");
       SaveResult(solution);
     }
 
@@ -66,14 +64,15 @@ namespace Tianchi {
       shuffledIndexes.Shuffle();
       var tId = TPL.Task.CurrentId;
       var hasChange = false;
-      var u1 = new Resource(); //默认是 1470
-      var u2 = new Resource();
-      var diff = new Resource();
+      var u1 = new Resource(isT1470: false); //TODO: T1470 vs T98
+      var u2 = new Resource(isT1470: false);
+      var diff = new Resource(isT1470: false);
+      var shrink = new Resource(isT1470: false);
 
       foreach (var i in shuffledIndexes) {
         foreach (var j in shuffledIndexes) {
           if (_stop) {
-            WriteLine($"[Search@tid{tId}] Stopping ...");
+            WriteLine($"[Search@t{tId}] Stopping ...");
             return false;
           }
 
@@ -83,8 +82,6 @@ namespace Tianchi {
 
           var m1 = machines[i];
           var m2 = machines[j];
-
-          Debug.Assert(m1.Id != m2.Id);
 
           if (m1.Id > m2.Id) {
             m1 = machines[j];
@@ -98,15 +95,14 @@ namespace Tianchi {
                 foreach (var inst2 in m2.AppInstSet.ToList()) { //ToList()即取快照
 
                   //TODO: 这里是将 m2 的 move 到 m1，可以遍历m2的所有实例
-                  var deltaMove = TryMove(m1, inst2);
-                  if (deltaMove > 0.0) {
+                  if (!TryMove(m1, inst2, out var deltaMove)) {
                     continue;
                   }
 
                   //delta == 0.0 表示两个机器 cpu util 移动前后都没有超过 0.5
                   UpdateScore(deltaMove);
-                  //WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
-                  //                  $"move inst_{inst2.Id} @ m_{m2.Id} -> m_{m1.Id}");
+                  WriteLine($"{_searchScore:0.000000}, [{tId}], " +
+                            $"move inst_{inst2.Id} @ m_{m2.Id} -> m_{m1.Id}");
                   hasChange = true;
                 }
               }
@@ -129,18 +125,15 @@ namespace Tianchi {
                       continue; //inst2刚在本线程的上轮循环swap了
                     }
 
-                    var deltaSwap = TrySwap(inst1, inst2, u1, u2, diff);
-                    if (deltaSwap > 0.0) {
+                    if (!TrySwap(inst1, inst2, u1, u2, diff, shrink, out var deltaSwap)) {
                       continue;
                     }
 
                     UpdateScore(deltaSwap);
-
-                    //WriteLine($"{_searchTotalScore:0.000000}, [{tId}], " +
-                    //                  $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
+                    //WriteLine($"{_searchScore:0.000000}, [{tId}], " +
+                    //          $"swap inst_{inst1.Id} <-> inst_{inst2.Id}");
                     hasChange = true;
                     break; //inst1已经swap了，外层循环继续检查下一个实例
-                    //*/
                   }
                 }
               }
@@ -150,70 +143,78 @@ namespace Tianchi {
           }
         }
 
-        WriteLine($"[Search@tid{tId}]: {_searchTotalScore:0.000000} @ m_{machines[i].Id}");
+        WriteLine($"[Search@t{tId}]: {_searchScore:0.000000} @ m_{machines[i].Id}");
       }
 
       return hasChange;
     }
 
-    //将inst移动到mDest，如果移动成功，返回负的分数差值，否则返回double.MaxValue
+    //将inst移动到mDest，如果移动失败，deta为正数，或double.MaxValue
     //TODO: Move到空机器
-    private static double TryMove(Machine mDest, AppInst inst) {
-      var delta = double.MaxValue;
+    private static bool TryMove(Machine mDest, AppInst inst, out double delta) {
+      delta = double.MaxValue;
 
-      if (mDest.HasApp && mDest.CanPut(inst)) {
-        var mSrc = inst.Machine;
-        var scoreBefore = mSrc.Score + mDest.Score;
-        mDest.TryPut(inst, ignoreCheck: true);
-        var scoreAfter = mSrc.Score + mDest.Score;
-
-        delta = scoreAfter - scoreBefore;
-
-        //delta
-        if (delta > 0.0
-            // delta == 0.0 && scoreAfter == 2.0
-            // 即 move 前后两个机器的 cpu util 均小于 0.5，需要 move
-            // ReSharper disable once CompareOfFloatsByEqualityOperator
-            || delta == 0.0 && scoreAfter > 2.0
-            || delta < 0.0 && delta > -0.00001) {
-          mSrc.TryPut(inst, ignoreCheck: true); //恢复原状
-        }
+      if (!mDest.HasApp || !mDest.CanPut(inst)) {
+        return false;
       }
 
-      return delta;
+      var mSrc = inst.Machine;
+      var scoreBefore = mSrc.Score + mDest.Score;
+      mDest.TryPut(inst, ignoreCheck: true);
+      var scoreAfter = mSrc.Score + mDest.Score;
+
+      delta = scoreAfter - scoreBefore;
+
+      if (delta > 0.0
+          // delta == 0.0 && scoreAfter == 2.0
+          // 即 move 前后两个机器的 cpu util 均小于 0.5，需要 move
+          // ReSharper disable once CompareOfFloatsByEqualityOperator
+          || delta == 0.0 && scoreAfter > 2.0
+          || delta < 0.0 && delta > -0.00001) {
+        mSrc.TryPut(inst, ignoreCheck: true); //恢复原状
+      }
+
+      return delta <= 0.0;
     }
 
-    //如果交换成功，返回负的分数差值，否则返回double.MaxValue
-    //引入u1,u2,diff这三个参数是为了减少GC
-    private static double TrySwap(AppInst inst1, AppInst inst2,
-      Resource u1, Resource u2, Resource diff) {
+    //如果交换失败，deta为正数，或double.MaxValue
+    //引入u1,u2,diff,shrink这几个参数是为了减少GC
+    private static bool TrySwap(AppInst inst1, AppInst inst2,
+      Resource u1, Resource u2, Resource diff, Resource shrink, out double delta) {
       var m1 = inst1.Machine;
       var m2 = inst2.Machine;
 
-      diff.CopyFrom(inst1.R).Subtract(inst2.R);
+      diff.DiffOf(inst1.R, inst2.R);
 
-      u1.CopyFrom(m1.Usage).Subtract(diff);
-      if (u1.IsOverCap(m1.Capacity)) {
-        return double.MaxValue;
+      delta = double.MaxValue;
+      m1.Usage.ShrinkTo(shrink);
+      u1.DiffOf(shrink, diff);
+      if (u1.AnyLargerThan(m1.Capacity)) {
+        return false;
       }
 
-      u2.CopyFrom(m2.Usage).Add(diff);
-      if (u2.IsOverCap(m2.Capacity)) {
-        return double.MaxValue;
+      m2.Usage.ShrinkTo(shrink);
+      u2.SumOf(shrink, diff);
+      if (u2.AnyLargerThan(m2.Capacity)) {
+        return false;
       }
 
-      var scoreBefore = m1.Score + m2.Score;
-      var delta = u1.Cpu.Score(m1.CapCpu) + u2.Cpu.Score(m2.CapCpu)
-                  - scoreBefore;
+      m1.Usage.Cpu.ShrinkTo(shrink.Cpu);
+      var scoreBefore = shrink.Cpu.Score(m1.CapCpu, m1.AppInstCount);
+      m2.Usage.Cpu.ShrinkTo(shrink.Cpu);
+      scoreBefore += shrink.Cpu.Score(m2.CapCpu, m2.AppInstCount);
+
+      delta = u1.Cpu.Score(m1.CapCpu, m1.AppInstCount) + u2.Cpu.Score(m2.CapCpu, m2.AppInstCount)
+              - scoreBefore;
 
       //期望delta是负数，且绝对值越大越好
       if (delta >= 0.0 || delta < 0.0 && delta > -0.00001) {
-        return double.MaxValue;
+        return false;
       }
 
       if (HasConflict(inst1, inst2) ||
           HasConflict(inst2, inst1)) {
-        return double.MaxValue;
+        return false;
       }
 
       m1 = inst1.Machine;
@@ -222,7 +223,7 @@ namespace Tianchi {
       m1.TryPut(inst2, ignoreCheck: true);
       m2.TryPut(inst1, ignoreCheck: true);
 
-      return delta;
+      return true;
     }
 
     // 假设从机器上移除 instOld 之后, 检查 instNew 是否有亲和冲突
@@ -255,16 +256,16 @@ namespace Tianchi {
     private static void UpdateScore(double delta) {
       double init, update;
       do {
-        init = _searchTotalScore;
+        init = _searchScore;
         update = init + delta;
         // ReSharper disable once CompareOfFloatsByEqualityOperator
-      } while (init != Interlocked.CompareExchange(ref _searchTotalScore, update,
+      } while (init != Interlocked.CompareExchange(ref _searchScore, update,
                  init));
     }
 
     public static string SaveResult(Solution solution) {
-      if (Solution.CheckAppInterference(solution) &&
-          Solution.CheckResource(solution)) {
+      if (!Solution.CheckAppInterference(solution) || !Solution.CheckResource(solution)) {
+        WriteLine("[SaveResult] Bad Result!");
         return string.Empty;
       }
 
@@ -273,7 +274,7 @@ namespace Tianchi {
       //保存到项目的search-result/目录下
       var outputPath = "search-result/" +
                        $"search_{solution.DataSet.Id}" +
-                       $"_{solution.TotalScore:0.00}".Replace(oldChar: '.', newChar: '_') +
+                       $"_{solution.ActualScore:0.00}".Replace(oldChar: '.', newChar: '_') +
                        $"_{solution.MachineCountHasApp}m";
 
       WriteLine($"Writing to {outputPath}");
@@ -289,7 +290,7 @@ namespace Tianchi {
       return outputPath;
     }
 
-    public static void ParseResult(string searchFile, Solution solution) {
+    public static void ReadResult(Solution solution, string searchFile) {
       solution.ClearAppDeploy(); //重置状态
       var machines = solution.Machines;
 

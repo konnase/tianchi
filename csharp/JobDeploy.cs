@@ -41,12 +41,12 @@ namespace Tianchi {
           continue;
         }
 
-        var begin = task.EndTimeOfPrev(solution);
-        if (begin == int.MinValue) {
+        if (task.IsDeployed(solution)) {
           continue;
         }
 
-        if (task.IsDeployed(solution)) {
+        var begin = task.EndTimeOfPrev(solution);
+        if (begin == int.MinValue) { //前驱尚未全部部署
           continue;
         }
 

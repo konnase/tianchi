@@ -27,19 +27,18 @@ namespace Tianchi {
     public Solution InitSolution { get; private set; }
 
     public static DataSet Read(DataSetId dataSetId, string appCsv, string xCsv,
-      string machineCsv, string instCsv, string jobCsv = "", bool isAlpha10 = false) {
+      string machineCsv, string instCsv, string jobCsv = "") {
       //复赛的5个数据集共用App资源和冲突约束
       var appCnt = Util.GetLineCount(appCsv);
       var appKv = new Dictionary<int, App>(appCnt);
       ReadApp(appCsv, appKv);
       ReadX(xCsv, appKv);
 
-      return Read(dataSetId, appKv, machineCsv, instCsv,
-        jobCsv, isAlpha10);
+      return Read(dataSetId, appKv, machineCsv, instCsv, jobCsv);
     }
 
     public static DataSet Read(DataSetId dataSetId, Dictionary<int, App> appKv,
-      string machineCsv, string instCsv, string jobCsv = "", bool isAlpha10 = false) {
+      string machineCsv, string instCsv, string jobCsv = "") {
       var appCnt = appKv.Count;
       var instCnt = Util.GetLineCount(instCsv);
       var mCnt = Util.GetLineCount(machineCsv);
@@ -54,8 +53,7 @@ namespace Tianchi {
         ReadJob(jobCsv, dataSet.JobKv);
       }
 
-      dataSet.InitSolution = Solution.Read(dataSet, machineCsv,
-        instCsv, isAlpha10);
+      dataSet.InitSolution = Solution.Read(dataSet, machineCsv, instCsv);
       return dataSet;
     }
 
@@ -125,12 +123,12 @@ namespace Tianchi {
 
     //各时刻所有实例请求Cpu, Mem占总资源量的比例
     public void PrintRequestUtil() {
-      var total = new Resource();
+      var total = new Resource(isT1470: true);
       InitSolution.Machines.ForEach(m => total.Add(m.Capacity));
       var totalCpu = total.Cpu[i: 0];
       var totalMem = total.Mem[i: 0];
 
-      var req = new Resource();
+      var req = new Resource(isT1470: true);
       InitSolution.AppInsts.ForEach(inst => req.Add(inst.R));
 
       WriteLine($"Disk: {req.Disk},{req.Disk * 100.0 / total.Disk:0.00}%");

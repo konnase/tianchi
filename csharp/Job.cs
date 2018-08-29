@@ -452,7 +452,7 @@ namespace Tianchi {
       var writer = File.CreateText(csvSubmit);
 
       var clone = final.DataSet.InitSolution.Clone();
-      SaveAppSubmit(final, clone, writer);
+      TrySaveAppSubmit(final, clone, writer);
       SaveJobSubmit(final, writer);
       writer.Close();
 

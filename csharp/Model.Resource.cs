@@ -9,7 +9,7 @@ namespace Tianchi {
     /// </summary>
     private int _length;
 
-    public Resource(bool isT1470 = true) {
+    public Resource(bool isT1470) { //限定只有两种长度
       if (isT1470) {
         Cpu = new Series(T1470);
         Mem = new Series(T1470);
@@ -96,10 +96,6 @@ namespace Tianchi {
       return this;
     }
 
-    //注意，返回的不是新的对象，而是 a，因而连续的表达式是从左到右结合的
-    //即 a-b+c 相当于 a.Subtract(b).Add(c)，每一次计算都会修改 a 的值！
-    //public static Resource operator +(Resource a, Resource b) => a.Add(b);
-
     // 从当前资源中扣除 r,
     // 这里不做超限检查
     public Resource Subtract(Resource r) {
@@ -111,9 +107,6 @@ namespace Tianchi {
       Pm -= r.Pm;
       return this;
     }
-
-    //注意，返回的不是新的对象，而是 a，因而连续的表达式是从左到右结合的
-    //public static Resource operator -(Resource a, Resource b) => a.Subtract(b);
 
     // 计算总容量 capacity 与 r 的差值，赋给 this 对应的维度
     // 即 this = capacity - r
@@ -127,13 +120,35 @@ namespace Tianchi {
       return this;
     }
 
-    public bool IsOverCap(Resource capacity) {
+    // 计算 a 与 b 的和值，赋给 this 对应的维度
+    // 即 this = a + b
+    public Resource SumOf(Resource a, Resource b) {
+      Cpu.SumOf(a.Cpu, b.Cpu);
+      Mem.SumOf(a.Mem, b.Mem);
+      Disk = a.Disk + b.Disk;
+      P = a.P + b.P;
+      M = a.M + b.M;
+      Pm = a.Pm + b.Pm;
+      return this;
+    }
+
+    // 将T1470维收缩为T98维
+    public void ShrinkTo(Resource r) {
+      Cpu.ShrinkTo(r.Cpu);
+      Mem.ShrinkTo(r.Mem);
+      r.Disk = Disk;
+      r.P = P;
+      r.M = M;
+      r.Pm = Pm;
+    }
+
+    public bool AnyLargerThan(Resource capacity) {
       return Disk > capacity.Disk
              || P > capacity.P
              || Pm > capacity.Pm
              || M > capacity.M
-             || Cpu.Any(i => Cpu[i] > capacity.Cpu[i]) //TODO: Round
-             || Mem.Any(i => Mem[i] > capacity.Mem[i]);
+             || Cpu.AnyLargerThan(capacity.Cpu)
+             || Mem.AnyLargerThan(capacity.Mem);
     }
 
     public override string ToString() {

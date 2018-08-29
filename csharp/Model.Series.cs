@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using static Tianchi.Resource;
 
 namespace Tianchi {
   public class Series {
@@ -87,13 +88,10 @@ namespace Tianchi {
         for (var i = 0; i < Length; i++) {
           _data[i] = s._data[i];
         }
-      } else if (s.Length == Resource.T98) { // 兼容：同时支持98和1470个点的Series
-        var sLen = s.Length;
-        const int interval = Resource.Interval;
-
-        for (var i = 0; i < sLen; i++)
-        for (var j = 0; j < interval; j++) {
-          _data[i * interval + j] = s[i];
+      } else if (s.Length == T98) { // 兼容：同时支持98和1470个点的Series
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          _data[i * Interval + j] = s[i];
         }
       } else {
         throw new Exception($"[CopyFrom] Dimension mismatch: {Length} vs {s.Length}");
@@ -116,19 +114,66 @@ namespace Tianchi {
       return this;
     }
 
+    public bool AnyLargerThan(Series s) {
+      if (Length == s.Length) {
+        for (var i = 0; i < Length; i++) {
+          if (_data[i] > s._data[i]) { //TODO: Round
+            return true;
+          }
+        }
+      } else if (Length == T98 && s.Length == T1470) {
+        for (var i = 0; i < T98; i++) {
+          var n = i * Interval;
+          for (var j = 0; j < Interval - 1; j++) {
+            // ReSharper disable once CompareOfFloatsByEqualityOperator
+            if (s._data[n + j] != s._data[n + j + 1]) {
+              throw new Exception("[AnyLargerThan] Values in the same interval are not equal!");
+            }
+          }
+
+          if (_data[i] > s._data[n]) {
+            return true;
+          }
+        }
+      } else {
+        throw new Exception("[AnyLargerThan] Unknown dimensions!");
+      }
+
+      return false;
+    }
+
+    /// <summary>
+    ///   如果this是由T98维直接扩展到T1470维的，将其压缩回T98维，
+    ///   为了减少GC，将结果保存到参数 s 中
+    /// </summary>
+    public void ShrinkTo(Series s) {
+      if (Length != T1470 || s.Length != T98) {
+        throw new Exception("[ShrinkTo] Unknown dimensions!");
+      }
+
+      for (var i = 0; i < T98; i++) {
+        var n = i * Interval;
+        for (var j = 0; j < Interval - 1; j++) {
+          // ReSharper disable once CompareOfFloatsByEqualityOperator
+          if (_data[n + j] != _data[n + j + 1]) {
+            throw new Exception("[ShrinkTo] Values in the same interval are not equal!");
+          }
+        }
+
+        s._data[i] = _data[n];
+      }
+    }
+
     // 将 s 累加到对应项
     public Series Add(Series s) {
       if (s.Length == Length) {
         for (var i = 0; i < Length; i++) {
           _data[i] += s._data[i];
         }
-      } else if (s.Length == Resource.T98) { //兼容：不同维度，且this(机器使用量) 1470 + 在线App 98
-        var sLen = s.Length;
-        const int interval = Resource.Interval;
-
-        for (var i = 0; i < sLen; i++)
-        for (var j = 0; j < interval; j++) {
-          _data[i * interval + j] += s[i];
+      } else if (s.Length == T98) { //兼容：不同维度，且this(机器使用量) 1470 + 在线App 98
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          _data[i * Interval + j] += s[i];
         }
       } else {
         throw new Exception($"[Add] Dimension mismatch: {Length} vs {s.Length}");
@@ -172,13 +217,10 @@ namespace Tianchi {
         for (var i = 0; i < Length; i++) {
           _data[i] -= s._data[i]; //这里不做超限检查
         }
-      } else if (s.Length == Resource.T98) { //不同维度，且this(机器使用量) 1470 - 在线App 98
-        var sLen = s.Length;
-        const int interval = Resource.Interval;
-
-        for (var i = 0; i < sLen; i++)
-        for (var j = 0; j < interval; j++) {
-          _data[i * interval + j] -= s[i];
+      } else if (s.Length == T98) { //不同维度，且this(机器使用量) 1470 - 在线App 98
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          _data[i * Interval + j] -= s[i];
         }
       } else {
         throw new Exception($"[Subtract] Dimension mismatch: {Length} vs {s.Length}");
@@ -187,20 +229,51 @@ namespace Tianchi {
       return this;
     }
 
-    // 将this对应的值设置总容量capacity中减去s的差值
-    // 注意：会覆盖 this 的旧值
+    // 将this对应的值设置为 a 与 b 的和
+    // 注意：会覆盖 this 的旧值，但不会修改 a 或 b
+    public Series SumOf(Series a, Series b) {
+      if (b.Length == Length && a.Length == Length) { //相同维度
+        for (var i = 0; i < Length; i++) {
+          _data[i] = a._data[i] + b._data[i]; //这里不做超限检查
+        }
+      } else if (b.Length == T98 && a.Length == T1470 && Length == T1470) {
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          _data[i * Interval + j] = a._data[i * Interval + j] + b[i];
+        }
+      } else if (b.Length == T98 && a.Length == T98 && Length == T1470) {
+        for (var i = 0; i < T98; i++) {
+          var s = a._data[i] + b[i];
+          for (var j = 0; j < Interval; j++) {
+            _data[i * Interval + j] = s;
+          }
+        }
+      } else {
+        throw new Exception("[SubtractByCapacity] Dimension mismatch: " +
+                            $"this {Length} vs cap {a.Length}, s {b.Length}");
+      }
+
+      return this;
+    }
+
+    // 将this对应的值设置为 capacity 与 s 的差值
+    // 注意：会覆盖 this 的旧值，但不会修改 capacity 或 s
     public Series DiffOf(Series capacity, Series s) {
       if (s.Length == Length && capacity.Length == Length) { //相同维度
         for (var i = 0; i < Length; i++) {
           _data[i] = capacity._data[i] - s._data[i]; //这里不做超限检查
         }
-      } else if (s.Length == Resource.T98 && capacity.Length == Length) {
-        var sLen = s.Length;
-        const int interval = Resource.Interval;
-
-        for (var i = 0; i < sLen; i++)
-        for (var j = 0; j < interval; j++) {
-          _data[i * interval + j] = capacity._data[i * interval + j] - s[i];
+      } else if (s.Length == T98 && capacity.Length == T1470 && Length == T1470) {
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          _data[i * Interval + j] = capacity._data[i * Interval + j] - s[i];
+        }
+      } else if (s.Length == T98 && capacity.Length == T98 && Length == T1470) {
+        for (var i = 0; i < T98; i++) {
+          var d = capacity._data[i] - s[i];
+          for (var j = 0; j < Interval; j++) {
+            _data[i * Interval + j] = d;
+          }
         }
       } else {
         throw new Exception("[SubtractByCapacity] Dimension mismatch: " +
@@ -222,13 +295,10 @@ namespace Tianchi {
             v = d;
           }
         }
-      } else if (s.Length == Resource.T98) {
-        var sLen = s.Length;
-        const int interval = Resource.Interval;
-
-        for (var i = 0; i < sLen; i++)
-        for (var j = 0; j < interval; j++) {
-          var d = _data[i * interval + j] + s[i];
+      } else if (s.Length == T98) {
+        for (var i = 0; i < T98; i++)
+        for (var j = 0; j < Interval; j++) {
+          var d = _data[i * Interval + j] + s[i];
           if (v < d) {
             v = d;
           }
