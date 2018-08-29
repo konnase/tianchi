@@ -36,16 +36,14 @@ namespace Tianchi {
     public void UpdateTaskInfo() {
       TaskCount = TaskKv.Count;
 
-      var cnt = 0;
-      while (cnt != TaskCount) {
+      var cnt = int.MinValue;
+      while (cnt != 0) {
         cnt = 0;
         foreach (var task in TaskKv.Values) {
           if (task.BeginEarliest == int.MinValue) {
             if (SetBeginEarliest(task)) {
               cnt++;
             }
-          } else {
-            cnt++;
           }
         }
       }
@@ -69,16 +67,14 @@ namespace Tianchi {
         task.BeginLatest = TotalDuration - task.Duration;
       }
 
-      cnt = 0;
-      while (cnt != TaskCount) {
+      cnt = int.MinValue;
+      while (cnt != 0) {
         cnt = 0;
         foreach (var task in TaskKv.Values) {
           if (task.BeginLatest == int.MinValue) {
             if (SetBeginLatest(task)) {
               cnt++;
             }
-          } else {
-            cnt++;
           }
         }
       }
@@ -173,8 +169,7 @@ namespace Tianchi {
       }
 
       if (!job.TaskKv.TryGetValue(taskId, out var task)) {
-        task = new JobTask(job, fullId, taskId, cpu, mem,
-          instCnt, dur);
+        task = new JobTask(job, fullId, taskId, cpu, mem, instCnt, dur);
         job.TaskKv[taskId] = task;
       } else { //否则，该task是某个的前驱，已经填在坑里了，更新资源值
         task.Cpu = cpu;
@@ -207,7 +202,8 @@ namespace Tianchi {
       var job = task.Job;
 
       if (!job.TaskKv.TryGetValue(prevTaskId, out var prevTask)) {
-        prevTask = new JobTask(job, preFullId, prevTaskId); //先占坑，具体的资源值等读到对应行再填
+        //先占坑，具体的资源值等读到对应行再填
+        prevTask = new JobTask(job, preFullId, prevTaskId);
         job.TaskKv[prevTaskId] = prevTask;
       }
 
@@ -230,8 +226,6 @@ namespace Tianchi {
   /// </summary>
   public class JobBatch {
     public readonly int BeginTime;
-    public readonly Job Job;
-
     public readonly Machine Machine;
 
     // 同时部署在同一机器的一组实例的个数，不大于 Task 的总 InstCount
@@ -241,12 +235,12 @@ namespace Tianchi {
     // 创建一个新Batch即部署一组Task的实例到某台机器
     public JobBatch(JobTask task, Machine machine, int size, int beginTime) {
       Task = task;
-      Job = task.Job;
       Machine = machine;
       Size = size;
       BeginTime = beginTime;
     }
 
+    public Job Job => Task.Job;
     public string FullId => Task.FullId;
     public double Cpu => Task.Cpu;
     public double Mem => Task.Mem;
@@ -365,7 +359,7 @@ namespace Tianchi {
     public int JobTaskCount => JobKv.Sum(kv => kv.Value.TaskCount);
 
     /// <summary>
-    ///   各 JobTask 部署实例
+    ///   各 JobTask 部署实例，即 Job 的部署信息
     /// </summary>
     public Dictionary<JobTask, HashSet<JobBatch>> BatchKv =>
       _batchKv ?? (_batchKv = new Dictionary<JobTask, HashSet<JobBatch>>(JobTaskCount));
@@ -391,9 +385,10 @@ namespace Tianchi {
         foreach (var post in task.Post) {
           var postBatchSet = batchKv[post];
           foreach (var batch in postBatchSet) {
-            if (batch.BeginTime < end) { //考虑到资源计算规则，BeginTime不能与end相同
-              WriteLine(
-                $"[CheckTaskSequence]: {post.FullId}@m_{batch.Machine.Id} begins before {task.FullId} finish!");
+            //考虑到资源计算规则，BeginTime不能与end相同
+            if (batch.BeginTime < end) {
+              WriteLine($"[CheckTaskSequence]: {post.FullId}@m_{batch.Machine.Id} " +
+                        $"begins before {task.FullId} finish!");
               return false;
             }
           }
@@ -405,9 +400,8 @@ namespace Tianchi {
 
     // 写完之后不关闭文件！  
     public static void SaveJobSubmit(Solution solution, StreamWriter writer) {
-      foreach (var batchList in solution.BatchKv.Values)
-      foreach (var batch in batchList) {
-        writer.WriteLine(batch);
+      foreach (var batchSet in solution.BatchKv.Values) {
+        batchSet.ForEach(WriteLine);
       }
     }
 
@@ -421,8 +415,7 @@ namespace Tianchi {
         var m = clone.MachineKv[parts[1].Id()];
         var beginTime = int.Parse(parts[2]);
         var size = int.Parse(parts[3]);
-        if (m.TryPut(task, beginTime, size, out var batch,
-          out _)) {
+        if (m.TryPut(task, beginTime, size, out var batch, out _)) {
           if (batch.Size != size) {
             WriteLine($"[ReadJobSubmit]: {batch}, Actual batch size={batch.Size}!");
             return false;
@@ -439,9 +432,10 @@ namespace Tianchi {
           return true;
         }
 
-        WriteLine($"[ReadJobSubmit]: {batch}, Cannot put task!");
+        WriteLine($"[ReadJobSubmit]: {batch}, Can not put task!");
         return false;
       });
+
       if (!clone.AllJobDeployed) {
         WriteLine("[ReadJobSubmit]: Not all tasks are deployed!");
       }
@@ -474,7 +468,8 @@ namespace Tianchi {
   public partial class Machine {
     /// <summary>
     ///   仅用于检查是否有重复部署
-    ///   TODO: 这里假设一台机器只能部署Task的一个batch（实例个数，beginTime），不考虑beginTime不同的batch并存
+    ///   TODO: 这里假设一台机器只能部署Task的一个batch（实例个数，beginTime），
+    ///   不考虑beginTime不同的batch并存
     /// </summary>
     public readonly Dictionary<JobTask, JobBatch> BatchKv = new Dictionary<JobTask, JobBatch>();
 
@@ -485,7 +480,7 @@ namespace Tianchi {
     ///   如果无法部署，out 参数的 neckTs 是资源最紧张的那个时刻（目前没有用到该值）。
     ///   task 的使用资源是固定的，只有neckTs之后 *才可能* 有足够资源
     /// </summary>
-    public int CalcAvailBatchSize(JobTask task, int beginTime, out int neckTs,
+    public int AvailBatchSize(JobTask task, int beginTime, out int neckTs,
       double cpuUtilLimit = 1.0) {
       //
       var maxTsCpu = _usage.Cpu.IndexOfMax(beginTime, task.Duration);
@@ -521,8 +516,7 @@ namespace Tianchi {
       //
       batch = null;
 
-      var size = CalcAvailBatchSize(task, beginTime, out neckTs,
-        cpuUtilLimit);
+      var size = AvailBatchSize(task, beginTime, out neckTs, cpuUtilLimit);
       if (size < 1) {
         return false;
       }
@@ -536,7 +530,8 @@ namespace Tianchi {
     public JobBatch Put(JobTask task, int beginTime, int size) {
       if (BatchKv.TryGetValue(task, out var x)) {
         throw new Exception(
-          $"[Put]: {task.FullId} has {x.Size}@{x.BeginTime} min deployed on m_{Id} already");
+          $"[Put]: {task.FullId} has {x.Size}@{x.BeginTime} min " +
+          $"deployed on m_{Id} already");
       }
 
       var batch = new JobBatch(task, this, size, beginTime);
