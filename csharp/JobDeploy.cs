@@ -22,7 +22,7 @@ namespace Tianchi {
         var deployedCnt = 0;
         while (deployedCnt != restTaskCnt) {
           var cnt = DeployJobRest(job, solution);
-          if (cnt == 0) {
+          if (cnt == 0) { //其它的 Task 也无法部署了，只好继续处理下一个 job
             break;
           }
 
@@ -100,8 +100,7 @@ namespace Tianchi {
         foreach (var m in machines) {
           // First Fit
           // 在m的begin时刻无法部署，可以换一台机器，也可以尝试neckTs的下一时刻，这里换机器
-          if (!m.TryPut(task, begin, maxSize, out var batch,
-            out _, CpuUtilLimit)) {
+          if (!m.TryPut(task, begin, maxSize, out var batch, out _, CpuUtilLimit)) {
             continue;
           }
 
@@ -116,6 +115,7 @@ namespace Tianchi {
             continue;
           }
 
+          // else // batch.Size == maxSize
           deployed = true; // 一个task的全部实例都部署了
           break; // foreach machines
         }
@@ -126,7 +126,7 @@ namespace Tianchi {
 
         // 否则尝试下一时刻，
         // 故同一task的实例既可能部署在不同机器，也可能是不同的启动时刻
-        // 但限制了时间区间不会导致拖长本阶段的截止时间
+        // 但限制了时间区间，不会导致拖长本阶段的截止时间
       }
 
       return deployed;
