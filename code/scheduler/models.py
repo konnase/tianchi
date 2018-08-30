@@ -186,16 +186,18 @@ class Machine(object):
         if self.disk_usage == 0:
             return 0
 
-        return cpu_score(self.cpu_usage,self.cpu_cap)
+        return cpu_score(self.cpu_usage,self.cpu_cap, len(self.inst_kv))
 
     # 将实例添加到机器上，不检查资源和亲和约束
     def put_inst(self, inst):
         # 幂等性，若inst已经部署到这台机器了，则直接跳过
+        # 这个放底层判断影响效率
         if self.inst_kv.has_key(inst.id):
             return
 
         self.usage += inst.app.resource
 
+        # 这个放底层判断影响效率
         if inst.machine is not None:
             inst.machine.remove_inst(inst)
 
@@ -334,9 +336,10 @@ class Machine(object):
             ",".join([i.id for i in self.inst_kv.values()]))
 
 
-def cpu_score(cpu_usage, cpu_cap):
+def cpu_score(cpu_usage, cpu_cap, inst_count):
     x = np.maximum(cpu_usage / cpu_cap - 0.5, 0)  # max(c - beta, 0)
-    return np.average(1 + 10 * (np.exp(x) - 1))
+    # return np.average(1 + 10 * (np.exp(x) - 1))
+    return np.average(1 + (1 + inst_count) * (np.exp(x) - 1))
 
 
 def write_to_search(path, machines):
