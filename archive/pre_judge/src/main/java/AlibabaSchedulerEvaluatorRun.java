@@ -1,4 +1,4 @@
-package com.aliyun.tianchi.mgr.evaluate.evaluate.file.evaluator;
+//package com.aliyun.tianchi.mgr.evaluate.evaluate.file.evaluator;
 
 
 import java.util.List;
