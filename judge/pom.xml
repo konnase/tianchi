@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>ali</groupId>
     <artifactId>judge</artifactId>
-    <version>20180709</version>
+    <version>semifinal_20180827</version>
     <dependencies>
         <dependency>
             <groupId>com.google.guava</groupId>
@@ -24,7 +24,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.aliyun.tianchi.mgr.evaluate.evaluate.file.evaluator.AlibabaSchedulerEvaluatorRun</mainClass>
+                            <mainClass>AlibabaSchedulerEvaluatorRun</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

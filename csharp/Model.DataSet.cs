@@ -1,165 +1,186 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
+using static System.Console;
+using static System.Math;
 
 namespace Tianchi {
   //DataSet存储数据集只读的部分
   //但也有一份默认的机器和实例列表
   //并发执行多个部署方案时（如参数调优），可克隆一份机器和实例列表
-  public class DataSet {
-    public int AppCount;
-    public int InstCount;
-    public int MachineCount;
-    public DataSetId Id { get; private set; }
+  public partial class DataSet {
+    public readonly int AppCount;
+    public readonly int AppInstCount;
+    public readonly DataSetId Id;
+    public readonly int MachineCount;
 
-    //instCsv里有实例Id和部署信息
-    public string InstCsv { get; private set; }
+    private DataSet(DataSetId dsId, int appCnt, int appInstCnt, int mCnt) {
+      Id = dsId;
+      AppCount = appCnt;
+      AppInstCount = appInstCnt;
+      MachineCount = mCnt;
+    }
 
-    //App是只读的，每个数据集只需保存一份
     public Dictionary<int, App> AppKv { get; private set; }
 
-    //默认的部署方案
-    public Solution DefaultSolution { get; private set; }
+    // 初始状态
+    // 不要直接修改 InitSolution，要先 Clone 一份，修改克隆！
+    public Solution InitSolution { get; private set; }
 
-    public Instance[] Instances => DefaultSolution.Instances;
-    public Machine[] Machines => DefaultSolution.Machines;
+    public static DataSet Read(DataSetId dataSetId, string appCsv, string xCsv,
+      string machineCsv, string instCsv, string jobCsv = "") {
+      //复赛的5个数据集共用App资源和冲突约束
+      var appCnt = Util.GetLineCount(appCsv);
+      var appKv = new Dictionary<int, App>(appCnt);
+      ReadApp(appCsv, appKv);
+      ReadX(xCsv, appKv);
 
-    public static DataSet Read(DataSetId dataSetId, string appCsv, string machineCsv, string instCsv, string xCsv) {
-      var dataSet = new DataSet {
-        Id = dataSetId,
-        AppCount = Ext.GetLineCount(appCsv),
-        MachineCount = Ext.GetLineCount(machineCsv),
-        InstCount = Ext.GetLineCount(instCsv),
-        InstCsv = instCsv
-      };
+      return Read(dataSetId, appKv, machineCsv, instCsv, jobCsv);
+    }
 
-      dataSet.AppKv = new Dictionary<int, App>(dataSet.AppCount);
-      dataSet.DefaultSolution = new Solution(dataSet);
+    public static DataSet Read(DataSetId dataSetId, Dictionary<int, App> appKv,
+      string machineCsv, string instCsv, string jobCsv = "") {
+      var appCnt = appKv.Count;
+      var instCnt = Util.GetLineCount(instCsv);
+      var mCnt = Util.GetLineCount(machineCsv);
 
-      //注意读取顺序
-      dataSet.ReadApp(appCsv);
-      dataSet.ReadInterference(xCsv);
-      dataSet.DefaultSolution.Read(machineCsv, instCsv);
+      var dataSet =
+        new DataSet(dataSetId, appCnt, instCnt, mCnt) {AppKv = appKv};
 
+      if (string.IsNullOrEmpty(jobCsv)) {
+        dataSet.JobKv = null;
+      } else {
+        dataSet.JobKv = new Dictionary<int, Job>(capacity: 1100);
+        ReadJob(jobCsv, dataSet.JobKv);
+      }
+
+      dataSet.InitSolution = Solution.Read(dataSet, machineCsv, instCsv);
       return dataSet;
     }
 
-    private void ReadApp(string csv) {
-      Ext.ReadCsv(csv,
-        fields => {
-          var appId = fields[0].Id();
-          AppKv.Add(appId, App.Parse(fields));
-        });
+    private static void ReadApp(string csv, Dictionary<int, App> appKv) {
+      Util.ReadCsv(csv,
+        parts => appKv.Add(parts[0].Id(), App.Parse(parts)));
     }
 
-    private void ReadInterference(string csv) {
-      Ext.ReadCsv(csv, fields => {
-        var app = AppKv[fields[0].Id()];
-        var otherAppId = fields[1].Id();
-        var k = int.Parse(fields[2]);
+    private static void ReadX(string csv, Dictionary<int, App> appKv) {
+      Util.ReadCsv(csv, parts => {
+        var app = appKv[parts[0].Id()];
+        var otherAppId = parts[1].Id();
+        var k = int.Parse(parts[2]);
 
         app.AddXRule(otherAppId, k);
       });
     }
 
+    #region Print Utils
+
     public void PrintInitStats() {
       PrintCsvInitInfo();
-      Console.WriteLine();
+      WriteLine();
       PrintRequestUtil();
-      //Console.WriteLine();
-      //PrintAppUtilStat();
-      //Console.WriteLine();
-      //Machine.PrintList(Solution.Machines.Where(m => !m.IsIdle));
-      //Console.WriteLine();
-      //PrintUtilTs();
+      WriteLine();
+      PrintAppUtilStat();
+      WriteLine();
+      Machine.PrintList(InitSolution.Machines.Where(m => m.HasApp));
+      WriteLine();
+      PrintAvgUtilByTs();
     }
 
     public void PrintCsvInitInfo() {
-      Console.WriteLine("==Init==");
-      Console.WriteLine($"App#: {AppCount}, " +
-                        $"Instance#: {InstCount}, " +
-                        $"Machine#: {MachineCount}");
+      WriteLine("==Init==");
+      WriteLine($"App#: {AppCount}, " +
+                $"AppInst#: {AppInstCount}, " +
+                $"Machine#: {MachineCount}");
 
       //以下输出初始数据中违反约束的情况
-      DefaultSolution.FinalCheck(true);
+      Solution.CheckAppInterference(InitSolution, verbose: true);
 
       //初始数据中，忽略了约束，被强制部署到机器上的实例
-      var xInstList = DefaultSolution.Instances
-        .Where(i => i.Machine != null && !i.Deployed)
+      var xInsts = InitSolution.AppInsts
+        .Where(i => i.Machine != null && !i.IsDeployed)
         .ToList();
 
-      if (xInstList.Count > 0)
-        Console.WriteLine($"xInstList.Count: {xInstList.Count}"); //DataSetA: 143
+      if (xInsts.Count > 0) {
+        WriteLine($"xInstList.Count: {xInsts.Count}"); //DataSetA: 143
+      }
 
-      var xMachineList = DefaultSolution.Machines
-        .Where(m => !m.IsIdle && m.InstSet.Any(i => !i.Deployed))
+      var xMachineList = InitSolution.Machines
+        .Where(m => m.HasApp && m.AppInstSet.Any(i => !i.IsDeployed))
         .ToList();
 
-      if (xMachineList.Count > 0) Console.WriteLine($"xMachineList.Count: {xMachineList.Count}");
+      if (xMachineList.Count > 0) {
+        WriteLine($"xMachineList.Count: {xMachineList.Count}");
+      }
 
       //一台机器上可能有多个实例发生冲突，导致计数出入。
       //DataSet Pre A 共117台机器存在约束冲突
       foreach (var m in xMachineList)
-      foreach (var x in m.ConflictList)
-        Console.WriteLine($"m_{m.Id},A:app_{x.Item1.Id},B:app_{x.Item2.Id}," +
-                          $"BCnt:{x.Item3} > BLimit:{x.Item4}");
+      foreach (var x in m.ConflictList) {
+        WriteLine($"m_{m.Id},A:app_{x.Item1.Id},B:app_{x.Item2.Id}," +
+                  $"BCnt:{x.Item3} > BLimit:{x.Item4}");
+      }
     }
 
     //各时刻所有实例请求Cpu, Mem占总资源量的比例
     public void PrintRequestUtil() {
-      var total = new Resource();
-      DefaultSolution.Machines.ForEach(m => total.Add(m.Capacity));
-      var totalCpu = total.Cpu[0];
-      var totalMem = total.Mem[0];
+      var total = new Resource(isT1470: true);
+      InitSolution.Machines.ForEach(m => total.Add(m.Capacity));
+      var totalCpu = total.Cpu[i: 0];
+      var totalMem = total.Mem[i: 0];
 
-      var req = new Resource();
-      DefaultSolution.Instances.ForEach(inst => req.Add(inst.R));
+      var req = new Resource(isT1470: true);
+      InitSolution.AppInsts.ForEach(inst => req.Add(inst.R));
 
-      Console.WriteLine($"Disk: {req.Disk},{req.Disk * 100.0 / total.Disk:0.00}%");
-      Console.WriteLine($"P: {req.P},{req.P * 100.0 / total.P:0.00}%");
-      Console.WriteLine($"M: {req.M},{req.M * 100.0 / total.M:0.00}%");
-      Console.WriteLine($"PM: {req.Pm},{req.Pm * 100.0 / total.Pm:0.00}%");
+      WriteLine($"Disk: {req.Disk},{req.Disk * 100.0 / total.Disk:0.00}%");
+      WriteLine($"P: {req.P},{req.P * 100.0 / total.P:0.00}%");
+      WriteLine($"M: {req.M},{req.M * 100.0 / total.M:0.00}%");
+      WriteLine($"PM: {req.Pm},{req.Pm * 100.0 / total.Pm:0.00}%");
 
-      Console.WriteLine();
-      Console.WriteLine("ts,cpu,mem,util_cpu,util_mem");
+      WriteLine();
+      WriteLine("ts,cpu,mem,util_cpu,util_mem");
 
-      for (var i = 0; i < Resource.TsCount; i++)
-        Console.WriteLine($"{i + 1},{req.Cpu[i]:0.0},{req.Mem[i]:0.0}," +
-                          $"{req.Cpu[i] * 100 / totalCpu:0.000}%," +
-                          $"{req.Mem[i] * 100 / totalMem:0.000}%");
+      for (var i = 0; i < Resource.T1470; i++) {
+        WriteLine($"{i + 1},{req.Cpu[i]:0.0},{req.Mem[i]:0.0}," +
+                  $"{req.Cpu[i] * 100 / totalCpu:0.000}%," +
+                  $"{req.Mem[i] * 100 / totalMem:0.000}%");
+      }
     }
 
-    //public void PrintAppUtilStat() {
-    //  Console.WriteLine("aid,inst_cnt," +
-    //                    "cpu_max,cpu_avg,cpu_min,cpu_stdev," +
-    //                    "mem_max,mem_avg,mem_min,mem_stedv," +
-    //                    "disk,p,m,pm");
-    //  foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {
-    //    var r = a.R;
-    //    Console.WriteLine($"app_{a.Id},{a.InstCount}," +
-    //                      $"{r.Cpu.Max:0.0},{r.Cpu.Avg:0.0},{r.Cpu.Min:0.0},{r.Cpu.Stdev:0.0}," +
-    //                      $"{r.Mem.Max:0.0},{r.Mem.Avg:0.0},{r.Mem.Min:0.0},{r.Mem.Stdev:0.0}," +
-    //                      $"{r.Disk},{r.P},{r.M},{r.Pm}");
-    //  }
-    //}
-    //
-    //初赛 DataSet B Only
-    //注意：这里cpu输出合计最大时刻ts=45的值，mem则是平均值
-    //public void PrintInstRequest() {
-    //  Console.WriteLine(InstCount);
-    //  foreach (var inst in DefaultSolution.Instances)
-    //    Console.WriteLine($"{Math.Ceiling(inst.R.Cpu[45])} " +
-    //                      $"{Math.Ceiling(inst.R.Mem.Avg)} " +
-    //                      $"{inst.R.Disk} " +
-    //                      $"inst_{inst.Id}");
-    //}
-    //
-    //将CPU和Mem分时数据转置一下
-    //private void PrintUtilTs() {
-    //  Console.WriteLine($"aid,ts,cpu,mem");
-    //  foreach (var a in AppKv.Values.OrderBy(a => a.Id))
-    //    for (var i = 0; i < Resource.TsCount; i++)
-    //      Console.WriteLine($"{a.Id},{i + 1},{a.R.Cpu[i]},{a.R.Mem[i]}");
-    //}
+    public void PrintAppUtilStat() {
+      WriteLine("aid,inst_cnt," +
+                "cpu_max,cpu_avg,cpu_min,cpu_stdev," +
+                "mem_max,mem_avg,mem_min,mem_stedv," +
+                "disk,p,m,pm");
+      foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {
+        var r = a.R;
+        WriteLine($"app_{a.Id},{a.InstCount}," +
+                  $"{r.Cpu.Max:0.0},{r.Cpu.Avg:0.0},{r.Cpu.Min:0.0},{r.Cpu.Stdev:0.0}," +
+                  $"{r.Mem.Max:0.0},{r.Mem.Avg:0.0},{r.Mem.Min:0.0},{r.Mem.Stdev:0.0}," +
+                  $"{r.Disk},{r.P},{r.M},{r.Pm}");
+      }
+    }
+
+    // 这里Cpu输出合计最大时刻 t=45的值，Mem则是平均值，只使用初赛 DataSet B
+    public void PrintInstRequest() {
+      WriteLine(AppInstCount);
+      foreach (var inst in InitSolution.AppInsts) {
+        WriteLine($"{Ceiling(inst.R.Cpu[i: 45])} " +
+                  $"{Ceiling(inst.R.Mem.Avg)} " +
+                  $"{inst.R.Disk} " +
+                  $"inst_{inst.Id}");
+      }
+    }
+
+    // 分时的集群总体Cpu和Mem利用率 
+    public void PrintAvgUtilByTs() {
+      WriteLine("aid,ts,cpu,mem");
+      foreach (var a in AppKv.Values.OrderBy(a => a.Id)) {
+        for (var i = 0; i < a.R.Cpu.Length; i++) {
+          WriteLine($"{a.Id},{i + 1},{a.R.Cpu[i]},{a.R.Mem[i]}");
+        }
+      }
+    }
+
+    #endregion
   }
 }

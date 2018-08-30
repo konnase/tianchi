@@ -1,23 +1,38 @@
-# 执行官方评分程序
+# 使用Maven构建jar
+从官方下载的 `AlibabaSchedulerEvaluatorRun_20180709.java` 
 
-在当前目录（`somepath/tianchi/judge/`）执行
++ 拷贝到了 `src/main/java` 下面，这是`maven`约定的项目结构，
++ 并且重命名为 `AlibabaSchedulerEvaluatorRun.java` ，这是 `javac` 的强制要求，即文件名与其中的 `public class` 类名一致。
+
+使用提供的 `pom.xml` 和 `src/META-INF/MANIFEST.MF` ，在 `pom.xml` 所在目录执行
+```
+mvn package
+```
+
+> 建议修改为阿里或清华的maven镜像源
+
+构建结果保存在 `target/judge-20180709.jar`
+
+
+# 执行官方评分程序
+假设当前工作目录为项目根目录，`judge.jar` 和 `submit.csv` 也在项目根目录下
 
 ```
 java -jar judge.jar \
-../data/scheduling_preliminary_b_app_resources_20180726.csv \
-../data/scheduling_preliminary_b_machine_resources_20180726.csv \
-../data/scheduling_preliminary_b_instance_deploy_20180726.csv \
-../data/scheduling_preliminary_b_app_interference_20180726.csv \
-../submit.csv
+data/scheduling_preliminary_b_app_resources_20180726.csv \
+data/scheduling_preliminary_b_machine_resources_20180726.csv \
+data/scheduling_preliminary_b_instance_deploy_20180726.csv \
+data/scheduling_preliminary_b_app_interference_20180726.csv \
+submit.csv
 ```
 
 或
 ```
-java -jar judge.jar ../data/b.csv ../submit.csv
+java -jar judge.jar data/b.csv submit.csv
 ```
 
 > 其中 `b.csv` 是按评分程序格式合并的数据。
-> 可以将 `deploy.csv` 中部署的机器移除，便于验证搜索结果
+
 
 # 参考官方评分程序，修改的Bugs
 1. 官方程序对初始部署中不满足约束的那些实例的处理措施是：
