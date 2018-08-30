@@ -1,7 +1,11 @@
-MACHINE_INPUT_FILE = "scheduling_preliminary_b_machine_resources_20180726.csv"
-APP_INPUT_FILE = "scheduling_preliminary_b_app_resources_20180726.csv"
-INSTANCE_INPUT_FILE = "scheduling_preliminary_b_instance_deploy_20180726.csv"
-APP_INTERFER_FILE = "scheduling_preliminary_b_app_interference_20180726.csv"
+# MACHINE_INPUT_FILE = "scheduling_preliminary_b_machine_resources_20180726.csv"
+# APP_INPUT_FILE = "scheduling_preliminary_b_app_resources_20180726.csv"
+# INSTANCE_INPUT_FILE = "scheduling_preliminary_b_instance_deploy_20180726.csv"
+# APP_INTERFER_FILE = "scheduling_preliminary_b_app_interference_20180726.csv"
+MACHINE_INPUT_FILE = "machine_resources.a.csv"
+APP_INPUT_FILE = "app_resources.csv"
+INSTANCE_INPUT_FILE = "instance_deploy.a.csv"
+APP_INTERFER_FILE = "app_interference.csv"
 
 TS_COUNT = 98
 RESOURCE_LEN = 200
