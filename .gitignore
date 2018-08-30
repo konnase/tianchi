@@ -19,8 +19,6 @@ analyse*
 
 data/*.csv
 
-main
-
 *.exe
 go/test/*
 debug
