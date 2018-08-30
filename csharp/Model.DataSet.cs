@@ -58,8 +58,7 @@ namespace Tianchi {
     }
 
     private static void ReadApp(string csv, Dictionary<int, App> appKv) {
-      Util.ReadCsv(csv,
-        parts => appKv.Add(parts[0].Id(), App.Parse(parts)));
+      Util.ReadCsv(csv, parts => appKv[parts[0].Id()] = App.Parse(parts));
     }
 
     private static void ReadX(string csv, Dictionary<int, App> appKv) {

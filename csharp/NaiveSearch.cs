@@ -300,7 +300,7 @@ namespace Tianchi {
       string line;
       var i = 0;
       while (null != (line = f.ReadLine())) {
-        var m = machines[i++];
+        var m = machines[i++];//TODO: 行号与机器Id严格对应
 
         // ReSharper disable once StringIndexOfIsCultureSpecific.1
         var s = line.IndexOf("inst_");
