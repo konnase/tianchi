@@ -138,24 +138,12 @@ namespace Tianchi {
 
     /// <summary>
     ///   如果func返回false，则提前终止循环，
-    ///   用于读取submit时处理 '#'
     /// </summary>
     public static void ReadCsv(string csvFile, Func<string[], bool> func) {
       using (var csv = File.OpenText(csvFile)) {
         string line;
         while (null != (line = csv.ReadLine())) {
           if (!func(line.Split(separator: ','))) {
-            return;
-          }
-        }
-      }
-    }
-
-    public static void ReadCsv(string csvFile, Func<string, bool> func) {
-      using (var csv = File.OpenText(csvFile)) {
-        string line;
-        while (null != (line = csv.ReadLine())) {
-          if (!func(line)) {
             return;
           }
         }
@@ -190,15 +178,5 @@ namespace Tianchi {
 
       return withHeader ? Max(cnt - 1, val2: 0) : cnt;
     }
-  }
-
-  public enum DataSetId {
-    PreA,
-    PreB,
-    SemiA,
-    SemiB,
-    SemiC,
-    SemiD,
-    SemiE
   }
 }

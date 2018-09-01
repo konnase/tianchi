@@ -27,7 +27,7 @@ namespace Tianchi {
     public int AppInstCount => DataSet.AppInstCount;
     public int MachineCount => DataSet.MachineCount;
 
-    #region 从文件读机器和在线实例数据，克隆
+     #region 从文件读机器和在线实例数据，克隆
 
     public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
       bool withInitDeploy = true) {
@@ -398,7 +398,7 @@ namespace Tianchi {
 
       clone.SetInitAppDeploy();
 
-      ReadAppSubmit(csvSubmit, clone);
+      ReadAppSubmit(clone, csvSubmit);
       Write($"[SaveAndJudgeApp]: {clone.ScoreMsg}");
       CheckAppInterference(clone);
       CheckResource(clone);
@@ -407,10 +407,10 @@ namespace Tianchi {
     // 不是每个 Solution 对象都可以读入 submit，所以用静态方法
     // 注意：会修改 clone，将其重置为初始状态，之后读入 submit
 
-    private static void ReadAppSubmit(string csvSubmit, Solution clone,
+    public static void ReadAppSubmit(Solution clone, string csvSubmit,
       bool byRound = true, bool verbose = false) {
       if (byRound) { // 兼容：分轮次迁移
-        ReadAppSubmitByRound(csvSubmit, clone, verbose);
+        ReadAppSubmitByRound(clone, csvSubmit, verbose);
       } else {
         var failedCntResource = 0;
         var failedCntX = 0;
@@ -449,16 +449,17 @@ namespace Tianchi {
       }
     }
 
-    private static void ReadAppSubmitByRound(string csvSubmit, Solution clone, bool verbose) {
+    private static void ReadAppSubmitByRound(Solution clone, string csvSubmit, bool verbose) {
       var failedCntResource = 0;
       var failedCntX = 0;
       var lineNo = 0;
       var prevRound = int.MinValue;
 
-      var pendingSet = new HashSet<AppInst>(capacity: 1000);
+      var pendingSet = new HashSet<AppInst>(capacity: 5000);
+      var curRoundInstSet = new HashSet<AppInst>(capacity: 5000);
 
       Util.ReadCsv(csvSubmit, parts => {
-        if (parts.Length == 4) {
+        if (parts.Length == 4) { // Jobs 有4个字段
           return false;
         }
 
@@ -468,9 +469,6 @@ namespace Tianchi {
 
         var round = int.Parse(parts[0]);
 
-        var inst = clone.AppInstKv[parts[1].Id()];
-        var m = clone.MachineKv[parts[2].Id()];
-
         // 开始新一轮，释放上一轮迁移的机器
         if (prevRound != round) {
           prevRound = round;
@@ -479,15 +477,22 @@ namespace Tianchi {
           }
 
           pendingSet.Clear();
+          curRoundInstSet.Clear();
         }
 
         lineNo++;
 
-        if (inst.IsDeployed) {
-          Write($"[ReadAppSubmitByRound]: L{lineNo}@r{round} ");
-          Write("multiple deployment in the same round.");
-          WriteLine($"\t{inst}\t{m}");
+        var inst = clone.AppInstKv[parts[1].Id()];
+        var m = clone.MachineKv[parts[2].Id()];
+
+        if (curRoundInstSet.Contains(inst)) {
+          WriteLine($"[ReadAppSubmitByRound]: L{lineNo}@r{round} " +
+                    "multiple deployment in the same round." +
+                    $"\t{inst}\t{m}");
+          return false;
         }
+
+        curRoundInstSet.Add(inst);
 
         if (m.TryPut(inst, autoRemove: false)) {
           pendingSet.Add(inst);
@@ -507,6 +512,10 @@ namespace Tianchi {
 
         return true;
       });
+
+      foreach (var i in pendingSet) {
+        i.PreMachine?.Remove(i, setDeployFlag: false);
+      }
     }
 
     // 如果正常，不输出信息
@@ -544,6 +553,18 @@ namespace Tianchi {
       }
 
       return ok;
+    }
+
+    public static bool CheckAllDeployed(Solution final) {
+      var appOk = final.AllAppInstDeployed;
+      var jobOk = final.AllJobDeployed;
+      if (!appOk || !jobOk) {
+        WriteLine("[CheckAllDeployed]: " +
+                  $"Apps {final.AllAppInstDeployed}, " +
+                  $"Jobs {final.AllJobDeployed}");
+      }
+
+      return appOk && jobOk;
     }
 
     #endregion

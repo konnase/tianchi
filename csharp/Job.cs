@@ -29,6 +29,14 @@ namespace Tianchi {
     public int TotalDuration { get; private set; }
     public int TaskCount { get; private set; }
 
+    public double CpuMax => TaskKv.Values.Max(task => task.Cpu);
+
+    public double MemMax => TaskKv.Values.Max(task => task.Mem);
+
+    public double CpuSum => TaskKv.Values.Sum(task => task.Cpu * task.InstCount);
+
+    public double MemSum => TaskKv.Values.Sum(task => task.Mem * task.InstCount);
+
     /// <summary>
     ///   注意：前驱一次即可全部读取（最多有17个前驱），但后继则不能
     ///   读取了Job所有实例后才能调用此方法
@@ -401,11 +409,11 @@ namespace Tianchi {
     // 写完之后不关闭文件！  
     public static void SaveJobSubmit(Solution solution, StreamWriter writer) {
       foreach (var batchSet in solution.BatchKv.Values) {
-        batchSet.ForEach(WriteLine);
+        batchSet.ForEach(writer.WriteLine);
       }
     }
 
-    public static void ReadJobSubmit(string csvSubmit, Solution clone) {
+    public static void ReadJobSubmit(Solution clone, string csvSubmit) {
       Util.ReadCsv(csvSubmit, parts => {
         if (parts.Length == 3) { //App有3部分，Job有4部分
           return true;
@@ -455,8 +463,8 @@ namespace Tianchi {
       clone.SetInitAppDeploy();
       clone.ClearJobDeploy();
 
-      ReadAppSubmit(csvSubmit, clone);
-      ReadJobSubmit(csvSubmit, clone);
+      ReadAppSubmit(clone, csvSubmit);
+      ReadJobSubmit(clone, csvSubmit);
       Write($"[SaveAndJudge]: {clone.DataSet.Id} ");
       CheckAppInterference(clone);
       CheckResource(clone);

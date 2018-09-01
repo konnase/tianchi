@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Tianchi {
   // TODO: 这里限制实际的总执行时间与 job.TotalDuration 相同，即不存在等待
@@ -8,12 +9,22 @@ namespace Tianchi {
     // TODO: tuning this
     public static double CpuUtilLimit = 1.0;
 
+    public static List<Machine> Machines;
+
     public static void FirstFit(Solution solution) {
-      var jobKv = solution.DataSet.JobKv;
-
       //TODO: 对job和machine排序
+      Machines = (from m in solution.Machines
+        orderby m.Avail.Cpu.Avg descending, m.Capacity.Disk descending, m.Id
+        select m).ToList();
 
-      foreach (var job in jobKv.Values) {
+      var jobs = (from job in solution.JobKv.Values
+        orderby
+          //job.TotalDuration descending,
+          job.CpuMax descending, job.CpuSum descending,
+          job.Id
+        select job).ToList();
+
+      foreach (var job in jobs) {
         if (!TryDeployJobBegin(job, solution)) {
           continue; // 连合适的起始时间都无法确定，只好继续处理下一个 job
         }
@@ -89,7 +100,6 @@ namespace Tianchi {
     /// </summary>
     private static bool TryDeploy(JobTask task, int begin, Solution solution) {
       var batchKv = solution.BatchKv;
-      var machines = solution.Machines;
       var deployed = false;
 
       // latest 肯定不大于end；对初始任务，BeginEarliest == 0;
@@ -97,7 +107,7 @@ namespace Tianchi {
       for (var t = begin; t <= latest; t++) {
         var maxSize = task.UndeployedInstCount(solution);
 
-        foreach (var m in machines) {
+        foreach (var m in Machines) {
           // First Fit
           // 在m的begin时刻无法部署，可以换一台机器，也可以尝试neckTs的下一时刻，这里换机器
           if (!m.TryPut(task, begin, maxSize, out var batch, out _, CpuUtilLimit)) {

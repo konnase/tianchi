@@ -182,4 +182,14 @@ namespace Tianchi {
 
     #endregion
   }
+  
+  public enum DataSetId {
+    PreA,
+    PreB,
+    SemiA,
+    SemiB,
+    SemiC,
+    SemiD,
+    SemiE
+  }
 }

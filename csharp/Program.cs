@@ -1,3 +1,4 @@
+using System.IO;
 using static System.Console;
 
 namespace Tianchi {
@@ -7,23 +8,19 @@ namespace Tianchi {
     //可以在Rider的执行参数中设置，
     //命令行则在项目根目录执行 dotnet run --project cssharp/tianchi.csproj
     private static void Main() {
-      var sol = DataSetSemi.SemiA.InitSolution.Clone();
-      //Write($"[{ds.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
-      //NaiveSearch.Run(sol, "search-result/search_SemiA_16009_32_2780m", 120 * Min);
-      NaiveSearch.ReadResult(sol, "search-result/search_SemiA_16009_32_2780m");
-      var clone = DataSetSemi.SemiA.InitSolution.Clone();
-      if (!Solution.TrySaveAppSubmit(sol, clone)) {
-        WriteLine(";-(");
-      }
-      //JobDeploy.FirstFit(sol);
-      //WriteLine($" App+Job: {sol.ActualScore: 0.0000}; ");
-      //WriteLine($"AllJobDeployed? {sol.AllJobDeployed}; Score: {sol.ActualScore: 0.0000}");
-      //Solution.SaveAndJudge(sol);
+      var semiA = DataSetSemi.SemiA;
+      var sol = semiA.InitSolution.Clone();
+      WriteLine($"[{semiA.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(sol, "submit_file_a_6308.csv");
+      WriteLine($"[{semiA.Id}]: Score of submit_file_a_6308: {sol.ActualScore: 0.0000}; ");
+      JobDeploy.FirstFit(sol);
+      WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
 
-      //sol = DataSetSemi.SemiB.InitSolution.Clone();
-      //NaiveSearch.Run(sol,"search-result/search_SemiB_17785_61_2772m");
+      var csvSubmit = $"submit_{sol.DataSet.Id}_job.csv";
+      var writer = File.CreateText(csvSubmit);
+      Solution.SaveJobSubmit(sol, writer);
+      writer.Close();
 
-      //WriteLine($"Final Score: {score / cnt:0.0000}");
       WriteLine("==End==");
     }
   }

@@ -9,14 +9,14 @@ using static Tianchi.Util;
 
 namespace Tianchi {
   //TODO: Unnaive Search!
-  public static class NaiveSearch {
-    private static double _searchScore; // 共享变量，dotnet没有volatile double
+  public class Search {
+    private double _searchScore; // 共享变量，dotnet没有volatile double
 
-    private static volatile bool _stop;
+    private volatile bool _stop;
 
     // 可以直接从 solution 搜索，
     // 也可以从磁盘保存的搜索结果继续搜索，默认超时时间是 5 h
-    public static void Run(Solution solution, string searchFile = "",
+    public void Run(Solution solution, string searchFile = "",
       long timeout = 5 * Hour, int taskCnt = 14) {
       if (!string.IsNullOrEmpty(searchFile)) {
         if (!File.Exists(searchFile)) {
@@ -28,6 +28,7 @@ namespace Tianchi {
       }
 
       _searchScore = solution.ActualScore;
+      _stop = false;
 
       CancelKeyPress += (sender, e) => {
         _stop = true;
@@ -44,7 +45,7 @@ namespace Tianchi {
       var tasks = new List<TPL.Task>(taskCnt);
       for (var i = 0; i < taskCnt; i++) {
         var t = TPL.Task.Run(() => {
-          while (TrySearch(solution)) {
+          while (TryRandomSearch(solution)) {
           }
         });
         tasks.Add(t);
@@ -58,7 +59,11 @@ namespace Tianchi {
       SaveResult(solution);
     }
 
-    private static bool TrySearch(Solution solution) {
+    public void Stop() {
+      _stop = true;
+    }
+
+    private bool TryRandomSearch(Solution solution) {
       var shuffledIndexes = solution.MachineCount.ToRangeArray();
       var machines = solution.Machines;
       shuffledIndexes.Shuffle();
@@ -253,7 +258,7 @@ namespace Tianchi {
     }
 
     //CAS原子操作
-    private static void UpdateScore(double delta) {
+    private void UpdateScore(double delta) {
       double init, update;
       do {
         init = _searchScore;
@@ -300,7 +305,7 @@ namespace Tianchi {
       string line;
       var i = 0;
       while (null != (line = f.ReadLine())) {
-        var m = machines[i++];//TODO: 行号与机器Id严格对应
+        var m = machines[i++]; //TODO: 行号与机器Id严格对应
 
         // ReSharper disable once StringIndexOfIsCultureSpecific.1
         var s = line.IndexOf("inst_");
