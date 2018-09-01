@@ -16,8 +16,9 @@ namespace Tianchi {
       JobDeploy.FirstFit(sol);
       WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
 
-      var csvSubmit = $"submit_{sol.DataSet.Id}_job.csv";
-      var writer = File.CreateText(csvSubmit);
+      var csvSubmit = $"submit.a.csv";
+      var writer = File.AppendText(csvSubmit);
+      writer.WriteLine();
       Solution.SaveJobSubmit(sol, writer);
       writer.Close();
 
