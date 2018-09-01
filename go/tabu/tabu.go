@@ -13,17 +13,18 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	MachineInput         = "data/scheduling_semifinal_data_20180815/machine_resources.a.csv"
-	InstanceInput        = "data/scheduling_semifinal_data_20180815/instance_deploy.a.csv"
+	MachineInput         = "data/scheduling_semifinal_data_20180815/machine_resources.%s.csv"
+	InstanceInput        = "data/scheduling_semifinal_data_20180815/instance_deploy.%s.csv"
 	ApplicationInput     = "data/scheduling_semifinal_data_20180815/app_resources.csv"
 	AppInterferenceInput = "data/scheduling_semifinal_data_20180815/app_interference.csv"
-	JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.a.csv"
-	InitNeiborSet        = "data/init_neibor_set.csv"
-	InitNeiborSize       = 100
-	CandidateLen         = 80
+	JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.%s.csv"
+	SearchMachineRange   = 5000
+	InitNeiborSize       = 70
+	CandidateLen         = 60
 	TabuLen              = 4
 )
 
@@ -35,7 +36,7 @@ type Instance struct {
 	MachineId string
 
 	deployed bool
-	exchanged int
+	exchanged bool
 	//lock     sync.Mutex
 }
 
@@ -231,7 +232,30 @@ func (m *Machine) put(inst *Instance) {
 
 	inst.Machine = m
 	inst.deployed = true
-	inst.exchanged += 1
+	inst.exchanged = true
+
+	m.instKV[inst.Id] = inst
+	m.appKV[inst.App.Id] = inst //每类应用只记录一个实例用来swap即可
+
+	if _, ok := m.appCntKV[inst.App.Id]; ok {
+		m.appCntKV[inst.App.Id] += 1
+	} else {
+		m.appCntKV[inst.App.Id] = 1
+	}
+}
+
+func (m *Machine) noCascatePut(inst *Instance) {
+	if _, ok := m.instKV[inst.Id]; ok {
+		return
+	}
+
+	for i := 0; i < 200; i++ {
+		m.Usage[i] += inst.App.Resource[i]
+	}
+
+	inst.Machine = m
+	inst.deployed = true
+	inst.exchanged = true
 
 	m.instKV[inst.Id] = inst
 	m.appKV[inst.App.Id] = inst //每类应用只记录一个实例用来swap即可
@@ -403,9 +427,10 @@ func ReadInstance(lines []string) []*Instance {
 	return i
 }
 
-func ReadData() ([]*Machine, map[string]*Instance, map[string]*Application, map[string]*Machine) {
+func ReadData(dataset string) ([]*Machine, map[string]*Instance, map[string]*Application, map[string]*Machine) {
 	interference := ReadAppInterference(ReadLines(AppInterferenceInput))
-	machines := ReadMachine(ReadLines(MachineInput), interference)
+	machineInput := fmt.Sprintf(MachineInput, dataset)
+	machines := ReadMachine(ReadLines(machineInput), interference)
 	machineKV := make(map[string]*Machine)
 	for _, machine := range machines {
 		machineKV[machine.Id] = machine
@@ -417,23 +442,24 @@ func ReadData() ([]*Machine, map[string]*Instance, map[string]*Application, map[
 		appKV[app.Id] = app
 	}
 
-	insts := ReadInstance(ReadLines(InstanceInput))
+	instanceInput := fmt.Sprintf(InstanceInput, dataset)
+	insts := ReadInstance(ReadLines(instanceInput))
 	instKV := make(map[string]*Instance)
 	for _, inst := range insts {
 		inst.App = appKV[inst.AppId]
 		inst.Machine = machineKV[inst.MachineId]
 		inst.Machine.put(inst)
-		inst.exchanged = 0
+		inst.exchanged = false
 		instKV[inst.Id] = inst
 	}
 
 	return machines, instKV, appKV, machineKV
 }
 
+//machineA上的appA移动到machineB上去
 type ExchangeApp struct {
 	appA     string
 	machineA string
-	appB     string
 	machineB string
 }
 
@@ -445,16 +471,14 @@ type SubmitResult struct {
 
 type Candidate struct {
 	instA string
-	instB string
+	machineA string
+	machineB string
 
 	totalScore float64
 	isCandidate bool
 	permitValue float64
 
-	exchangeAppFromA ExchangeApp //记录这个解的移动的方向
-	exchangeAppFromB ExchangeApp //记录这个解的移动的方向
-	exchangeAppToA   ExchangeApp //记录这个解的移动的方向
-	exchangeAppToB   ExchangeApp //记录这个解的移动的方向
+	moveAppFromMachineAToB ExchangeApp //记录这个解的移动的方向
 }
 type Solution struct {
 	machines    []*Machine
@@ -484,14 +508,18 @@ type Scheduler struct {
 	solutions    []*Solution
 	neibors []*Candidate
 	candidates   []*Candidate
+
+	unchangedSolution *Solution  //在移动inst的过程中，不将inst从其原来的machine上删除
 	bestSolution *Solution //固定位置solutions[0]
 	nowSolution  *Solution //固定位置solutions[1]
 
 	tabuList        map[ExchangeApp]int //禁忌表
 	searchResult map[string]string
 	submitResult []SubmitResult
+	pickFrom map[string]string
 
 	searchFile string
+	round int
 	lock       sync.RWMutex
 }
 
@@ -506,14 +534,16 @@ func NewScheduler(searchFile string, machine []*Machine, instKV map[string]*Inst
 		searchFile: searchFile,
 		tabuList:   make(map[ExchangeApp]int),
 		searchResult: make(map[string]string),
+		pickFrom: make(map[string]string),
 	}
 	scheduler.solutions = append(scheduler.solutions, solution)
 	scheduler.solutions = append(scheduler.solutions, solution)
 	scheduler.bestSolution = scheduler.solutions[0]
 	scheduler.nowSolution = scheduler.solutions[1]
 	scheduler.bestSolution.permitValue = scheduler.bestSolution.totalScore
+	scheduler.unchangedSolution = scheduler.getNewNeiborFromNowSolution(scheduler.bestSolution)
 
-	scheduler.readSearchFile(searchFile, 0)
+	scheduler.round = scheduler.readSearchFile(searchFile)
 
 	scheduler.solutions[0].totalScore = TotalScore(scheduler.solutions[0].machines) //原始解的分数
 	return scheduler
@@ -537,132 +567,120 @@ func (s *Scheduler) tabuSearch() {
 }
 
 func (s *Scheduler) startSearch() {
-	nowSolution := s.bestSolution
-	var localBestCandidate *Candidate
-	var localBestSolution *Solution
-	round := 0
-	for {
-		//得到候选集
-		s.getInitNeiborSet(nowSolution)
-		s.getCandidateNeibor()
-		//初始化候选集
-		round++
-		// fmt.Printf("Round %d\n", round)
-		if len(s.tabuList) == 0 {
-			for _, candidateX := range s.candidates {
-				candidateX.isCandidate = true
+
+	for round := 1; round <= 3; round ++ {
+		if s.round == -1 {
+			round = 1
+		}else{
+			round = s.round
+		}
+		nowSolution := s.bestSolution
+		var localBestCandidate *Candidate
+		var localBestSolution *Solution
+		logrus.Infof("round: %d", round)
+		for {
+			//得到候选集
+			if getInitNeibor := s.getInitNeiborSet(nowSolution); !getInitNeibor {
+				s.prepareNextRound(nowSolution)
+				break
 			}
-		} else {
-			s.lock.Lock()
-			for tabu := range s.tabuList {
+			s.getCandidateNeibor()
+			//初始化候选集
+			if len(s.tabuList) == 0 {
 				for _, candidateX := range s.candidates {
-					if tabu == candidateX.exchangeAppFromA || tabu == candidateX.exchangeAppToA ||
-						tabu == candidateX.exchangeAppFromB || tabu == candidateX.exchangeAppToB {
-						// fmt.Printf("enter tabu:\n")
-						// os.Exit(0)
-						candidateX.isCandidate = false
-					} else {
-						candidateX.isCandidate = true
-					}
-					if candidateX.totalScore < nowSolution.permitValue { //特赦规则
-						candidateX.isCandidate = true
-					}
-				}
-			}
-			s.lock.Unlock()
-		}
-		//从候选集中选择分数最低的解
-		i := 0
-		for _, candidateS := range s.candidates {
-			// println(candidateS.totalScore)
-			if candidateS.isCandidate {
-				if i == 0 {
-					localBestCandidate = candidateS
-				}
-				if candidateS.totalScore < localBestCandidate.totalScore {
-					localBestCandidate = candidateS
-				}
-				i++
-			}
-		}
-		//交换inst
-		localBestSolution = s.getNewNeiborFromNowSolution(nowSolution)
-		instA := localBestSolution.instKV[localBestCandidate.instA]
-		instB := localBestSolution.instKV[localBestCandidate.instB]
-		//如果inst交换的次数等于3，则不再交换该inst
-		if instA.exchanged == 3 || instB.exchanged == 3 {
-			continue
-		}
-		if canSwap, totalScore := s.trySwap(instA, instB, localBestSolution, true); canSwap {
-			needBridgeMachine := false
-			for i := 0; i < 200; i++ {
-				if instB.Machine.Usage[i]+instA.App.Resource[i] > instB.Machine.Capacity[i]{
-					needBridgeMachine = true
-					break
-				}
-			}
-			//先将instA先放到其他机器上，再将instB放machineA上，最后将instA移到machineB上
-			machineA := instA.Machine
-			machineB := instB.Machine
-			if needBridgeMachine || machineB.hasConflictInst(instA){
-				if instA.exchanged >=2 {
-					continue
-				}
-				for _, machine :=range localBestSolution.machines {
-					if machine.canPutInst(instA) {
-						machine.put(instA)
-						submitA := SubmitResult{instA.exchanged, instA.Id, instA.Machine.Id}
-						s.submitResult = append(s.submitResult, submitA)
-						machineA.put(instB)
-						submitB := SubmitResult{instB.exchanged, instB.Id, instB.Machine.Id}
-						s.submitResult = append(s.submitResult, submitB)
-						machineB.put(instA)
-						s.searchResult[localBestCandidate.instA] = localBestCandidate.instB
-						submitA = SubmitResult{instA.exchanged, instA.Id, instA.Machine.Id}
-						s.submitResult = append(s.submitResult, submitA)
-						localBestSolution.totalScore = totalScore
-						break
-					}
+					candidateX.isCandidate = true
 				}
 			} else {
-				localBestSolution.totalScore = totalScore
-				s.doSwap(instA, instB)
-				s.searchResult[localBestCandidate.instA] = localBestCandidate.instB
-				submitA := SubmitResult{instA.exchanged, instA.Id, instA.Machine.Id}
+				s.lock.Lock()
+				for tabu := range s.tabuList {
+					for _, candidateX := range s.candidates {
+						if tabu == candidateX.moveAppFromMachineAToB {
+							candidateX.isCandidate = false
+						} else {
+							candidateX.isCandidate = true
+						}
+						if candidateX.totalScore < nowSolution.permitValue { //特赦规则
+							candidateX.isCandidate = true
+						}
+					}
+				}
+				s.lock.Unlock()
+			}
+			//从候选集中选择分数最低的解
+			i := 0
+			for _, candidateS := range s.candidates {
+				// println(candidateS.totalScore)
+				if candidateS.isCandidate {
+					if i == 0 {
+						localBestCandidate = candidateS
+					}
+					if candidateS.totalScore < localBestCandidate.totalScore {
+						localBestCandidate = candidateS
+					}
+					i++
+				}
+			}
+			//移动inst
+			localBestSolution = s.getNewNeiborFromNowSolution(nowSolution)
+			instA := localBestSolution.instKV[localBestCandidate.instA]
+			//machineA := localBestSolution.machineKV[localBestCandidate.machineA]
+			machineB := localBestSolution.machineKV[localBestCandidate.machineB]
+			umachineB := s.unchangedSolution.machineKV[localBestCandidate.machineB]
+			//如果inst已经被移动了，则不再移动该inst
+			if instA.exchanged  {
+				continue
+			}
+			if canMove, _ := s.tryMove(instA, umachineB, s.unchangedSolution, true); canMove {
+				uinstA := s.unchangedSolution.instKV[localBestCandidate.instA]
+				s.pickFrom[uinstA.Id] = uinstA.Machine.Id
+				umachineB.noCascatePut(uinstA)
+				machineB.put(instA)
+				localBestSolution.totalScore = localBestCandidate.totalScore
+				s.unchangedSolution.totalScore = localBestCandidate.totalScore
+				submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
 				s.submitResult = append(s.submitResult, submitA)
-				submitB := SubmitResult{instB.exchanged, instB.Id, instB.Machine.Id}
-				s.submitResult = append(s.submitResult, submitB)
+
+				//设置局部最优解的特赦值
+				if localBestCandidate.totalScore < nowSolution.permitValue {
+					localBestSolution.permitValue = localBestCandidate.totalScore
+				} else if nowSolution.totalScore < localBestCandidate.permitValue {
+					localBestSolution.permitValue = nowSolution.totalScore
+				}
+				//更新tabulist
+				s.updateTabuList() //todo: pair移除tabulist之后要释放候选解
+				s.lock.Lock()
+				s.tabuList[localBestCandidate.moveAppFromMachineAToB] = TabuLen
+
+				//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
+				if localBestCandidate.totalScore < s.bestSolution.totalScore-0.0001 {
+					logrus.Infof("New bestsolution: %0.8f --> %0.8f\n", s.bestSolution.totalScore, localBestCandidate.totalScore)
+					s.bestSolution = nil
+					s.bestSolution = s.getNewNeiborFromNowSolution(localBestSolution)
+				}
+				//更新候选集，即按照localBestCandidate的交换规则交换实例
+				//s.updateCandidates(localBestSolution)
+
+				nowSolution = localBestSolution
+				logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.totalScore)
+				s.nowSolution = nil
+				s.nowSolution = s.getNewNeiborFromNowSolution(localBestSolution)
+				s.lock.Unlock()
 			}
 		}
 
-		// time.Sleep(time.Second)
-		//设置局部最优解的特赦值
-		if localBestCandidate.totalScore < nowSolution.permitValue {
-			localBestSolution.permitValue = localBestCandidate.totalScore
-		} else if nowSolution.totalScore < localBestCandidate.permitValue {
-			localBestSolution.permitValue = nowSolution.totalScore
-		}
-		//更新tabulist
-		s.updateTabuList() //todo: pair移除tabulist之后要释放候选解
-		s.lock.Lock()
-		s.tabuList[localBestCandidate.exchangeAppFromA] = TabuLen
-		s.tabuList[localBestCandidate.exchangeAppFromB] = TabuLen
-		s.tabuList[localBestCandidate.exchangeAppToA] = TabuLen
-		s.tabuList[localBestCandidate.exchangeAppToB] = TabuLen
-		//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
-		if localBestCandidate.totalScore < s.bestSolution.totalScore-0.001 {
-			fmt.Printf("New bestsolution: %0.8f --> %0.8f\n", s.bestSolution.totalScore, localBestCandidate.totalScore)
-			s.bestSolution = nil
-			s.bestSolution = s.getNewNeiborFromNowSolution(localBestSolution)
-		}
-		//更新候选集，即按照localBestCandidate的交换规则交换实例
-		//s.updateCandidates(localBestSolution)
-		nowSolution = localBestSolution
-		fmt.Printf("Local best solution score: %.8f\n", localBestCandidate.totalScore)
-		s.nowSolution = nil
-		s.nowSolution = s.getNewNeiborFromNowSolution(localBestSolution)
-		s.lock.Unlock()
 	}
+}
+
+func (s *Scheduler) prepareNextRound(nowSolution *Solution) {
+	for _, inst := range s.bestSolution.instKV {
+		inst.exchanged = false
+	}
+	for _, inst := range s.unchangedSolution.instKV {
+		inst.exchanged = false
+	}
+	s.unchangedSolution = nil
+	s.unchangedSolution = s.getNewNeiborFromNowSolution(nowSolution)
+	s.pickFrom = nil
 }
 
 func (s *Scheduler) updateTabuList() {
@@ -676,79 +694,75 @@ func (s *Scheduler) updateTabuList() {
 	}
 }
 
-func (s *Scheduler) getInitNeiborSet(nowSolution *Solution) {
-	// s.getNewNeiborFromNowSolution(0, s.bestSolution)
-	// s.getNewNeiborFromNowSolution(1, nowSolution)
+func (s *Scheduler) getInitNeiborSet(nowSolution *Solution) bool{
 	s.solutions[0] = s.bestSolution
 	s.solutions[1] = nowSolution
-	s.solutions = s.solutions[:2]
+	failIter := 0
 	for i := 0; i < InitNeiborSize; i++ {
 		machineAIndex := rand.Intn(len(s.bestSolution.machines))
-		machineBIndex := rand.Intn(len(s.bestSolution.machines))
+		// 数据集c: +4000;   数据集d: +4000    数据集e: +3000
+		machineBIndex := rand.Intn(SearchMachineRange)
+		if machineAIndex == machineBIndex {
+			i--
+			continue
+		}
 		// s.getNewNeibor(i) //生成第i个邻居
 		//newSolve := s.getNewNeiborFromNowSolution(nowSolution)
 		newNeibor := new(Candidate)
 		newNeibor.totalScore = 1e9
 		s.neibors = append(s.neibors, newNeibor)
-		// fmt.Printf("solve %d score: %0.2f\n", i, TotalScore(s.solutions[i-1].machines))
-		swaped := false
-		for _, instA := range s.solutions[0].machines[machineAIndex].appKV {
-			for _, instB := range s.solutions[0].machines[machineBIndex].appKV {
-				if instA.App == instB.App {
-					continue
-				}
-
-				if instB.Machine.Id != s.solutions[0].machines[machineBIndex].Id {
-					continue //inst2已经在上一轮循环swap过了
-				}
-				//如果machineA上的appA已经和machineB上的appB交换过了，则重新生成
-				exchangeAppFromA := ExchangeApp{instA.AppId, s.solutions[0].machines[machineAIndex].Id, instB.AppId, s.solutions[0].machines[machineBIndex].Id}
-				exchangeAppFromB := ExchangeApp{instB.AppId, s.solutions[0].machines[machineBIndex].Id, instA.AppId, s.solutions[0].machines[machineAIndex].Id}
-				exchangeAppToA := ExchangeApp{instA.AppId, s.solutions[0].machines[machineBIndex].Id, instB.AppId, s.solutions[0].machines[machineAIndex].Id}
-				exchangeAppToB := ExchangeApp{instB.AppId, s.solutions[0].machines[machineAIndex].Id, instA.AppId, s.solutions[0].machines[machineBIndex].Id}
-				duplicate := false
-				for _, neibor := range s.neibors{
-					if neibor.exchangeAppFromA == exchangeAppFromA || neibor.exchangeAppToA == exchangeAppToA ||
-						neibor.exchangeAppFromB == exchangeAppFromB || neibor.exchangeAppToB == exchangeAppToB {
-						fmt.Printf("%s had been swaped with %s", exchangeAppFromA, exchangeAppToB)
-						duplicate = true
-						break
-					}
-				}
-				if duplicate {
-					continue
-				}
-				if canSwap, totalScore := s.trySwap(instA, instB, s.solutions[0], true); canSwap { //交换第i个解里面随机的两个inst
-					//s.doSwap(instA, instB)
-					s.getNewNeibor(i, instA, instB, machineAIndex, machineBIndex, totalScore)
-					fmt.Printf("swap (%s) <-> (%s): %f\n",
-						instA.Id, instB.Id, s.neibors[i].totalScore)
-					swaped = true
-					break //产生一个邻居后，跳到最外层循环，继续产生下一个邻居
-				}
-
+		moved := false
+		for _, instA := range s.solutions[1].machines[machineAIndex].appKV {
+			//如果machineA上的appA已经迁移到machineB了，则重新生成
+			moveAppFromMachineAToB := ExchangeApp{
+				instA.AppId,
+				s.solutions[1].machines[machineAIndex].Id,
+				s.solutions[1].machines[machineBIndex].Id,
 			}
-			if swaped {
-				break
+			duplicate := false
+			for _, neibor := range s.neibors{
+				if neibor.moveAppFromMachineAToB == moveAppFromMachineAToB  {
+					fmt.Printf("%s had been moved", moveAppFromMachineAToB)
+					duplicate = true
+					break
+				}
+			}
+			if duplicate {
+				continue
+			}
+			if canMove, totalScore := s.tryMove(instA, s.solutions[1].machines[machineBIndex], s.solutions[1], true); canMove { //交换第i个解里面随机的两个inst
+				s.getNewNeibor(i, instA, machineAIndex, machineBIndex, totalScore)
+				//fmt.Printf("move (%s) --> (%s): %f\n",
+				//	instA.Id, s.solutions[1].machines[machineBIndex].Id, s.neibors[i].totalScore)
+				moved = true
+				break //产生一个邻居后，跳到最外层循环，继续产生下一个邻居
 			}
 		}
-		if !swaped {
+		if !moved {
+			failIter++
 			i--
 			s.neibors = s.neibors[:len(s.neibors)-1]
 		}
+		if failIter > 1000 {
+			fmt.Println("failed")
+			return false
+		}
 	}
+	return true
 }
 
-func (s *Scheduler) getNewNeibor(index int, instA, instB *Instance, machineAIndex, machineBIndex int, totalScore float64) {
+func (s *Scheduler) getNewNeibor(index int, instA *Instance, machineAIndex, machineBIndex int, totalScore float64) {
 	s.neibors[index].instA = instA.Id
-	s.neibors[index].instB = instB.Id
+	s.neibors[index].machineA = s.solutions[1].machines[machineAIndex].Id
+	s.neibors[index].machineB = s.solutions[1].machines[machineBIndex].Id
 	s.neibors[index].totalScore = totalScore
 	s.neibors[index].isCandidate = false
 	s.neibors[index].permitValue = totalScore
-	s.neibors[index].exchangeAppFromA = ExchangeApp{instA.AppId, s.solutions[0].machines[machineAIndex].Id, instB.AppId, s.solutions[0].machines[machineBIndex].Id}
-	s.neibors[index].exchangeAppFromB = ExchangeApp{instB.AppId, s.solutions[0].machines[machineBIndex].Id, instA.AppId, s.solutions[0].machines[machineAIndex].Id}
-	s.neibors[index].exchangeAppToA = ExchangeApp{instA.AppId, s.solutions[0].machines[machineBIndex].Id, instB.AppId, s.solutions[0].machines[machineAIndex].Id}
-	s.neibors[index].exchangeAppToB = ExchangeApp{instB.AppId, s.solutions[0].machines[machineAIndex].Id, instA.AppId, s.solutions[0].machines[machineBIndex].Id}
+	s.neibors[index].moveAppFromMachineAToB = ExchangeApp{
+		instA.AppId,
+		s.solutions[1].machines[machineAIndex].Id,
+		s.solutions[1].machines[machineBIndex].Id,
+	}
 }
 
 func (s *Scheduler) getNewNeiborFromNowSolution(nowSolution *Solution) *Solution {
@@ -840,17 +854,41 @@ func (s *Scheduler) permitValue(nowBestSolution *Solution) float64 {
 }
 
 //searchFile: search file;  index: the indexth neighbor of the neighbor set, index=0 for original solution
-func (s *Scheduler) readSearchFile(searchFile string, index int) {
+func (s *Scheduler) readSearchFile(searchFile string) int {
 	if _, err := os.Open(searchFile); err!= nil {
-		return
+		return -1
 	}
 	lines := ReadLines(searchFile)
+	round := 1
 	for _, line := range lines {
 		split := strings.Split(line, ",")
-		instA := s.solutions[index].instKV[split[0]]
-		instB := s.solutions[index].instKV[split[1]]
-		s.doSwap(instA, instB)
+		if inRound, _ := strconv.Atoi(split[0]); round == inRound{
+			inst := s.bestSolution.instKV[split[1]]
+			machine := s.bestSolution.machineKV[split[2]]
+			s.pickFrom[inst.Id] = inst.Machine.Id
+			machine.put(inst)
+
+			uinst := s.unchangedSolution.instKV[split[1]]
+			umachine := s.unchangedSolution.machineKV[split[2]]
+			umachine.noCascatePut(uinst)
+
+		} else{
+			round++
+			s.unchangedSolution = nil
+			s.unchangedSolution = s.getNewNeiborFromNowSolution(s.bestSolution)
+			s.pickFrom = nil
+
+			inst := s.bestSolution.instKV[split[1]]
+			machine := s.bestSolution.machineKV[split[2]]
+			s.pickFrom[inst.Id] = inst.Machine.Id
+			machine.put(inst)
+
+			uinst := s.unchangedSolution.instKV[split[1]]
+			umachine := s.unchangedSolution.machineKV[split[2]]
+			umachine.noCascatePut(uinst)
+		}
 	}
+	return round
 }
 
 func (s *Scheduler) trySwap(inst1, inst2 *Instance, solution *Solution, force bool) (bool, float64) {
@@ -901,6 +939,41 @@ func (s *Scheduler) trySwap(inst1, inst2 *Instance, solution *Solution, force bo
 	return true, solution.totalScore + delta
 }
 
+func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, force bool) (bool, float64) {
+	if inst.exchanged {
+		return false, 1e9
+	}
+	m1 := inst.Machine
+	if m1.Id == m2.Id {
+		return false, 1e9
+	}
+	m1.lock.Lock()
+	m2.lock.Lock()
+	defer m2.lock.Unlock()
+	defer m1.lock.Unlock()
+	if !m2.canPutInst(inst) {
+		return false, 1e9
+	}
+
+	var cpu1 [98]float64
+	var cpu2 [98]float64
+	machineCpu1 := m1.cpuUsage()
+	machineCpu2 := m2.cpuUsage()
+	for i := 0; i < 98; i++ {
+		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
+		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
+	}
+	score1 := cpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.instKV))
+	score2 := cpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.instKV))
+	delta := score1 + score2 - (m1.score() + m2.score())
+
+	if !force && (delta > 0 || -delta < 0.0001) {
+		return false, 1e9
+	}
+
+	return true, solution.totalScore + delta
+}
+
 func hasConflict(inst1, inst2 *Instance) bool {
 	m := inst1.Machine
 	instCnt := m.appCntKV[inst1.AppId]
@@ -923,7 +996,7 @@ func (s *Scheduler) doSwap(inst1, inst2 *Instance) {
 	machine2.put(inst1)
 }
 
-func (s *Scheduler) output() {
+func (s *Scheduler) output(dataset string) {
 	//machines := MachineSlice(s.bestSolution.machines)
 	//sort.Sort(machines)
 	//usedMachine := 0
@@ -932,30 +1005,17 @@ func (s *Scheduler) output() {
 	//		usedMachine++
 	//	}
 	//}
-	filePath := fmt.Sprintf("search-result/search_file")
+
+	filePath := fmt.Sprintf("submit_file_%s_%.0f.csv", dataset, s.bestSolution.totalScore)
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		os.Create(filePath)
 	}
 	defer f.Close()
-
 	w := bufio.NewWriter(f)
-	for key, value := range s.searchResult{
-		line := fmt.Sprintf("%s,%s", key, value)
-		fmt.Fprintln(w, line)
-	}
-	w.Flush()
-	fmt.Printf("writing to %s\n", filePath)
-
-	filePath = "submit_file.csv"
-	f, err = os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		os.Open(filePath)
-	}
-	defer f.Close()
-	w = bufio.NewWriter(f)
 	for _, submit := range s.submitResult {
 		line := fmt.Sprintf("%d,%s,%s", submit.round, submit.instance, submit.machine)
+		//line := fmt.Sprintf("%s,%s", submit.instance, submit.machine)
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
@@ -963,8 +1023,8 @@ func (s *Scheduler) output() {
 }
 
 func main() {
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: go run main.go <search_file> <cores>")
+	if len(os.Args) != 4 {
+		fmt.Println("Usage: go run main.go <search_file> <cores> <dataset>")
 		os.Exit(1)
 	}
 
@@ -972,27 +1032,22 @@ func main() {
 
 	searchFile := os.Args[1]
 	cores, _ := strconv.Atoi(os.Args[2])
+	dataset := os.Args[3]
 
 	runtime.GOMAXPROCS(cores)
 
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, os.Kill) //todo: 让goroutine正常停止
 
-	machines, instKV, appKV, machineKV := ReadData()
+	machines, instKV, appKV, machineKV := ReadData(dataset)
 	scheduler := NewScheduler(searchFile, machines, instKV, appKV, machineKV)
-	//scheduler.getInitNeiborSet(scheduler.bestSolution)
-	//scheduler.getCandidateNeibor()
-	fmt.Println(TotalScore(scheduler.solutions[0].machines))
+	logrus.Infof("totalScore: %.8f\n",TotalScore(scheduler.solutions[0].machines))
 
 	for i := 0; i < cores; i++ {
 		go scheduler.tabuSearch()
 		// go scheduler.search()
 	}
-	// scheduler.tabuSearch()
 	<-stopChan
-	// for k, _ := range scheduler.initIndex {
-	// 	fmt.Println(k)
-	// }
-	scheduler.output()
+	scheduler.output(dataset)
 	fmt.Printf("total score: %.6f\n", scheduler.bestSolution.totalScore)
 }

@@ -18,6 +18,7 @@ class Instance(object):
         # 或者已经部署到机器（machine == a），但需要迁移，还没有确定目标机器时，
         # 设置此标志为False
         self.deployed = False
+        self.exchanged = 0
 
         # self._metric = -1
 
@@ -198,8 +199,8 @@ class Machine(object):
         self.usage += inst.app.resource
 
         # 这个放底层判断影响效率
-        if inst.machine is not None:
-            inst.machine.remove_inst(inst)
+        # if inst.machine is not None:
+        #     inst.machine.remove_inst(inst)
 
         inst.machine = self
         inst.deployed = True
@@ -355,8 +356,8 @@ def write_to_search(path, machines):
 def write_to_submit_csv(path, submit_result):
     print "writing to %s" % (path)
     with open(path, "w") as f:
-        for inst_id, machine_id in submit_result:
-            f.write("{0},{1}\n".format(inst_id, machine_id))
+        for rounds, inst_id, machine_id in submit_result:
+            f.write("{0},{1},{2}\n".format(rounds, inst_id, machine_id))
 
 
 def read_from_csv(project_path):
