@@ -5,7 +5,7 @@ import config as cfg
 
 import time
 
-from scheduler.models import Instance, Machine, write_to_submit_csv, write_to_search
+from models import Instance, Machine, write_to_submit_csv, write_to_search
 
 
 class FFD(object):
@@ -15,6 +15,7 @@ class FFD(object):
         self.machines = machines
         self.app_kv = app_kv
         self.undeployed_inst_cnt = 0
+        self.pickFrom = {}
 
         self.apps.sort(key=lambda x: x.disk, reverse=True)
         self.machines.sort(key=lambda x: x.disk_cap, reverse=True)
@@ -27,9 +28,13 @@ class FFD(object):
                 continue
             # 使用 CPU_UTIL_THRESHOLD
             if m != inst.machine and m.can_put_inst(inst):
+                if inst.exchanged == 1:
+                    continue
+                self.pickFrom[inst] = inst.machine
+                inst.exchanged += 1
                 m.put_inst(inst)
                 print "deployed %s of %s on %s" % (inst.id, inst.app.id, m.id)
-                self.submit_result.append((inst.id, m.id))
+                self.submit_result.append((inst.exchanged, inst.id, m.id))
                 break
         else:
             print ("%s is not deployed" % inst.id)
@@ -76,13 +81,21 @@ class FFD(object):
                 if not inst.deployed:
                     self.first_fit(inst, machines)
 
+    def pick_instance(self):
+        for inst, machine in self.pickFrom.items():
+            now_machine = inst.machine
+            machine.remove_inst(inst)
+            inst.machine = now_machine
+            inst.deployed = True
+
     def fit(self):
         print "using CPU_UTIL_LARGE: %.2f and CPU_UTIL_SMALL: %.2f" % (self.machines[0].CPU_UTIL_THRESHOLD,
                                                                        self.machines[3000].CPU_UTIL_THRESHOLD)
-        self.resolve_init_conflict(self.machines)
+        # self.resolve_init_conflict(self.machines)
         self.migrate_high_cpu_util(self.machines)
-        self.fit_large_inst(self.machines)
-        self.fit_all(self.machines)
+        self.pick_instance()
+        # self.fit_large_inst(self.machines)
+        # self.fit_all(self.machines)
 
         undeployed_cnt = len(Instance.get_undeployed_insts(self.instances))
         if undeployed_cnt > 0:
