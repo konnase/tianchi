@@ -957,7 +957,7 @@ func (s *Scheduler) output(dataset string) {
 
 func main() {
 	if len(os.Args) != 4 {
-		fmt.Println("Usage: go run main.go <submit_file> <cores> <dataset> <round>")
+		fmt.Println("Usage: go run tabu.go <submit_file> <cores> <dataset> <round>")
 		os.Exit(1)
 	}
 
