@@ -4,5 +4,5 @@
 ```
 go get github.com/sirupsen/logrus
 
-go run tabu.go <submit_file> <cores> <dataset> <round>
+go run main.go <submit_file> <cores> <dataset> <round>
 ```
