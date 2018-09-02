@@ -11,8 +11,8 @@ namespace Tianchi {
       var semiA = DataSetSemi.SemiA;
       var sol = semiA.InitSolution.Clone();
       WriteLine($"[{semiA.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(sol, "submit_file_a_6308.csv");
-      WriteLine($"[{semiA.Id}]: Score of submit_file_a_6308: {sol.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(sol, "submit_file_a.csv");
+      WriteLine($"[{semiA.Id}]: Score of submit_file_a: {sol.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(sol);
       WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
 
@@ -21,6 +21,71 @@ namespace Tianchi {
       writer.WriteLine();
       Solution.SaveJobSubmit(sol, writer);
       writer.Close();
+
+      WriteLine("==End==");
+      
+      
+      var semiB = DataSetSemi.SemiB;
+      var solB = semiB.InitSolution.Clone();
+      WriteLine($"[{semiB.Id}]: Score of App: {solB.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(solB, "submit_file_b.csv");
+      WriteLine($"[{semiB.Id}]: Score of submit_file_b: {solB.ActualScore: 0.0000}; ");
+      JobDeploy.FirstFit(solB);
+      WriteLine($"[{semiB.Id}]: Score of App+Job: {solB.ActualScore: 0.0000}; ");
+
+      var csvSubmitB = $"submit.b.csv";
+      var writerB = File.AppendText(csvSubmitB);
+      writerB.WriteLine();
+      Solution.SaveJobSubmit(solB, writerB);
+      writerB.Close();
+
+      WriteLine("==End==");
+      
+      var semiC = DataSetSemi.SemiC;
+      var solC = semiC.InitSolution.Clone();
+      WriteLine($"[{semiC.Id}]: Score of App: {solC.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(solC, "submit_file_c.csv");
+      WriteLine($"[{semiC.Id}]: Score of submit_file_c: {solC.ActualScore: 0.0000}; ");
+      JobDeploy.FirstFit(solC);
+      WriteLine($"[{semiC.Id}]: Score of App+Job: {solC.ActualScore: 0.0000}; ");
+
+      var csvSubmitC = $"submit.c.csv";
+      var writerC = File.AppendText(csvSubmitC);
+      writerC.WriteLine();
+      Solution.SaveJobSubmit(solC, writerC);
+      writerC.Close();
+
+      WriteLine("==End==");
+      
+      var semiD = DataSetSemi.SemiD;
+      var solD = semiD.InitSolution.Clone();
+      WriteLine($"[{semiD.Id}]: Score of App: {solD.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(solD, "submit_file_d.csv");
+      WriteLine($"[{semiD.Id}]: Score of submit_file_d: {solD.ActualScore: 0.0000}; ");
+      JobDeploy.FirstFit(solD);
+      WriteLine($"[{semiD.Id}]: Score of App+Job: {solD.ActualScore: 0.0000}; ");
+
+      var csvSubmitD = $"submit.d.csv";
+      var writerD = File.AppendText(csvSubmitD);
+      writerD.WriteLine();
+      Solution.SaveJobSubmit(solD, writerD);
+      writerD.Close();
+
+      WriteLine("==End==");
+      
+      var semiE = DataSetSemi.SemiE;
+      var solE = semiE.InitSolution.Clone();
+      WriteLine($"[{semiE.Id}]: Score of App: {solE.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(solE, "submit_file_e.csv");
+      WriteLine($"[{semiE.Id}]: Score of submit_file_e: {solE.ActualScore: 0.0000}; ");
+      JobDeploy.FirstFit(solE);
+      WriteLine($"[{semiE.Id}]: Score of App+Job: {solE.ActualScore: 0.0000}; ");
+
+      var csvSubmitE = $"submit.e.csv";
+      var writerE = File.AppendText(csvSubmitE);
+      writerE.WriteLine();
+      Solution.SaveJobSubmit(solE, writerE);
+      writerE.Close();
 
       WriteLine("==End==");
     }
