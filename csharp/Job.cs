@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -392,10 +392,10 @@ namespace Tianchi {
 
         foreach (var post in task.Post) {
           var postBatchSet = batchKv[post];
-          foreach (var batch in postBatchSet) {
+          foreach (var postBatch in postBatchSet) {
             //考虑到资源计算规则，BeginTime不能与end相同
-            if (batch.BeginTime < end) {
-              WriteLine($"[CheckTaskSequence]: {post.FullId}@m_{batch.Machine.Id} " +
+            if (postBatch.BeginTime < end) {
+              WriteLine($"[CheckTaskSequence]: {post.FullId}@m_{postBatch.Machine.Id} " +
                         $"begins before {task.FullId} finish!");
               return false;
             }

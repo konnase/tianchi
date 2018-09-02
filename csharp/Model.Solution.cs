@@ -27,7 +27,7 @@ namespace Tianchi {
     public int AppInstCount => DataSet.AppInstCount;
     public int MachineCount => DataSet.MachineCount;
 
-     #region 从文件读机器和在线实例数据，克隆
+    #region 从文件读机器和在线实例数据，克隆
 
     public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
       bool withInitDeploy = true) {
