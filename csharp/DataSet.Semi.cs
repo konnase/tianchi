@@ -1,4 +1,4 @@
-﻿using static System.Console;
+using static System.Console;
 
 namespace Tianchi {
   public static class DataSetSemi {
@@ -14,32 +14,32 @@ namespace Tianchi {
       Util.IsAlpha10 = false;
 
       var semiA = DataSet.Read(DataSetId.SemiA,
-        "data/app_resources.csv",
-        "data/app_interference.csv",
-        "data/machine_resources.a.csv",
-        "data/instance_deploy.a.csv",
-        "data/job_info.a.csv"
+        "data/scheduling_semifinal_data_20180815/app_resources.csv",
+        "data/scheduling_semifinal_data_20180815/app_interference.csv",
+        "data/scheduling_semifinal_data_20180815/machine_resources.a.csv",
+        "data/scheduling_semifinal_data_20180815/instance_deploy.a.csv",
+        "data/scheduling_semifinal_data_20180815/job_info.a.csv"
       );
 
       var semiB = DataSet.Read(DataSetId.SemiB, semiA.AppKv,
-        "data/machine_resources.b.csv",
-        "data/instance_deploy.b.csv",
-        "data/job_info.b.csv");
+        "data/scheduling_semifinal_data_20180815/machine_resources.b.csv",
+        "data/scheduling_semifinal_data_20180815/instance_deploy.b.csv",
+        "data/scheduling_semifinal_data_20180815/job_info.b.csv");
 
       var semiC = DataSet.Read(DataSetId.SemiC, semiA.AppKv,
-        "data/machine_resources.c.csv",
-        "data/instance_deploy.c.csv",
-        "data/job_info.c.csv");
+        "data/scheduling_semifinal_data_20180815/machine_resources.c.csv",
+        "data/scheduling_semifinal_data_20180815/instance_deploy.c.csv",
+        "data/scheduling_semifinal_data_20180815/job_info.c.csv");
 
       var semiD = DataSet.Read(DataSetId.SemiD, semiA.AppKv,
-        "data/machine_resources.d.csv",
-        "data/instance_deploy.d.csv",
-        "data/job_info.d.csv");
+        "data/scheduling_semifinal_data_20180815/machine_resources.d.csv",
+        "data/scheduling_semifinal_data_20180815/instance_deploy.d.csv",
+        "data/scheduling_semifinal_data_20180815/job_info.d.csv");
 
       var semiE = DataSet.Read(DataSetId.SemiE, semiA.AppKv,
-        "data/machine_resources.e.csv",
-        "data/instance_deploy.e.csv",
-        "data/job_info.e.csv");
+        "data/scheduling_semifinal_data_20180815/machine_resources.e.csv",
+        "data/scheduling_semifinal_data_20180815/instance_deploy.e.csv",
+        "data/scheduling_semifinal_data_20180815/job_info.e.csv");
 
       return new[] {semiA, semiB, semiC, semiD, semiE};
     }

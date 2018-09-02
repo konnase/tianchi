@@ -26,3 +26,5 @@ debug
 search-result/
 **/target/
 judge.jar
+
+data/scheduling_semifinal_data_20180815/

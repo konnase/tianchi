@@ -16,12 +16,13 @@ namespace Tianchi {
       JobDeploy.FirstFit(sol);
       WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
 
-      var csvSubmit = $"submit.a.csv";
+      var csvSubmit = $"submit.a.csv"; // submit.a.csv是复制的submit_file_a_xxxx
       var writer = File.AppendText(csvSubmit);
-      writer.WriteLine();
+      writer.WriteLine(); //注意格式，submit.a.csv最后没有空行，要填上
       Solution.SaveJobSubmit(sol, writer);
       writer.Close();
 
+      Solution.CheckAllDeployed(sol);
       WriteLine("==End==");
       
       

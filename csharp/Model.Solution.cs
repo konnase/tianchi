@@ -27,7 +27,7 @@ namespace Tianchi {
     public int AppInstCount => DataSet.AppInstCount;
     public int MachineCount => DataSet.MachineCount;
 
-     #region 从文件读机器和在线实例数据，克隆
+    #region 从文件读机器和在线实例数据，克隆
 
     public static Solution Read(DataSet dataSet, string machineCsv, string appInstCsv,
       bool withInitDeploy = true) {
@@ -260,7 +260,7 @@ namespace Tianchi {
 
     private static void ReleasePendingSet(HashSet<AppInst> pendingSet) {
       foreach (var inst in pendingSet) {
-        inst.PreMachine?.Remove(inst, setDeployFlag: false);
+        inst.PrevMachine?.Remove(inst, setDeployFlag: false);
       }
 
       pendingSet.Clear();
@@ -473,7 +473,7 @@ namespace Tianchi {
         if (prevRound != round) {
           prevRound = round;
           foreach (var i in pendingSet) {
-            i.PreMachine?.Remove(i, setDeployFlag: false);
+            i.PrevMachine?.Remove(i, setDeployFlag: false);
           }
 
           pendingSet.Clear();
@@ -514,7 +514,7 @@ namespace Tianchi {
       });
 
       foreach (var i in pendingSet) {
-        i.PreMachine?.Remove(i, setDeployFlag: false);
+        i.PrevMachine?.Remove(i, setDeployFlag: false);
       }
     }
 
