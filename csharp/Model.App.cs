@@ -88,8 +88,10 @@ namespace Tianchi {
     // Machine 字段在不同的 Solution 是不同的对象
     public Machine Machine;
 
-    // 迁移前所在机器，仅当 TryPut 不是 autoRemove 才使用此字段
-    public Machine PreMachine;
+    /// <summary>
+    /// 迁移前所在机器，仅当 TryPut 不是 autoRemove 才使用此字段
+    /// </summary>
+    public Machine PrevMachine;
 
     public AppInst(int id, App app) {
       Id = id;

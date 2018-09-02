@@ -170,7 +170,7 @@ namespace Tianchi {
       if (autoRemove) {
         inst.Machine?.Remove(inst);
       } else {
-        inst.PreMachine = inst.Machine;
+        inst.PrevMachine = inst.Machine;
       }
 
       inst.Machine = this;
@@ -180,7 +180,7 @@ namespace Tianchi {
     }
 
     public void Remove(AppInst inst,
-      // 兼容：如果从是 PreMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
+      // 兼容：如果从是 PrevMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
       bool setDeployFlag = true) {
       //
       if (!AppInstSet.Remove(inst)) {
@@ -216,7 +216,7 @@ namespace Tianchi {
         }
       }
 
-      // 兼容：如果是从 PreMachine 调用的，不修改下面这两个字段
+      // 兼容：如果是从 PrevMachine 调用的，不修改下面这两个字段
       if (!setDeployFlag) {
         return;
       }
