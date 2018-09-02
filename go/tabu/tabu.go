@@ -253,8 +253,8 @@ func (m *Machine) noCascatePut(inst *Instance) {
 		m.Usage[i] += inst.App.Resource[i]
 	}
 
-	inst.Machine = m
-	inst.deployed = true
+	//inst.Machine = m
+	//inst.deployed = true
 	inst.exchanged = true
 
 	m.instKV[inst.Id] = inst
@@ -283,20 +283,22 @@ func (m *Machine) remove(inst *Instance) {
 
 	m.appCntKV[inst.App.Id] -= 1
 
-	for _, newInst := range m.instKV {
-		if newInst.App.Id == inst.App.Id {
-			m.appKV[inst.App.Id] = newInst
-			break
-		}
-	}
 	if m.appCntKV[inst.App.Id] == 0 {
 		delete(m.appCntKV, inst.App.Id)
 		delete(m.appKV, inst.App.Id)
+	} else {
+		for _, newInst := range m.instKV {
+			if newInst.App.Id == inst.App.Id {
+				m.appKV[inst.App.Id] = newInst
+				break
+			}
+		}
 	}
+
 }
 
 func (m *Machine) canPutInst(inst *Instance) bool {
-	return !m.outOfCapacityInst(inst) && !m.hasConflictInst(inst)
+	return !m.hasConflictInst(inst) && !m.outOfCapacityInst(inst)
 }
 
 func (m *Machine) outOfCapacityInst(inst *Instance) bool {
@@ -315,7 +317,11 @@ func (m *Machine) hasConflictInst(inst *Instance) bool {
 		appNowCnt = m.appCntKV[appNow]
 	}
 
+
 	for appId, appCnt := range m.appCntKV {
+		//if appId == "app_2485" {
+		//	logrus.Infof("%s %s appCnt: %d  limit: %d", appId, appNow, appCnt, m.conflictLimitOf(appId, appNow))
+		//}
 		if appNowCnt+1 > m.conflictLimitOf(appId, appNow) {
 			return true
 		}
@@ -512,10 +518,10 @@ func (s NeiborSlice) Less(i, j int) bool {
 }
 
 type Scheduler struct {
-	initSolution    *Solution
 	neibors []*Candidate
 	candidates   []*Candidate
 
+	initSolution    *Solution
 	unchangedSolution *Solution  //在移动inst的过程中，不将inst从其原来的machine上删除
 	bestSolution *Solution //固定位置solutions[0]
 	currentSolution  *Solution //固定位置solutions[1]
@@ -560,6 +566,16 @@ func NewScheduler(dataset, submitFile string, machine []*Machine, instKV map[str
 }
 
 func (s *Scheduler) tabuSearch() {
+	//for _, inst := range s.initSolution.instKV {
+	//	if inst.Id == "inst_39983" {
+	//		machine := s.initSolution.machineKV["machine_1688"]
+	//		for _, instM := range machine.instKV {
+	//			fmt.Printf("%s ",instM.App.Id)
+	//		}
+	//		logrus.Infof("%s can put %s : %t", machine.Id, inst.Id, machine.canPutInst(inst))
+	//		logrus.Infof("%s --> %s : %d", inst.App.Id, "app_1310", machine.appInterference[inst.App.Id]["app_1310"])
+	//	}
+	//}
 	s.startSearch()
 }
 
@@ -631,7 +647,8 @@ func (s *Scheduler) startSearch() {
 			if  canMove && ucanMove && machineB.canPutInst(instA) && umachineB.canPutInst(uinstA){
 				s.pickFrom[uinstA.Id] = uinstA.Machine.Id
 				//logrus.Infof("%s can put %s: %t", machineB.Id, instA.Id, machineB.canPutInst(instA))
-				umachineB.noCascatePut(uinstA) //todo: uinstA迁移之后居然对instA的迁移产生了影响
+				umachineB.noCascatePut(uinstA)
+				//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
 				//logrus.Infof("%s can put %s: %t", machineB.Id, instA.Id, machineB.canPutInst(instA))
 				machineB.put(instA)
 				localBestSolution.totalScore = localBestCandidate.totalScore
@@ -646,7 +663,7 @@ func (s *Scheduler) startSearch() {
 					localBestSolution.permitValue = s.currentSolution.totalScore
 				}
 				//更新tabulist
-				s.updateTabuList() //todo: pair移除tabulist之后要释放候选解
+				s.updateTabuList()
 				s.lock.Lock()
 				s.tabuList[localBestCandidate.moveAppFromMachineAToB] = TabuLen
 
@@ -819,7 +836,7 @@ func (s *Scheduler) getNewSolutionFromCurrentSolution(currentSolution *Solution)
 			Usage:           machine.Usage,
 			instKV:          make(map[string]*Instance),
 			appKV:           make(map[string]*Instance),
-			appCntKV:        machine.appCntKV,
+			appCntKV:        make(map[string]int),
 			appInterference: machine.appInterference,
 		}
 		for instid := range machine.instKV {
@@ -827,6 +844,9 @@ func (s *Scheduler) getNewSolutionFromCurrentSolution(currentSolution *Solution)
 		}
 		for appid, inst := range machine.appKV {
 			m2.appKV[appid] = instKV[inst.Id]
+		}
+		for appId, cnt := range machine.appCntKV {
+			m2.appCntKV[appId] = cnt
 		}
 		machines = append(machines, m2)
 		machineKV[m2.Id] = m2
@@ -878,6 +898,18 @@ func (s *Scheduler) readSubmitFile(submitFile string) int {
 
 			uinst := s.unchangedSolution.instKV[split[1]]
 			umachine := s.unchangedSolution.machineKV[split[2]]
+			//if uinst.Id == "inst_39983" {
+			//	for _, instM := range umachine.instKV {
+			//		fmt.Printf("%s ", instM.App.Id)
+			//	}
+			//	fmt.Printf("\n")
+			//	for appCnt, _ := range umachine.appCntKV {
+			//		fmt.Printf("%s ", appCnt)
+			//	}
+			//	fmt.Printf("\n")
+			//	logrus.Infof("%s can put %s : %t", umachine.Id, uinst.Id, umachine.canPutInst(uinst))
+			//	logrus.Infof("%s --> %s : %d", "app_2485", uinst.App.Id, umachine.appInterference["app_2485"][uinst.App.Id])
+			//}
 			umachine.noCascatePut(uinst)
 
 		} else{
