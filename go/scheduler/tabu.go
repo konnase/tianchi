@@ -143,41 +143,37 @@ func (s *Scheduler) StartSearch() {
 		if instA.Exchanged {
 			continue
 		}
-		ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, false)
-		canMove, _ := s.tryMove(instA, machineB, localBestSolution, false)
-		if canMove && ucanMove {
-			//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
-			//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
-			s.PendingInstKv[uinstA.Id] = uinstA.Machine.Id
-			umachineB.Put(uinstA, false)
-			machineB.Put(instA, true)
+		//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
+		//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
+		s.PendingInstKv[uinstA.Id] = uinstA.Machine.Id
+		umachineB.Put(uinstA, false)
+		machineB.Put(instA, true)
 
-			localBestSolution.TotalScore = localBestCandidate.TotalScore
-			s.UnchangedSol.TotalScore = localBestCandidate.TotalScore
+		localBestSolution.TotalScore = localBestCandidate.TotalScore
+		s.UnchangedSol.TotalScore = localBestCandidate.TotalScore
 
-			submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
-			s.SubmitResult = append(s.SubmitResult, submitA)
+		submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
+		s.SubmitResult = append(s.SubmitResult, submitA)
 
-			//设置局部最优解的特赦值
-			if localBestCandidate.TotalScore < s.CurrentSol.PermitValue {
-				localBestSolution.PermitValue = localBestCandidate.TotalScore
-			} else if s.CurrentSol.TotalScore < localBestCandidate.PermitValue {
-				localBestSolution.PermitValue = s.CurrentSol.TotalScore
-			}
-			//更新tabulist
-			s.updateTabuList()
-			s.TabuKv[localBestCandidate.MoveApp] = TabuLen
-
-			//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
-			if localBestCandidate.TotalScore < s.BestSol.TotalScore-0.0001 {
-				logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSol.TotalScore, localBestCandidate.TotalScore)
-				s.BestSol = nil
-				s.BestSol = CopySolution(localBestSolution)
-			}
-
-			s.CurrentSol = localBestSolution
-			logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.TotalScore)
+		//设置局部最优解的特赦值
+		if localBestCandidate.TotalScore < s.CurrentSol.PermitValue {
+			localBestSolution.PermitValue = localBestCandidate.TotalScore
+		} else if s.CurrentSol.TotalScore < localBestCandidate.PermitValue {
+			localBestSolution.PermitValue = s.CurrentSol.TotalScore
 		}
+		//更新tabulist
+		s.updateTabuList()
+		s.TabuKv[localBestCandidate.MoveApp] = TabuLen
+
+		//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
+		if localBestCandidate.TotalScore < s.BestSol.TotalScore-0.0001 {
+			logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSol.TotalScore, localBestCandidate.TotalScore)
+			s.BestSol = nil
+			s.BestSol = CopySolution(localBestSolution)
+		}
+
+		s.CurrentSol = localBestSolution
+		logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.TotalScore)
 	}
 
 }
