@@ -227,9 +227,9 @@ func (s *Scheduler) updateTabuList() {
 	}
 }
 
-func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
+func (s *Scheduler) getInitNeighbor(solution *Solution) bool {
 	s.Neighbors = s.Neighbors[:0:0]
-	failIter := 0
+	failCnt := 0
 	for i := 0; i < InitNeighborSize; i++ {
 		machineAIndex := rand.Intn(len(s.BestSol.Machines))
 		machineBIndex := s.getMachineBIndex()
@@ -241,14 +241,14 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 		newNeighbor.TotalScore = 1e9
 		s.Neighbors = append(s.Neighbors, newNeighbor)
 		moved := false
-		machineA := CurrentSolution.Machines[machineAIndex]
-		machineB := CurrentSolution.Machines[machineBIndex]
+		machineA := solution.Machines[machineAIndex]
+		machineB := solution.Machines[machineBIndex]
 		for _, instA := range machineA.AppKV {
 			//如果machineA上的appA已经迁移到machineB了，则重新生成
 			MoveAppFromMachineAToB := ExchangeApp{
 				instA.AppId,
 				machineA.Id,
-				CurrentSolution.Machines[machineBIndex].Id,
+				solution.Machines[machineBIndex].Id,
 			}
 			duplicate := false
 			for _, Neighbor := range s.Neighbors {
@@ -261,23 +261,23 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 			if duplicate {
 				continue
 			}
-			canMove, delta := s.tryMove(instA, machineB, CurrentSolution, false)
+			canMove, delta := s.tryMove(instA, machineB, solution, false)
 			uinstA := s.UnchangedSol.InstKV[instA.Id]
 			umachineB := s.UnchangedSol.Machines[machineBIndex]
 			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, false)
 			if canMove && ucanMove {
-				s.getNewNeighbor(i, instA, machineA, machineB, CurrentSolution.TotalScore+delta)
+				s.setNeighbor(i, instA, machineA, machineB, solution.TotalScore+delta)
 				moved = true
 				break //产生一个邻居后，继续产生下一个邻居
 			}
 		}
 		if !moved {
-			failIter++
+			failCnt++
 			i--
 			s.Neighbors = s.Neighbors[:len(s.Neighbors)-1]
 		}
-		if failIter > 5000 {
-			//logrus.Infof("failed to generate neighbor")
+		if failCnt > 5000 {
+			logrus.Infof("failed to generate neighbor")
 			return false
 		}
 	}
@@ -286,28 +286,31 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 
 func (s *Scheduler) getMachineBIndex() int {
 	machineBIndex := 0
+	rate := rand.Intn(100)
+
+	// c 和 d 均有 9000 台机器，前 6000 台是小型机器
 	if s.DataSet == "c" || s.DataSet == "d" {
-		rate := rand.Intn(100)
-		if rate > 30 {
+		if rate > 30 { // todo: tuning 选择大型机器的概率
 			machineBIndex = rand.Intn(3000) + 6000
 		} else {
 			machineBIndex = rand.Intn(6000)
 		}
 	} else if s.DataSet == "e" {
-		rate := rand.Intn(100)
+		// e 有 8000 台机器，前 6000 台是小型机器
 		if rate > 50 {
 			machineBIndex = rand.Intn(2000) + 6000
 		} else {
 			machineBIndex = rand.Intn(6000)
 		}
 	} else {
-		//a, b的分数都在5000以下，故目标机器的范围不需要太大
+		// a 和 b 均有 8000 台大型机器
+		// a, b的分数都在5000以下，故目标机器的范围不需要太大
 		machineBIndex = rand.Intn(5000)
 	}
 	return machineBIndex
 }
 
-func (s *Scheduler) getNewNeighbor(index int, instA *Instance, machineA, machineB *Machine, totalScore float64) {
+func (s *Scheduler) setNeighbor(index int, instA *Instance, machineA, machineB *Machine, totalScore float64) {
 	s.Neighbors[index].InstA = instA.Id
 	s.Neighbors[index].MachineA = machineA.Id
 	s.Neighbors[index].MachineB = machineB.Id
@@ -321,9 +324,10 @@ func (s *Scheduler) getNewNeighbor(index int, instA *Instance, machineA, machine
 	}
 }
 
+//截取 TotalScore 较小的前 CandidateLen 个
 func (s *Scheduler) getCandidateNeighbor() {
 	Neighbors := NeighborSlice(s.Neighbors[:])
-	sort.Sort(Neighbors)
+	sort.Sort(Neighbors) //按 TotalScore 排序
 	s.Candidates = Neighbors[:CandidateLen]
 	for _, candidate := range s.Candidates {
 		candidate.IsCandidate = true
