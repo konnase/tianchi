@@ -1,11 +1,10 @@
 package scheduler
 
-
 import (
+	"math"
 	"strconv"
 	"strings"
 	"sync"
-	"math"
 )
 
 const (
@@ -13,21 +12,21 @@ const (
 	InstanceInput        = "data/scheduling_semifinal_data_20180815/instance_deploy.%s.csv"
 	ApplicationInput     = "data/scheduling_semifinal_data_20180815/app_resources.csv"
 	AppInterferenceInput = "data/scheduling_semifinal_data_20180815/app_interference.csv"
-	JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.%s.csv"
-	SearchMachineRange   = 5000
-	InitNeiborSize       = 100
-	CandidateLen         = 80
-	TabuLen              = 4
+	//JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.%s.csv"
+	//SearchMachineRange   = 5000
+	InitNeighborSize = 100
+	CandidateLen     = 80
+	TabuLen          = 4
 )
 
 type Instance struct {
-	Id      string
-	App     *Application
-	AppId   string
-	Machine *Machine
+	Id        string
+	App       *Application
+	AppId     string
+	Machine   *Machine
 	MachineId string
 
-	Deployed bool
+	Deployed  bool
 	Exchanged bool
 	//lock     sync.Mutex
 }
@@ -36,8 +35,8 @@ func NewInstance(line string) *Instance {
 	line = strings.TrimSpace(line)
 	splits := strings.Split(line, ",")
 	return &Instance{
-		Id:    splits[0],
-		AppId: splits[1],
+		Id:        splits[0],
+		AppId:     splits[1],
 		MachineId: splits[2],
 	}
 }
@@ -89,6 +88,7 @@ type Machine struct {
 	PmpCapacity  [3]float64
 	Capacity     [200]float64
 	Usage        [200]float64
+	Score        float64
 
 	InstKV          map[string]*Instance
 	AppCntKV        map[string]int
@@ -116,6 +116,7 @@ func NewMachine(line string, interference AppInterference) *Machine {
 	splits := strings.Split(line, ",")
 	machine := &Machine{
 		Id:              splits[0],
+		Score:           -1e9,
 		InstKV:          make(map[string]*Instance),
 		AppCntKV:        make(map[string]int),
 		AppKV:           make(map[string]*Instance),
@@ -191,11 +192,14 @@ func (m *Machine) IsOverload() bool {
 	return m.IsCpuOverload() || m.IsMemOverload() || m.IsDiskOverload() || m.IsPmpOverload()
 }
 
-func (m *Machine) Score() float64 {
+func (m *Machine) GetScore() float64 {
 	if m.DiskUsage() == 0 {
 		return 0.0
 	}
-	return CpuScore(m.CpuUsage(), m.CpuCapacity, len(m.InstKV))
+	if m.Score == -1e9 {
+		m.Score = CpuScore(m.CpuUsage(), m.CpuCapacity, len(m.InstKV))
+	}
+	return m.Score
 }
 
 func CpuScore(cpuUsage []float64, cpuCapacity float64, instNum int) float64 {
@@ -209,7 +213,7 @@ func CpuScore(cpuUsage []float64, cpuCapacity float64, instNum int) float64 {
 	return score / 98.0
 }
 
-func (m *Machine) Put(inst *Instance) {
+func (m *Machine) Put(inst *Instance, autoRemove bool) {
 	if _, ok := m.InstKV[inst.Id]; ok {
 		return
 	}
@@ -218,33 +222,11 @@ func (m *Machine) Put(inst *Instance) {
 		m.Usage[i] += inst.App.Resource[i]
 	}
 
-	if inst.Machine != nil {
+	if autoRemove && inst.Machine != nil {
 		inst.Machine.Remove(inst)
 	}
 
-	inst.Machine = m
-	inst.Deployed = true
-	inst.Exchanged = true
-
-	m.InstKV[inst.Id] = inst
-	m.AppKV[inst.App.Id] = inst //每类应用只记录一个实例用来swap即可
-
-	if _, ok := m.AppCntKV[inst.App.Id]; ok {
-		m.AppCntKV[inst.App.Id] += 1
-	} else {
-		m.AppCntKV[inst.App.Id] = 1
-	}
-}
-
-func (m *Machine) NoCascatePut(inst *Instance) {
-	if _, ok := m.InstKV[inst.Id]; ok {
-		return
-	}
-
-	for i := 0; i < 200; i++ {
-		m.Usage[i] += inst.App.Resource[i]
-	}
-
+	m.Score = -1e9 //使分数缓存失效，下次重新计算
 	inst.Machine = m
 	inst.Deployed = true
 	inst.Exchanged = true
@@ -268,6 +250,8 @@ func (m *Machine) Remove(inst *Instance) {
 		m.Usage[i] -= inst.App.Resource[i]
 	}
 
+	m.Score = -1e9 //使分数缓存失效
+
 	inst.Machine = nil
 	inst.Deployed = false
 
@@ -278,7 +262,7 @@ func (m *Machine) Remove(inst *Instance) {
 	if m.AppCntKV[inst.App.Id] == 0 {
 		delete(m.AppCntKV, inst.App.Id)
 		delete(m.AppKV, inst.App.Id)
-	} else {
+	} else if inst.Id == m.AppKV[inst.AppId].Id {
 		for _, newInst := range m.InstKV {
 			if newInst.App.Id == inst.App.Id {
 				m.AppKV[inst.App.Id] = newInst
@@ -330,10 +314,7 @@ func (m *Machine) ConflictLimitOf(appIdA, appIdB string) int {
 func (m *Machine) HasConflict() bool {
 	cnt := 0
 	for appIdA, appCntA := range m.AppCntKV {
-		for appIdB, appCntB := range m.AppCntKV {
-			if appCntB > m.ConflictLimitOf(appIdA, appIdB) {
-				cnt += 1
-			}
+		for appIdB := range m.AppCntKV {
 			if appCntA > m.ConflictLimitOf(appIdB, appIdA) {
 				cnt += 1
 			}
@@ -342,7 +323,7 @@ func (m *Machine) HasConflict() bool {
 	return cnt > 0
 }
 
-func (m *Machine) InstDiskList() string {
+func (m *Machine) InstList() string {
 	var disks []string
 	for _, inst := range m.InstKV {
 		disks = append(disks, strconv.FormatInt(int64(inst.App.Disk), 10))
@@ -366,42 +347,42 @@ type ExchangeApp struct {
 }
 
 type SubmitResult struct {
-	Round int
+	Round    int
 	Instance string
-	Machine string
+	Machine  string
 }
 
 type Candidate struct {
-	InstA string
+	InstA    string
 	MachineA string
 	MachineB string
 
-	TotalScore float64
+	TotalScore  float64
 	IsCandidate bool
 	PermitValue float64
 
-	MoveAppFromMachineAToB ExchangeApp //记录这个解的移动的方向
+	MoveApp ExchangeApp //记录这个解的移动的方向
 }
 type Solution struct {
 	Machines    []*Machine
 	InstKV      map[string]*Instance
 	AppKV       map[string]*Application
 	MachineKV   map[string]*Machine
-	TotalScore  float64 //todo: 共享变量，不影响计算过程，只用于输出
+	TotalScore  float64
 	PermitValue float64
 
 	lock sync.RWMutex
 }
 
-type NeiborSlice []*Candidate
+type NeighborSlice []*Candidate
 
-func (s NeiborSlice) Len() int {
+func (s NeighborSlice) Len() int {
 	return len(s)
 }
 
-func (s NeiborSlice) Swap(i, j int) {
+func (s NeighborSlice) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
-func (s NeiborSlice) Less(i, j int) bool {
+func (s NeighborSlice) Less(i, j int) bool {
 	return s[i].TotalScore < s[j].TotalScore
 }

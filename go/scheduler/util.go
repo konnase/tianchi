@@ -1,16 +1,15 @@
 package scheduler
 
-
 func TotalScore(machines []*Machine) float64 {
 	s := 0.0
 	for _, m := range machines {
-		s += m.Score()
+		s += m.GetScore()
 	}
 	return s
 }
 
-func GetNewSolutionFromCurrentSolution(currentSolution *Solution) *Solution {
-	s1 := *currentSolution
+func CopySolution(solution *Solution) *Solution {
+	s1 := *solution
 	appKV := make(map[string]*Application)
 	for _, app := range s1.AppKV {
 		app2 := &Application{
@@ -46,6 +45,7 @@ func GetNewSolutionFromCurrentSolution(currentSolution *Solution) *Solution {
 			PmpCapacity:     machine.PmpCapacity,
 			Capacity:        machine.Capacity,
 			Usage:           machine.Usage,
+			Score:           -1e9,
 			InstKV:          make(map[string]*Instance),
 			AppKV:           make(map[string]*Instance),
 			AppCntKV:        make(map[string]int),

@@ -1,12 +1,12 @@
 package scheduler
 
 import (
-	"fmt"
 	"bufio"
+	"fmt"
 	"io"
-	"strings"
-	"strconv"
 	"os"
+	"strconv"
+	"strings"
 )
 
 func ReadLines(input string) []string {
@@ -68,9 +68,9 @@ func ReadInstance(lines []string) []*Instance {
 	return i
 }
 
-func ReadData(dataset string) ([]*Machine, map[string]*Instance, map[string]*Application, map[string]*Machine) {
+func ReadData(dataSet string) ([]*Machine, map[string]*Instance, map[string]*Application, map[string]*Machine) {
 	interference := ReadAppInterference(ReadLines(AppInterferenceInput))
-	machineInput := fmt.Sprintf(MachineInput, dataset)
+	machineInput := fmt.Sprintf(MachineInput, dataSet)
 	machines := ReadMachine(ReadLines(machineInput), interference)
 	machineKV := make(map[string]*Machine)
 	for _, machine := range machines {
@@ -83,13 +83,13 @@ func ReadData(dataset string) ([]*Machine, map[string]*Instance, map[string]*App
 		appKV[app.Id] = app
 	}
 
-	instanceInput := fmt.Sprintf(InstanceInput, dataset)
+	instanceInput := fmt.Sprintf(InstanceInput, dataSet)
 	insts := ReadInstance(ReadLines(instanceInput))
 	instKV := make(map[string]*Instance)
 	for _, inst := range insts {
 		inst.App = appKV[inst.AppId]
 		inst.Machine = machineKV[inst.MachineId]
-		inst.Machine.Put(inst)
+		inst.Machine.Put(inst, true)
 		inst.Exchanged = false
 		instKV[inst.Id] = inst
 	}
