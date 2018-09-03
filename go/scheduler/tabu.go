@@ -360,7 +360,7 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 	}
 	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV))
 	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV))
-	delta := score1 + score2 - (m1.GetScore() + m2.GetScore())
+	delta := score1 + score2 - (m1.Score() + m2.Score())
 
 	if !force && (delta > 0 || -delta < 0.0001) {
 		return false, 1e9
