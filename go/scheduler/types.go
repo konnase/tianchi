@@ -309,11 +309,7 @@ func (m *Machine) HasConflictInst(inst *Instance) bool {
 		appNowCnt = m.AppCntKV[appNow]
 	}
 
-
 	for appId, appCnt := range m.AppCntKV {
-		//if appId == "app_2485" {
-		//	logrus.Infof("%s %s appCnt: %d  limit: %d", appId, appNow, appCnt, m.ConflictLimitOf(appId, appNow))
-		//}
 		if appNowCnt+1 > m.ConflictLimitOf(appId, appNow) {
 			return true
 		}
