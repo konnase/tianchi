@@ -261,12 +261,12 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 			if duplicate {
 				continue
 			}
-			canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, false)
+			canMove, delta := s.tryMove(instA, machineB, CurrentSolution, false)
 			uinstA := s.UnchangedSol.InstKV[instA.Id]
 			umachineB := s.UnchangedSol.Machines[machineBIndex]
 			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, false)
 			if canMove && ucanMove {
-				s.getNewNeighbor(i, instA, machineA, machineB, totalScore)
+				s.getNewNeighbor(i, instA, machineA, machineB, CurrentSolution.TotalScore+delta)
 				moved = true
 				break //产生一个邻居后，继续产生下一个邻居
 			}
@@ -334,7 +334,8 @@ func (s *Scheduler) PermitValue(nowBestSolution *Solution) float64 {
 	return nowBestSolution.TotalScore
 }
 
-func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, force bool) (bool, float64) {
+// 如果move成功，返回delta；否则返回 1e9
+func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, ignoreDelta bool) (bool, float64) {
 	if inst.Exchanged {
 		return false, 1e9
 	}
@@ -352,21 +353,21 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 
 	var cpu1 [98]float64
 	var cpu2 [98]float64
-	machineCpu1 := m1.CpuUsage()
-	machineCpu2 := m2.CpuUsage()
+	m1Cpu := m1.CpuUsage()
+	m2Cpu := m2.CpuUsage()
 	for i := 0; i < 98; i++ {
-		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
-		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
+		cpu1[i] = m1Cpu[i] - inst.App.Cpu[i]
+		cpu2[i] = m2Cpu[i] + inst.App.Cpu[i]
 	}
-	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV))
-	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV))
+	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV)-1)
+	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV)+1)
 	delta := score1 + score2 - (m1.Score() + m2.Score())
 
-	if !force && (delta > 0 || -delta < 0.0001) {
+	if !ignoreDelta && (delta > 0 || -delta < 0.0001) {
 		return false, 1e9
 	}
 
-	return true, solution.TotalScore + delta
+	return true, delta
 }
 
 func (s *Scheduler) Output(dataSet string) {
