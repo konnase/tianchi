@@ -45,7 +45,6 @@ func ReadAppInterference(lines []string) AppInterference {
 }
 
 func ReadMachine(lines []string, interference AppInterference) []*Machine {
-	// m := make([]*Machine, 6000)
 	var m []*Machine
 	for _, line := range lines {
 		m = append(m, NewMachine(line, interference))
@@ -54,7 +53,6 @@ func ReadMachine(lines []string, interference AppInterference) []*Machine {
 }
 
 func ReadApplication(lines []string) []*Application {
-	// a := make([]*Application, 9000)
 	var a []*Application
 	for _, line := range lines {
 		a = append(a, NewApplication(line))
@@ -63,7 +61,6 @@ func ReadApplication(lines []string) []*Application {
 }
 
 func ReadInstance(lines []string) []*Instance {
-	// i := make([]*Instance, 69000)
 	var i []*Instance
 	for _, line := range lines {
 		i = append(i, NewInstance(line))
