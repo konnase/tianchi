@@ -45,6 +45,7 @@ func CopySolution(solution *Solution) *Solution {
 			PmpCapacity:     machine.PmpCapacity,
 			Capacity:        machine.Capacity,
 			Usage:           machine.Usage,
+			score:           -1e9,
 			InstKV:          make(map[string]*Instance),
 			AppKV:           make(map[string]*Instance),
 			AppCntKV:        make(map[string]int),

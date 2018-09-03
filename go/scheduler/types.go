@@ -116,6 +116,7 @@ func NewMachine(line string, interference AppInterference) *Machine {
 	splits := strings.Split(line, ",")
 	machine := &Machine{
 		Id:              splits[0],
+		score:           -1e9,
 		InstKV:          make(map[string]*Instance),
 		AppCntKV:        make(map[string]int),
 		AppKV:           make(map[string]*Instance),

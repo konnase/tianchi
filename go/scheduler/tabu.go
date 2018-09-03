@@ -139,8 +139,8 @@ func (s *Scheduler) StartSearch() {
 		if instA.Exchanged {
 			continue
 		}
-		ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, false)
-		canMove, _ := s.tryMove(instA, machineB, localBestSolution, false)
+		ucanMove, _ := s.canMove(uinstA, umachineB, s.UnchangedSol, false)
+		canMove, _ := s.canMove(instA, machineB, localBestSolution, false)
 		if canMove && ucanMove {
 			//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
 			//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
@@ -261,10 +261,10 @@ func (s *Scheduler) getInitNeighbor(solution *Solution) bool {
 			if duplicate {
 				continue
 			}
-			canMove, delta := s.tryMove(instA, machineB, solution, false)
+			canMove, delta := s.canMove(instA, machineB, solution, false)
 			uinstA := s.UnchangedSol.InstKV[instA.Id]
 			umachineB := s.UnchangedSol.Machines[machineBIndex]
-			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, false)
+			ucanMove, _ := s.canMove(uinstA, umachineB, s.UnchangedSol, false)
 			if canMove && ucanMove {
 				s.setNeighbor(i, instA, machineA, machineB, solution.TotalScore+delta)
 				moved = true
@@ -277,7 +277,7 @@ func (s *Scheduler) getInitNeighbor(solution *Solution) bool {
 			s.Neighbors = s.Neighbors[:len(s.Neighbors)-1]
 		}
 		if failCnt > 5000 {
-			logrus.Infof("failed to generate neighbor")
+			//logrus.Infof("failed to generate neighbor")
 			return false
 		}
 	}
@@ -338,8 +338,8 @@ func (s *Scheduler) PermitValue(nowBestSolution *Solution) float64 {
 	return nowBestSolution.TotalScore
 }
 
-// 如果move成功，返回delta；否则返回 1e9
-func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, ignoreDelta bool) (bool, float64) {
+// 如果可以move，返回true, delta；否则返回 false, 1e9
+func (s *Scheduler) canMove(inst *Instance, m2 *Machine, solution *Solution, ignoreDelta bool) (bool, float64) {
 	if inst.Exchanged {
 		return false, 1e9
 	}
@@ -357,11 +357,11 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, ign
 
 	var cpu1 [98]float64
 	var cpu2 [98]float64
-	m1Cpu := m1.CpuUsage()
-	m2Cpu := m2.CpuUsage()
+	machineCpu1 := m1.CpuUsage()
+	machineCpu2 := m2.CpuUsage()
 	for i := 0; i < 98; i++ {
-		cpu1[i] = m1Cpu[i] - inst.App.Cpu[i]
-		cpu2[i] = m2Cpu[i] + inst.App.Cpu[i]
+		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
+		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
 	}
 	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV)-1)
 	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV)+1)
