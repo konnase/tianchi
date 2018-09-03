@@ -123,7 +123,7 @@ func (s *Scheduler) StartSearch() {
 	logrus.Infof("round: %d", round)
 	for {
 		//得到候选集
-		s.getInitNeighbor(s.CurrentSolution)
+		if !s.getInitNeighbor(s.CurrentSolution) { continue }
 		s.getCandidateNeibor()
 		//初始化候选集
 		s.initCandidateSet()
@@ -142,13 +142,15 @@ func (s *Scheduler) StartSearch() {
 		ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSolution, false)
 		canMove, _ := s.tryMove(instA, machineB, localBestSolution, false)
 		if  canMove && ucanMove {
-			s.PickFrom[uinstA.Id] = uinstA.Machine.Id
-			umachineB.NoCascatePut(uinstA)
 			//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
 			//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
+			s.PickFrom[uinstA.Id] = uinstA.Machine.Id
+			umachineB.NoCascatePut(uinstA)
 			machineB.Put(instA)
+
 			localBestSolution.TotalScore = localBestCandidate.TotalScore
 			s.UnchangedSolution.TotalScore = localBestCandidate.TotalScore
+
 			submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
 			s.SubmitResult = append(s.SubmitResult, submitA)
 
@@ -226,6 +228,7 @@ func (s *Scheduler) updateTabuList() {
 }
 
 func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool{
+	s.Neibors = s.Neibors[:0:0]
 	failIter := 0
 	for i := 0; i < InitNeiborSize; i++ {
 		machineAIndex := rand.Intn(len(s.BestSolution.Machines))
@@ -274,7 +277,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool{
 			s.Neibors = s.Neibors[:len(s.Neibors)-1]
 		}
 		if failIter > 1000 {
-			logrus.Infof("failed to generate neighbor")
+			//logrus.Infof("failed to generate neighbor")
 			return false
 		}
 	}
@@ -370,7 +373,7 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 func (s *Scheduler) Output(Dataset string) {
 
 	filePath := fmt.Sprintf("submit_file_%s.csv", Dataset)
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(err)
 	}
