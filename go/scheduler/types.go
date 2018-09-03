@@ -88,6 +88,7 @@ type Machine struct {
 	PmpCapacity  [3]float64
 	Capacity     [200]float64
 	Usage        [200]float64
+	Score        float64
 
 	InstKV          map[string]*Instance
 	AppCntKV        map[string]int
@@ -190,11 +191,14 @@ func (m *Machine) IsOverload() bool {
 	return m.IsCpuOverload() || m.IsMemOverload() || m.IsDiskOverload() || m.IsPmpOverload()
 }
 
-func (m *Machine) Score() float64 {
+func (m *Machine) GetScore() float64 {
 	if m.DiskUsage() == 0 {
 		return 0.0
 	}
-	return CpuScore(m.CpuUsage(), m.CpuCapacity, len(m.InstKV))
+	if m.Score == -1e9 {
+		m.Score = CpuScore(m.CpuUsage(), m.CpuCapacity, len(m.InstKV))
+	}
+	return m.Score
 }
 
 func CpuScore(cpuUsage []float64, cpuCapacity float64, instNum int) float64 {
@@ -221,6 +225,7 @@ func (m *Machine) Put(inst *Instance, autoRemove bool) {
 		inst.Machine.Remove(inst)
 	}
 
+	m.Score = -1e9 //使分数缓存失效，下次重新计算
 	inst.Machine = m
 	inst.Deployed = true
 	inst.Exchanged = true
@@ -243,6 +248,8 @@ func (m *Machine) Remove(inst *Instance) {
 	for i := 0; i < 200; i++ {
 		m.Usage[i] -= inst.App.Resource[i]
 	}
+
+	m.Score = -1e9 //使分数缓存失效
 
 	inst.Machine = nil
 	inst.Deployed = false

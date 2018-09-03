@@ -3,7 +3,7 @@ package scheduler
 func TotalScore(machines []*Machine) float64 {
 	s := 0.0
 	for _, m := range machines {
-		s += m.Score()
+		s += m.GetScore()
 	}
 	return s
 }
