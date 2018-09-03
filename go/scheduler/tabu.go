@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,10 +29,9 @@ type Scheduler struct {
 	Dataset string
 	SubmitFile string
 	Round int
-	lock       sync.RWMutex
 }
 
-func NewScheduler(Dataset, SubmitFile string, machines []*Machine, instKV map[string]*Instance, appKV map[string]*Application, machineKV map[string]*Machine) *Scheduler {
+func NewScheduler(round int, Dataset, SubmitFile string, machines []*Machine, instKV map[string]*Instance, appKV map[string]*Application, machineKV map[string]*Machine) *Scheduler {
 	solution := &Solution{
 		InstKV:      instKV,
 		AppKV:       appKV,
@@ -44,6 +42,7 @@ func NewScheduler(Dataset, SubmitFile string, machines []*Machine, instKV map[st
 		InitSolution: solution,
 		Dataset: Dataset,
 		SubmitFile: SubmitFile,
+		Round:round,
 		TabuList:   make(map[ExchangeApp]int),
 		SearchResult: make(map[string]string),
 		PickFrom: make(map[string]string),
@@ -52,13 +51,55 @@ func NewScheduler(Dataset, SubmitFile string, machines []*Machine, instKV map[st
 	scheduler.InitSolution.PermitValue = scheduler.InitSolution.TotalScore
 	scheduler.UnchangedSolution = GetNewSolutionFromCurrentSolution(scheduler.InitSolution)
 
-	scheduler.Round = scheduler.readSubmitFile(SubmitFile)
+	scheduler.readSubmitFile(SubmitFile)
 
 	scheduler.BestSolution = GetNewSolutionFromCurrentSolution(scheduler.InitSolution)
 	scheduler.CurrentSolution = GetNewSolutionFromCurrentSolution(scheduler.BestSolution)
 
 
 	return scheduler
+}
+
+//SubmitFile: submit file;
+func (s *Scheduler) readSubmitFile(SubmitFile string) {
+	if _, err := os.Open(SubmitFile); err!= nil {
+		return
+	}
+	lines := ReadLines(SubmitFile)
+	round := 1
+	for _, line := range lines {
+		split := strings.Split(line, ",")
+		if inRound, _ := strconv.Atoi(split[0]); round == inRound{
+			s.moveInstViaSubmitFile(split[1], split[2])
+		} else{
+			round++
+			s.prepareNextRound()
+			s.moveInstViaSubmitFile(split[1], split[2])
+		}
+	}
+	s.InitSolution.TotalScore = TotalScore(s.InitSolution.Machines)
+	s.InitSolution.PermitValue = s.InitSolution.TotalScore
+}
+
+func (s *Scheduler) prepareNextRound() {
+	for instId := range s.PickFrom {
+		inst := s.InitSolution.InstKV[instId]
+		inst.Exchanged = false
+	}
+	s.UnchangedSolution = nil
+	s.UnchangedSolution = GetNewSolutionFromCurrentSolution(s.InitSolution)
+	s.PickFrom = nil
+}
+
+func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string) {
+	inst := s.InitSolution.InstKV[instId]
+	machine := s.InitSolution.MachineKV[machineId]
+	s.PickFrom[inst.Id] = inst.Machine.Id
+	machine.Put(inst)
+
+	uinst := s.UnchangedSolution.InstKV[instId]
+	umachine := s.UnchangedSolution.MachineKV[machineId]
+	umachine.NoCascatePut(uinst)
 }
 
 func (s *Scheduler) TabuSearch() {
@@ -76,123 +117,106 @@ func (s *Scheduler) TabuSearch() {
 }
 
 func (s *Scheduler) StartSearch() {
-
-	for round := 1; round <= 3; round ++ {
-		if s.Round == -1 {
-			round = 1
-		}else{
-			round = s.Round
+	round := s.Round
+	var localBestCandidate *Candidate
+	var localBestSolution *Solution
+	logrus.Infof("round: %d", round)
+	for {
+		//得到候选集
+		s.getInitNeighbor(s.CurrentSolution)
+		s.getCandidateNeibor()
+		//初始化候选集
+		s.initCandidateSet()
+		//从候选集中选择分数最低的解
+		localBestCandidate = s.getMinScoreSolution()
+		//移动inst
+		localBestSolution = s.CurrentSolution
+		instA := localBestSolution.InstKV[localBestCandidate.InstA]
+		uinstA := s.UnchangedSolution.InstKV[localBestCandidate.InstA]
+		machineB := localBestSolution.MachineKV[localBestCandidate.MachineB]
+		umachineB := s.UnchangedSolution.MachineKV[localBestCandidate.MachineB]
+		//如果inst已经被移动了，则不再移动该inst
+		if instA.Exchanged  {
+			continue
 		}
-		var localBestCandidate *Candidate
-		var localBestSolution *Solution
-		logrus.Infof("round: %d", round)
-		for {
-			//得到候选集
-			if getInitNeibor := s.getInitNeighbor(s.CurrentSolution); !getInitNeibor {
-				s.prepareNextRound(s.CurrentSolution)
-				break
+		ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSolution, false)
+		canMove, _ := s.tryMove(instA, machineB, localBestSolution, false)
+		if  canMove && ucanMove {
+			s.PickFrom[uinstA.Id] = uinstA.Machine.Id
+			umachineB.NoCascatePut(uinstA)
+			//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
+			//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
+			machineB.Put(instA)
+			localBestSolution.TotalScore = localBestCandidate.TotalScore
+			s.UnchangedSolution.TotalScore = localBestCandidate.TotalScore
+			submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
+			s.SubmitResult = append(s.SubmitResult, submitA)
+
+			//设置局部最优解的特赦值
+			if localBestCandidate.TotalScore < s.CurrentSolution.PermitValue {
+				localBestSolution.PermitValue = localBestCandidate.TotalScore
+			} else if s.CurrentSolution.TotalScore < localBestCandidate.PermitValue {
+				localBestSolution.PermitValue = s.CurrentSolution.TotalScore
 			}
-			s.getCandidateNeibor()
-			//初始化候选集
-			if len(s.TabuList) == 0 {
-				for _, candidateX := range s.Candidates {
+			//更新tabulist
+			s.updateTabuList()
+			s.TabuList[localBestCandidate.MoveAppFromMachineAToB] = TabuLen
+
+			//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
+			if localBestCandidate.TotalScore < s.BestSolution.TotalScore-0.0001 {
+				logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSolution.TotalScore, localBestCandidate.TotalScore)
+				s.BestSolution = nil
+				s.BestSolution = GetNewSolutionFromCurrentSolution(localBestSolution)
+			}
+
+			s.CurrentSolution = localBestSolution
+			logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.TotalScore)
+		}
+	}
+
+}
+
+func (s *Scheduler) initCandidateSet () {
+	//初始化候选集
+	if len(s.TabuList) == 0 {
+		for _, candidateX := range s.Candidates {
+			candidateX.IsCandidate = true
+		}
+	} else {
+		for tabu := range s.TabuList {
+			for _, candidateX := range s.Candidates {
+				if tabu == candidateX.MoveAppFromMachineAToB {
+					candidateX.IsCandidate = false
+				} else {
 					candidateX.IsCandidate = true
 				}
-			} else {
-				s.lock.Lock()
-				for tabu := range s.TabuList {
-					for _, candidateX := range s.Candidates {
-						if tabu == candidateX.MoveAppFromMachineAToB {
-							candidateX.IsCandidate = false
-						} else {
-							candidateX.IsCandidate = true
-						}
-						if candidateX.TotalScore < s.CurrentSolution.PermitValue { //特赦规则
-							candidateX.IsCandidate = true
-						}
-					}
+				if candidateX.TotalScore < s.CurrentSolution.PermitValue { //特赦规则
+					candidateX.IsCandidate = true
 				}
-				s.lock.Unlock()
-			}
-			//从候选集中选择分数最低的解
-			i := 0
-			for _, candidateS := range s.Candidates {
-				// println(candidateS.TotalScore)
-				if candidateS.IsCandidate {
-					if i == 0 {
-						localBestCandidate = candidateS
-					}
-					if candidateS.TotalScore < localBestCandidate.TotalScore {
-						localBestCandidate = candidateS
-					}
-					i++
-				}
-			}
-			//移动inst
-			localBestSolution = s.CurrentSolution
-			instA := localBestSolution.InstKV[localBestCandidate.InstA]
-			uinstA := s.UnchangedSolution.InstKV[localBestCandidate.InstA]
-			machineB := localBestSolution.MachineKV[localBestCandidate.MachineB]
-			umachineB := s.UnchangedSolution.MachineKV[localBestCandidate.MachineB]
-			//如果inst已经被移动了，则不再移动该inst
-			if instA.Exchanged  {
-				continue
-			}
-			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSolution, true)
-			canMove, _ := s.tryMove(instA, machineB, localBestSolution, true)
-			if  canMove && ucanMove && machineB.CanPutInst(instA) && umachineB.CanPutInst(uinstA){
-				s.PickFrom[uinstA.Id] = uinstA.Machine.Id
-				//logrus.Infof("%s can put %s: %t", machineB.Id, instA.Id, machineB.CanPutInst(instA))
-				umachineB.NoCascatePut(uinstA)
-				//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
-				//logrus.Infof("%s can put %s: %t", machineB.Id, instA.Id, machineB.CanPutInst(instA))
-				machineB.Put(instA)
-				localBestSolution.TotalScore = localBestCandidate.TotalScore
-				s.UnchangedSolution.TotalScore = localBestCandidate.TotalScore
-				submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
-				s.SubmitResult = append(s.SubmitResult, submitA)
-
-				//设置局部最优解的特赦值
-				if localBestCandidate.TotalScore < s.CurrentSolution.PermitValue {
-					localBestSolution.PermitValue = localBestCandidate.TotalScore
-				} else if s.CurrentSolution.TotalScore < localBestCandidate.PermitValue {
-					localBestSolution.PermitValue = s.CurrentSolution.TotalScore
-				}
-				//更新tabulist
-				s.updateTabuList()
-				s.lock.Lock()
-				s.TabuList[localBestCandidate.MoveAppFromMachineAToB] = TabuLen
-
-				//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
-				if localBestCandidate.TotalScore < s.BestSolution.TotalScore-0.0001 {
-					logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSolution.TotalScore, localBestCandidate.TotalScore)
-					s.BestSolution = nil
-					s.BestSolution = GetNewSolutionFromCurrentSolution(localBestSolution)
-				}
-
-				s.CurrentSolution = localBestSolution
-				logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.TotalScore)
-				//s.s.CurrentSolution = nil
-				//s.s.CurrentSolution = s.GetNewSolutionFromCurrentSolution(localBestSolution)
-				s.lock.Unlock()
 			}
 		}
-
 	}
 }
 
-func (s *Scheduler) prepareNextRound(CurrentSolution *Solution) {
-	for _, inst := range s.BestSolution.InstKV {
-		inst.Exchanged = false
+func (s *Scheduler) getMinScoreSolution() *Candidate {
+	var localBestCandidate *Candidate
+	i := 0
+	for _, candidateS := range s.Candidates {
+		// println(candidateS.TotalScore)
+		if candidateS.IsCandidate {
+			if i == 0 {
+				localBestCandidate = candidateS
+			}
+			if candidateS.TotalScore < localBestCandidate.TotalScore {
+				localBestCandidate = candidateS
+			}
+			i++
+		}
 	}
-	s.UnchangedSolution = nil
-	s.UnchangedSolution = GetNewSolutionFromCurrentSolution(CurrentSolution)
-	s.PickFrom = nil
+	return localBestCandidate
 }
 
 func (s *Scheduler) updateTabuList() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
 	for key := range s.TabuList {
 		s.TabuList[key]--
 		if s.TabuList[key] == 0 {
@@ -234,9 +258,12 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool{
 			if duplicate {
 				continue
 			}
-			if canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, true); canMove { //交换第i个解里面随机的两个inst
+			canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, false)
+			uinstA := s.UnchangedSolution.InstKV[instA.Id]
+			umachineB := s.UnchangedSolution.Machines[machineBIndex]
+			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSolution, false)
+			if canMove && ucanMove{ 
 				s.getNewNeibor(i, instA, machineA, machineB, totalScore)
-				//fmt.Printf("move (%s) --> (%s): %f\n", instA.Id, machineB.Id, s.Neibors[i].TotalScore)
 				moved = true
 				break //产生一个邻居后，继续产生下一个邻居
 			}
@@ -291,8 +318,6 @@ func (s *Scheduler) getNewNeibor(index int, instA *Instance, machineA, machineB 
 	}
 }
 
-
-
 func (s *Scheduler) getCandidateNeibor() {
 	Neibors := NeiborSlice(s.Neibors[:])
 	sort.Sort(Neibors)
@@ -304,58 +329,6 @@ func (s *Scheduler) getCandidateNeibor() {
 
 func (s *Scheduler) PermitValue(nowBestSolution *Solution) float64 {
 	return nowBestSolution.TotalScore
-}
-
-//SubmitFile: submit file;
-func (s *Scheduler) readSubmitFile(SubmitFile string) int {
-	if _, err := os.Open(SubmitFile); err!= nil {
-		return -1
-	}
-	lines := ReadLines(SubmitFile)
-	round := 1
-	for _, line := range lines {
-		split := strings.Split(line, ",")
-		if inRound, _ := strconv.Atoi(split[0]); round == inRound{
-			inst := s.InitSolution.InstKV[split[1]]
-			machine := s.InitSolution.MachineKV[split[2]]
-			s.PickFrom[inst.Id] = inst.Machine.Id
-			machine.Put(inst)
-
-			uinst := s.UnchangedSolution.InstKV[split[1]]
-			umachine := s.UnchangedSolution.MachineKV[split[2]]
-			//if uinst.Id == "inst_39983" {
-			//	for _, instM := range umachine.InstKV {
-			//		fmt.Printf("%s ", instM.App.Id)
-			//	}
-			//	fmt.Printf("\n")
-			//	for appCnt, _ := range umachine.appCntKV {
-			//		fmt.Printf("%s ", appCnt)
-			//	}
-			//	fmt.Printf("\n")
-			//	logrus.Infof("%s can put %s : %t", umachine.Id, uinst.Id, umachine.CanPutInst(uinst))
-			//	logrus.Infof("%s --> %s : %d", "app_2485", uinst.App.Id, umachine.appInterference["app_2485"][uinst.App.Id])
-			//}
-			umachine.NoCascatePut(uinst)
-
-		} else{
-			round++
-			s.UnchangedSolution = nil
-			s.UnchangedSolution = GetNewSolutionFromCurrentSolution(s.InitSolution)
-			s.PickFrom = nil
-
-			inst := s.InitSolution.InstKV[split[1]]
-			machine := s.InitSolution.MachineKV[split[2]]
-			s.PickFrom[inst.Id] = inst.Machine.Id
-			machine.Put(inst)
-
-			uinst := s.UnchangedSolution.InstKV[split[1]]
-			umachine := s.UnchangedSolution.MachineKV[split[2]]
-			umachine.NoCascatePut(uinst)
-		}
-	}
-	s.InitSolution.TotalScore = TotalScore(s.InitSolution.Machines)
-	s.InitSolution.PermitValue = s.InitSolution.TotalScore
-	return round
 }
 
 func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, force bool) (bool, float64) {
@@ -409,7 +382,7 @@ func (s *Scheduler) Output(Dataset string) {
 		fmt.Fprintln(w, line)
 	}
 	w.Flush()
-	fmt.Printf("writing to %s\n", filePath)
+	logrus.Infof("writing to %s\n", filePath)
 }
 
 

@@ -15,8 +15,8 @@ const (
 	AppInterferenceInput = "data/scheduling_semifinal_data_20180815/app_interference.csv"
 	JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.%s.csv"
 	SearchMachineRange   = 5000
-	InitNeiborSize       = 70
-	CandidateLen         = 60
+	InitNeiborSize       = 100
+	CandidateLen         = 80
 	TabuLen              = 4
 )
 
@@ -245,8 +245,8 @@ func (m *Machine) NoCascatePut(inst *Instance) {
 		m.Usage[i] += inst.App.Resource[i]
 	}
 
-	//inst.Machine = m
-	//inst.Deployed = true
+	inst.Machine = m
+	inst.Deployed = true
 	inst.Exchanged = true
 
 	m.InstKV[inst.Id] = inst
