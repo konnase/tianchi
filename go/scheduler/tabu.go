@@ -276,7 +276,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 			i--
 			s.Neighbors = s.Neighbors[:len(s.Neighbors)-1]
 		}
-		if failIter > 1000 {
+		if failIter > 5000 {
 			//logrus.Infof("failed to generate neighbor")
 			return false
 		}
