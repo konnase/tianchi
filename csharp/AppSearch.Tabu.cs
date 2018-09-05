@@ -1,126 +1,19 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using TPL = System.Threading.Tasks;
-using static System.Console;
 using static Tianchi.Util;
 
 namespace Tianchi {
-  public class Move {
-    public readonly AppInst Inst;
-    public readonly Machine MachineDest;
-
-    public Move(Machine machineDest, AppInst inst) {
-      MachineDest = machineDest;
-      Inst = inst;
-    }
-  }
-
-  public class NeighborByMove {
-    public readonly Move Move;
-    public double Delta;
-
-    public NeighborByMove(Move move) {
-      Move = move;
-    }
-  }
-
-  public class SubmitEntry {
-    public readonly int InstId;
-    public readonly int MachineIdDest;
-    public readonly int Round;
-
-    public SubmitEntry(int round, int instId, int machineIdDest) {
-      Round = round;
-      InstId = instId;
-      MachineIdDest = machineIdDest;
-    }
-  }
-
-  public class Search {
+  public partial class AppSearch {
     public const int NeighborSize = 10;
     public const int TabuLifespan = 4;
-    public readonly object BestScoreLock = new object();
-    public readonly Solution Solution;
-    public readonly List<SubmitEntry> SubmitResult = new List<SubmitEntry>(capacity: 20000);
-    public readonly Dictionary<Move, int> TabuKv = new Dictionary<Move, int>(capacity: 1000);
-    private Solution _holdSol;
-    private volatile bool _stop;
+    public readonly Dictionary<AppMove, int> TabuKv = new Dictionary<AppMove, int>(capacity: 1000);
 
-    public Search(Solution solution) {
-      Solution = solution;
-    }
-
-    public double BestScore { get; private set; }
-
-    public int Round { get; private set; }
-
-
-    // 可以直接从 solution 搜索，
-    // 也可以从磁盘保存的搜索结果继续搜索
-    public string Run(int round, string submitIn = "", long timeout = 1 * Hour, int taskCnt = 20) {
-      Round = round;
-      if (!string.IsNullOrEmpty(submitIn)) {
-        if (!File.Exists(submitIn)) {
-          Error.WriteLine($"Error: Cannot find search file {submitIn}");
-          Environment.Exit(exitCode: -1);
-        } else {
-          //用文件中的结果覆盖 Solution
-          Solution.SetInitDeploy();
-          SubmitResult.Clear();
-          var r = Solution.ReadAppSubmit(Solution, submitIn, SubmitResult);
-          //新开始一轮，就清空上一轮未决的实例，但最后一轮不清空
-          if (Round > r && Round < 3) {
-            Solution.ReleaseAllPendingInsts(Solution);
-            Round = r + 1;
-          }
-        }
-      }
-
-      //注意顺序，_holdSol仍可能保存最后一轮未释放的机器状态
-      _holdSol = Solution.Clone();
-      Solution.ReleaseAllPendingInsts(Solution);
-
-      BestScore = Solution.CalcActualScore();
-      WriteLine($"[Run {Solution.DataSet.Id}@r{Round}] Init Score: {BestScore:0.00000}");
-
-      _stop = false;
-
-      CancelKeyPress += (sender, e) => {
-        _stop = true;
-        e.Cancel = true; //等待搜索任务自己返回
-        WriteLine($"{e.SpecialKey} received");
-      };
-
-      var timer = new Timer(obj => {
-          _stop = true;
-          WriteLine($"Executing timeout: {timeout * 1.0 / Min:0.0} min");
-        },
-        state: null, dueTime: timeout, period: Timeout.Infinite);
-
-      var tasks = new List<TPL.Task>(taskCnt);
-      for (var i = 0; i < taskCnt; i++) {
-        var t = TPL.Task.Run(() => TabuSearch());
-        tasks.Add(t);
-      }
-
-      TPL.Task.WaitAll(tasks.ToArray());
-
-      timer.Dispose();
-
-      var f = "submit_app" +
-              $"_{Solution.DataSet.Id}" +
-              $"_{Round}" +
-              $"_{Solution.ActualScore:0}.csv";
-
-      Solution.SaveAppSubmit(SubmitResult, f);
-      return f;
-    }
-
-    public void Stop() {
-      _stop = true;
+    public string RunTabuSearch(int round, string submitIn = "", long timeout = 1 * Hour,
+      int taskCnt = 20) {
+      return Run(TabuSearch, round, submitIn, timeout, taskCnt);
     }
 
     private void TabuSearch() {
@@ -132,7 +25,7 @@ namespace Tianchi {
       tId += 10; //保持两位数
       var failedCnt = 0;
 
-      var moves = new List<Move>(NeighborSize);
+      var moves = new List<AppMove>(NeighborSize);
 
       var rnd = new Random(tId);
 
@@ -156,9 +49,9 @@ namespace Tianchi {
         }
 
         //实施迁移
-        var inst = best.Move.Inst;
-        var mSrc = best.Move.Inst.Machine;
-        var mDest = best.Move.MachineDest;
+        var inst = best.AppMove.Inst;
+        var mSrc = best.AppMove.Inst.Machine;
+        var mDest = best.AppMove.MachineDest;
 
         var uInst = _holdSol.AppInstKv[inst.Id];
         var uDest = _holdSol.MachineKv[mDest.Id];
@@ -209,50 +102,21 @@ namespace Tianchi {
 
             lock (TabuKv) {
               UpdateTabuLifespan();
-              TabuKv[best.Move] = TabuLifespan;
+              TabuKv[best.AppMove] = TabuLifespan;
             }
           }
         }
       }
     }
 
-    //与Solution同步修改 inst 部署，但不从旧机器移除 inst
-    private static bool EvaluateMove(Machine mDest, AppInst inst, Series cpu1,
-      Series cpu2,
-      out double delta) {
-      delta = double.MaxValue;
-
-      var mSrc = inst.Machine;
-
-      if (inst.IsPending || mSrc == mDest || !mDest.CanPut(inst)) {
-        return false;
-      }
-
-      var scoreBefore = mSrc.Score + mDest.Score;
-
-      mSrc.Usage.Cpu.ShrinkTo(cpu1); // 压缩到98维
-      cpu1.Subtract(inst.R.Cpu);
-
-      mDest.Usage.Cpu.ShrinkTo(cpu2);
-      cpu2.Add(inst.R.Cpu);
-
-      //如果 machine 有 pending 的inst，这里的计算没有扣除其资源和计数
-      var scoreAfter = cpu1.Score(mSrc.CapCpu, mSrc.AppInstCount - 1) +
-                       cpu2.Score(mSrc.CapCpu, mDest.AppInstCount + 1);
-
-      delta = scoreAfter - scoreBefore;
-
-      return delta < 0.0 && -delta > 0.0001;
-    }
-
     //返回 Best Neighbor 或者 null
-    private NeighborByMove Sample(List<Move> moves, Random rnd, Series cpu1, Series cpu2) {
+    private NeighborAppMove Sample(List<AppMove> moves, Random rnd, Series cpu1, Series cpu2) {
       var neighborCnt = 0;
       var failedCnt = 0;
 
       moves.Clear();
 
-      NeighborByMove best = null;
+      NeighborAppMove best = null;
 
       for (var i = 0; i < NeighborSize; i++) {
         //采样机制：
@@ -315,8 +179,8 @@ namespace Tianchi {
                 }
               }
 
-              var move = new Move(mDest, inst);
-              var n = new NeighborByMove(move) {Delta = delta};
+              var move = new AppMove(mDest, inst);
+              var n = new NeighborAppMove(move) {Delta = delta};
               if (best == null) {
                 best = n;
               }
@@ -352,7 +216,7 @@ namespace Tianchi {
       return neighborCnt >= 4 ? best : null;
     }
 
-    private static bool Exists(Machine mDest, AppInst inst, IList<Move> list) {
+    private static bool Exists(Machine mDest, AppInst inst, IList<AppMove> list) {
       for (var i = 0; i < list.Count; i++) {
         var move = list[i];
         if (move.MachineDest == mDest && move.Inst == inst) {

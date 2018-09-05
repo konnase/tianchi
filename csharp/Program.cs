@@ -36,20 +36,20 @@ namespace Tianchi {
       var round = 1;
       var submitOut = "";
 
-      var s = new Search(sol);
+      var s = new AppSearch(sol);
       //搜索结束后（超时或Ctrl+C），会保存所有轮次的迁移动作，并返回输出的文件名
       //注意：solution的分数需要调用CalcActualScore()手动计算，
       //除非确认没有变更，才可以使用上次的计算结果（ActualScore）
       //      
-      submitOut = s.Run(round, submitOut, timeout);
+      submitOut = s.RunTabuSearch(round, submitOut, timeout);
       WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
       //
       round = 2;
-      submitOut = s.Run(round, submitOut, timeout);
+      submitOut = s.RunTabuSearch(round, submitOut, timeout);
       WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
       //
       round = 3;
-      submitOut = s.Run(round, submitOut, timeout);
+      submitOut = s.RunTabuSearch(round, submitOut, timeout);
       Solution.ReleaseAllPendingInsts(sol);
       WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
       //
