@@ -1,5 +1,5 @@
-using System.IO;
 using static System.Console;
+using static Tianchi.Util;
 
 namespace Tianchi {
   public static class Program {
@@ -7,88 +7,79 @@ namespace Tianchi {
     //所有文件路径均假设当前目录为项目的根目录
     //可以在Rider的执行参数中设置，
     //命令行则在项目根目录执行 dotnet run --project cssharp/tianchi.csproj
-    private static void Main() {
-      var semiA = DataSetSemi.SemiA;
-      var sol = semiA.InitSolution.Clone();
-      WriteLine($"[{semiA.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(sol, "submit_file_a.csv");
-      WriteLine($"[{semiA.Id}]: Score of submit_file_a: {sol.ActualScore: 0.0000}; ");
-      JobDeploy.FirstFit(sol);
-      WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
+    private static void Main(string[] args) {
+      if (args.Length != 2) {
+        WriteLine("Please input one of [a,b,c,d,e], \n" +
+                  "and an integer for the execution time for each round.");
+        return;
+      }
 
-      var csvSubmit = $"submit.a.csv"; // submit.a.csv是复制的submit_file_a_xxxx
-      var writer = File.AppendText(csvSubmit);
-      writer.WriteLine(); //注意格式，submit.a.csv最后没有空行，要填上
-      Solution.SaveJobSubmit(sol, writer);
-      writer.Close();
+      var ds = args[0].ToUpper();
+
+      if (ds.Length != 1 || ds[index: 0] < 'A' || ds[index: 0] > 'E') {
+        WriteLine($"Your input is {ds}; Please input one of [a,b,c,d,e]. ");
+        return;
+      }
+
+      if (!int.TryParse(args[1], out var timeout)) {
+        timeout = 20;
+        WriteLine($"Ill formatted integer. Using default {timeout} min.");
+      }
+
+      RunTabuSearch(ds, timeout);
+    }
+
+    private static void RunTabuSearch(string ds, long timeout) {
+      var dataSet = SemiFinal.DsKv[ds];
+      var sol = dataSet.InitSolution.Clone();
+      timeout = timeout * Min;
+      var round = 1;
+      var submitOut = "";
+
+      var s = new Search(sol);
+      //搜索结束后（超时或Ctrl+C），会保存所有轮次的迁移动作，并返回输出的文件名
+      //注意：solution的分数需要调用CalcActualScore()手动计算，
+      //除非确认没有变更，才可以使用上次的计算结果（ActualScore）
+      //      
+      submitOut = s.Run(round, submitOut, timeout);
+      WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
+      //
+      round = 2;
+      submitOut = s.Run(round, submitOut, timeout);
+      WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
+      //
+      round = 3;
+      submitOut = s.Run(round, submitOut, timeout);
+      Solution.ReleaseAllPendingInsts(sol);
+      WriteLine($"[{ds}]: Score of {submitOut}@r{round}: {sol.CalcActualScore(): 0.0000}; ");
+      //
+      var clone = dataSet.InitSolution.Clone();
+      Solution.ReadAppSubmit(clone, submitOut, verbose: true);
+      //注意：读入后，需手动释放未决的 inst，否则会影响总的成本分数
+      Solution.ReleaseAllPendingInsts(clone);
+      WriteLine($"[{ds}]: Verify Score of {submitOut}: {clone.CalcActualScore(): 0.0000}; ");
+    }
+
+    /*
+    private static void SaveSubmit(string ds, string submitIn) {
+      var dataSet = SemiFinal.DsKv[ds.ToLower()];
+      var sol = dataSet.InitSolution.Clone();
+      WriteLine($"[{ds}]: Score of App: {sol.ActualScore: 0.0000}; ");
+      Solution.ReadAppSubmit(sol, submitIn);
+      Solution.ReleaseAllPendingInsts(sol);
+      WriteLine($"[{ds}]: Score of {submitIn}: {sol.ActualScore: 0.0000}; ");
+
+      if (dataSet.JobKv.Count > 0) {
+        JobDeploy.FirstFit(sol);
+        WriteLine($"[{ds}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
+
+        var writer = File.CreateText($"submit_{ds}_job.csv");
+        Solution.SaveJobSubmit(sol, writer);
+        writer.Close();
+      }
 
       Solution.CheckAllDeployed(sol);
       WriteLine("==End==");
-      
-      
-      var semiB = DataSetSemi.SemiB;
-      var solB = semiB.InitSolution.Clone();
-      WriteLine($"[{semiB.Id}]: Score of App: {solB.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solB, "submit_file_b.csv");
-      WriteLine($"[{semiB.Id}]: Score of submit_file_b: {solB.ActualScore: 0.0000}; ");
-      JobDeploy.FirstFit(solB);
-      WriteLine($"[{semiB.Id}]: Score of App+Job: {solB.ActualScore: 0.0000}; ");
-
-      var csvSubmitB = $"submit.b.csv";
-      var writerB = File.AppendText(csvSubmitB);
-      writerB.WriteLine();
-      Solution.SaveJobSubmit(solB, writerB);
-      writerB.Close();
-
-      WriteLine("==End==");
-      
-      var semiC = DataSetSemi.SemiC;
-      var solC = semiC.InitSolution.Clone();
-      WriteLine($"[{semiC.Id}]: Score of App: {solC.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solC, "submit_file_c.csv");
-      WriteLine($"[{semiC.Id}]: Score of submit_file_c: {solC.ActualScore: 0.0000}; ");
-      JobDeploy.FirstFit(solC);
-      WriteLine($"[{semiC.Id}]: Score of App+Job: {solC.ActualScore: 0.0000}; ");
-
-      var csvSubmitC = $"submit.c.csv";
-      var writerC = File.AppendText(csvSubmitC);
-      writerC.WriteLine();
-      Solution.SaveJobSubmit(solC, writerC);
-      writerC.Close();
-
-      WriteLine("==End==");
-      
-      var semiD = DataSetSemi.SemiD;
-      var solD = semiD.InitSolution.Clone();
-      WriteLine($"[{semiD.Id}]: Score of App: {solD.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solD, "submit_file_d.csv");
-      WriteLine($"[{semiD.Id}]: Score of submit_file_d: {solD.ActualScore: 0.0000}; ");
-      JobDeploy.FirstFit(solD);
-      WriteLine($"[{semiD.Id}]: Score of App+Job: {solD.ActualScore: 0.0000}; ");
-
-      var csvSubmitD = $"submit.d.csv";
-      var writerD = File.AppendText(csvSubmitD);
-      writerD.WriteLine();
-      Solution.SaveJobSubmit(solD, writerD);
-      writerD.Close();
-
-      WriteLine("==End==");
-      
-      var semiE = DataSetSemi.SemiE;
-      var solE = semiE.InitSolution.Clone();
-      WriteLine($"[{semiE.Id}]: Score of App: {solE.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solE, "submit_file_e.csv");
-      WriteLine($"[{semiE.Id}]: Score of submit_file_e: {solE.ActualScore: 0.0000}; ");
-      JobDeploy.FirstFit(solE);
-      WriteLine($"[{semiE.Id}]: Score of App+Job: {solE.ActualScore: 0.0000}; ");
-
-      var csvSubmitE = $"submit.e.csv";
-      var writerE = File.AppendText(csvSubmitE);
-      writerE.WriteLine();
-      Solution.SaveJobSubmit(solE, writerE);
-      writerE.Close();
-
-      WriteLine("==End==");
-    }
+    }//*/
   }
 }

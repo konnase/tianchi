@@ -47,13 +47,14 @@ namespace Tianchi {
         new DataSet(dataSetId, appCnt, instCnt, mCnt) {AppKv = appKv};
 
       if (string.IsNullOrEmpty(jobCsv)) {
-        dataSet.JobKv = null;
+        dataSet.JobKv = new Dictionary<int, Job>(capacity: 1); //避免出现NPE
       } else {
         dataSet.JobKv = new Dictionary<int, Job>(capacity: 1100);
         ReadJob(jobCsv, dataSet.JobKv);
       }
 
       dataSet.InitSolution = Solution.Read(dataSet, machineCsv, instCsv);
+      dataSet.InitSolution.CalcActualScore();
       return dataSet;
     }
 
@@ -182,14 +183,6 @@ namespace Tianchi {
 
     #endregion
   }
-  
-  public enum DataSetId {
-    PreA,
-    PreB,
-    SemiA,
-    SemiB,
-    SemiC,
-    SemiD,
-    SemiE
-  }
+
+  public enum DataSetId { PreA, PreB, A, B, C, D, E }
 }

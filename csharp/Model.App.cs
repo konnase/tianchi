@@ -89,7 +89,7 @@ namespace Tianchi {
     public Machine Machine;
 
     /// <summary>
-    /// 迁移前所在机器，仅当 TryPut 不是 autoRemove 才使用此字段
+    ///   迁移前所在机器，仅当 TryPut 不是 removeInstFromPrevMachine 才使用此字段
     /// </summary>
     public Machine PrevMachine;
 
@@ -98,9 +98,15 @@ namespace Tianchi {
       App = app;
     }
 
+    /// <summary>
+    ///   inst 在脚踩两只船的状态
+    /// </summary>
+    public bool IsPending => PrevMachine != null;
+
     public Resource R => App.R;
 
     public AppInst Clone() {
+      //其它状态需通过机器的添加/移除实例方法维护
       return new AppInst(Id, App);
     }
 
