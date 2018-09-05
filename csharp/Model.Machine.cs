@@ -139,9 +139,9 @@ namespace Tianchi {
     #region 添加和删除在线应用实例
 
     // 如果添加成功，会自动从旧机器上迁移过来（如果有的话）
+    // 兼容：分轮次迁移手动从原机器迁移
     public bool TryPut(AppInst inst, double cpuUtilLimit = 1.0, bool ignoreCheck = false,
-      bool autoRemove = true) { // 兼容：分轮次迁移不自动迁移
-
+      bool autoRemove = true) {
       if (AppInstSet.Contains(inst)) {
         return true; //已经存在inst了，幂等
       }
@@ -179,9 +179,9 @@ namespace Tianchi {
       return true;
     }
 
-    public void Remove(AppInst inst,
-      // 兼容：如果从是 PrevMachine 调用的，则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
-      bool setDeployFlag = true) {
+    // 兼容：如果从是 PrevMachine 调用的，
+    // 则不修改 Machine及Deployed 字段，仅扣减资源和相关计数
+    public void Remove(AppInst inst, bool isFromPrevMachine = false) {
       //
       if (!AppInstSet.Remove(inst)) {
         return;
@@ -217,7 +217,8 @@ namespace Tianchi {
       }
 
       // 兼容：如果是从 PrevMachine 调用的，不修改下面这两个字段
-      if (!setDeployFlag) {
+      if (isFromPrevMachine) {
+        inst.PrevMachine = null;
         return;
       }
 

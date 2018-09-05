@@ -15,54 +15,60 @@ type Scheduler struct {
 	Neighbors  []*Candidate
 	Candidates []*Candidate
 
-
 	InitSol      *Solution
+
 	UnchangedSol *Solution //在移动inst的过程中，不将inst从其原来的machine上删除. 只用来判断是否有冲突以及是否有资源超额
 	BestSol      *Solution
 	CurrentSol   *Solution //记录当前解，主要用来判断分数是否有下降，跟UnchangedSol配合使用
 	BestScore    float64
 
+
 	TabuKv        map[ExchangeApp]int //禁忌表
+	SearchResult  map[string]string
 	SubmitResult  []SubmitResult
-	PendingInstKv map[string]string  //记录inst原来部署的机器的machineId
+	PendingInstKv map[string]string
 
 	DataSet    string
 	SubmitFile string
+
 	Round int
 	SubmitRound int
 	EveryRoundSize []int
 
 }
 
-func NewScheduler(round int, dataSet, submitFile string, machines []*Machine, instKV map[string]*Instance, appKV map[string]*Application, machineKV map[string]*Machine) *Scheduler {
+func NewScheduler(round int, dataSet, SubmitFile string, machines []*Machine, instKV map[string]*Instance, appKV map[string]*Application, machineKV map[string]*Machine) *Scheduler {
 	solution := &Solution{
 		InstKV:    instKV,
 		AppKV:     appKV,
 		MachineKV: machineKV,
 		Machines:  machines,
 	}
-
 	sch := &Scheduler{
 		InitSol:       solution,
 		DataSet:       dataSet,
-		SubmitFile:    submitFile,
+		SubmitFile:    SubmitFile,
 		Round:         round,
 		TabuKv:        make(map[ExchangeApp]int),
+		SearchResult:  make(map[string]string),
 		PendingInstKv: make(map[string]string),
 	}
 	sch.InitSol.TotalScore = TotalScore(sch.InitSol.Machines) //原始解的分数
 	sch.InitSol.PermitValue = sch.InitSol.TotalScore
 	sch.UnchangedSol = CopySolution(sch.InitSol)
 
-	sch.SubmitRound = sch.readSubmitFile(submitFile)  //优化：从submitFile中读取inst迁移过程，节省迁移搜索时间
+	sch.readSubmitFile(SubmitFile)
+
+	sch.BestSol = CopySolution(sch.InitSol)
+	sch.CurrentSol = CopySolution(sch.BestSol)
 
 	return sch
 }
 
 //SubmitFile: submit file;
-func (s *Scheduler) readSubmitFile(SubmitFile string) int{
-	if _, err := os.Open(SubmitFile); err!= nil {
-		return -1
+func (s *Scheduler) readSubmitFile(SubmitFile string) {
+	if _, err := os.Open(SubmitFile); err != nil {
+		return
 	}
 	lines := ReadLines(SubmitFile)
 	round := 1
@@ -84,7 +90,6 @@ func (s *Scheduler) readSubmitFile(SubmitFile string) int{
 
 	s.InitSol.TotalScore = TotalScore(s.InitSol.Machines)
 	s.InitSol.PermitValue = s.InitSol.TotalScore
-	return round
 }
 
 func (s *Scheduler) prepareNextRound() {
@@ -92,11 +97,9 @@ func (s *Scheduler) prepareNextRound() {
 		inst := s.InitSol.InstKV[instId]
 		inst.Exchanged = false
 	}
-
 	s.UnchangedSol = nil
 	s.UnchangedSol = CopySolution(s.InitSol)
 	s.PendingInstKv = nil
-	s.PendingInstKv = make(map[string]string)
 }
 
 func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
@@ -122,10 +125,21 @@ func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
 }
 
 func (s *Scheduler) TabuSearch() {
+	//for _, inst := range s.InitSol.instKV {
+	//	if inst.Id == "inst_39983" {
+	//		machine := s.InitSol.machineKV["machine_1688"]
+	//		for _, instM := range machine.instKV {
+	//			fmt.Printf("%s ",instM.App.Id)
+	//		}
+	//		logrus.Infof("%s can put %s : %t", machine.Id, inst.Id, machine.CanPutInst(inst))
+	//		logrus.Infof("%s --> %s : %d", inst.App.Id, "app_1310", machine.appInterference[inst.App.Id]["app_1310"])
+	//	}
+	//}
 	s.StartSearch()
 }
 
 func (s *Scheduler) StartSearch() {
+
 	if s.SubmitRound < s.Round {
 		s.prepareNextRound()
 		logrus.Infof("Start next round...")
@@ -136,6 +150,7 @@ func (s *Scheduler) StartSearch() {
 
 	s.BestSol = CopySolution(s.InitSol)
 	s.CurrentSol = CopySolution(s.BestSol)
+
 
 	round := s.Round
 	iter := 0
@@ -167,6 +182,7 @@ func (s *Scheduler) StartSearch() {
 		if instA.Exchanged {
 			continue
 		}
+
 		//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
 		//todo: 是复制solution的时候即CopySolution()方法里面machine.appCntKV没有重新创建
 		s.PendingInstKv[uinstA.Id] = uinstA.Machine.Id
@@ -284,28 +300,28 @@ func (s *Scheduler) updateTabuList() {
 	}
 }
 
-
-func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
-	s.Neighbors = s.Neighbors[:0:0] //优化：生成neighbors之前先清空，避免neighbors臃肿
-	failIter := 0
+func (s *Scheduler) getInitNeighbor(solution *Solution) bool {
+	s.Neighbors = s.Neighbors[:0:0]
+	failCnt := 0
 	for i := 0; i < InitNeighborSize; i++ {
 		machineAIndex := rand.Intn(len(s.BestSol.Machines))
-		machineBIndex := s.getMachineBIndex() //优化：针对不同的数据集使用不同的策略产生目标机器：目标机器为大机器的概率更大
+		machineBIndex := s.getMachineBIndex()
 		if machineAIndex == machineBIndex {
 			i--
 			continue
 		}
-		newNeighbor := new(Candidate) //优化：只记录邻居相对currentSolution的单步移动，避免记录整个solution导致内存开销过大
+		newNeighbor := new(Candidate)
 		newNeighbor.TotalScore = 1e9
 		s.Neighbors = append(s.Neighbors, newNeighbor)
 		moved := false
-		machineA := CurrentSolution.Machines[machineAIndex]
-		machineB := CurrentSolution.Machines[machineBIndex]
+		machineA := solution.Machines[machineAIndex]
+		machineB := solution.Machines[machineBIndex]
 		for _, instA := range machineA.AppKV {
+			//如果machineA上的appA已经迁移到machineB了，则重新生成
 			MoveAppFromMachineAToB := ExchangeApp{
 				instA.AppId,
 				machineA.Id,
-				CurrentSolution.Machines[machineBIndex].Id,
+				solution.Machines[machineBIndex].Id,
 			}
 			duplicate := false
 			for _, Neighbor := range s.Neighbors {
@@ -315,36 +331,43 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 					break
 				}
 			}
-			//如果machineA上的appA已经迁移到machineB了，则重新生成
 			if duplicate {
 				continue
 			}
+
 			canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, false) //主要用来判断是否能移动
 			uinstA := s.UnchangedSol.InstKV[instA.Id]
 			umachineB := s.UnchangedSol.Machines[machineBIndex]
 			ucanMove, _ := s.tryMove(uinstA, umachineB, s.UnchangedSol, true)  //UnchangedSol只用来判断是否有冲突以及是否有资源超额
 			//logrus.Infof("%t %t", canMove, ucanMove)
+
 			if canMove && ucanMove {
-				s.getNewNeighbor(i, instA, machineA, machineB, totalScore)
+				s.setNeighbor(i, instA, machineA, machineB, solution.TotalScore+delta)
 				moved = true
 				break //产生一个邻居后，继续产生下一个邻居
 			}
 		}
 		if !moved {
-			failIter++
+			failCnt++
 			i--
 			s.Neighbors = s.Neighbors[:len(s.Neighbors)-1]
 		}
+
 		//if failIter > 5000 {
 		//	return false
 		//}
+
 	}
 	return true
 }
 
 func (s *Scheduler) getMachineBIndex() int {
 	machineBIndex := 0
+	rate := rand.Intn(100)
+
+	// c 和 d 均有 9000 台机器，前 6000 台是小型机器
 	if s.DataSet == "c" || s.DataSet == "d" {
+
 		rate := rand.Intn(100)
 		if rate > 45 {
 			machineBIndex = rand.Intn(3000) + 6000
@@ -361,11 +384,12 @@ func (s *Scheduler) getMachineBIndex() int {
 	} else {
 		//a, b的分数都在5000以下，故目标机器的范围不需要太大
 		machineBIndex = rand.Intn(8000)
+
 	}
 	return machineBIndex
 }
 
-func (s *Scheduler) getNewNeighbor(index int, instA *Instance, machineA, machineB *Machine, totalScore float64) {
+func (s *Scheduler) setNeighbor(index int, instA *Instance, machineA, machineB *Machine, totalScore float64) {
 	s.Neighbors[index].InstA = instA.Id
 	s.Neighbors[index].MachineA = machineA.Id
 	s.Neighbors[index].MachineB = machineB.Id
@@ -379,9 +403,10 @@ func (s *Scheduler) getNewNeighbor(index int, instA *Instance, machineA, machine
 	}
 }
 
+//截取 TotalScore 较小的前 CandidateLen 个
 func (s *Scheduler) getCandidateNeighbor() {
 	Neighbors := NeighborSlice(s.Neighbors[:])
-	sort.Sort(Neighbors)
+	sort.Sort(Neighbors) //按 TotalScore 排序
 	s.Candidates = Neighbors[:CandidateLen]
 	for _, candidate := range s.Candidates {
 		candidate.IsCandidate = true
@@ -392,7 +417,8 @@ func (s *Scheduler) PermitValue(nowBestSolution *Solution) float64 {
 	return nowBestSolution.TotalScore
 }
 
-func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, force bool) (bool, float64) {
+// 如果可以move，返回true, delta；否则返回 false, 1e9
+func (s *Scheduler) canMove(inst *Instance, m2 *Machine, solution *Solution, ignoreDelta bool) (bool, float64) {
 	if inst.Exchanged {
 		return false, 1e9
 	}
@@ -416,18 +442,15 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 		cpu1[i] = machineCpu1[i] - inst.App.Cpu[i]
 		cpu2[i] = machineCpu2[i] + inst.App.Cpu[i]
 	}
-	//移动过后，m1少了一个inst，而m2多了一个inst。算分的时候要注意
 	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV)-1)
 	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV)+1)
-	delta := score1 + score2 - (m1.GetScore() + m2.GetScore())
-	//logrus.Infof("delta: %f %f %f", delta, m1.GetScore(), m2.GetScore())
+	delta := score1 + score2 - (m1.Score() + m2.Score())
 
-	if !force && (delta > 0 || -delta < 0.0001) {
-		//logrus.Infof("tryMove")
+	if !ignoreDelta && (delta > 0 || -delta < 0.0001) {
 		return false, 1e9
 	}
 
-	return true, solution.TotalScore + delta
+	return true, delta
 }
 
 func (s *Scheduler) Output(dataSet string) {

@@ -448,29 +448,6 @@ namespace Tianchi {
         WriteLine("[ReadJobSubmit]: Not all tasks are deployed!");
       }
     }
-
-    public static void SaveAndJudge(Solution final) {
-      var csvSubmit = $"submit_{final.DataSet.Id}.csv";
-      var writer = File.CreateText(csvSubmit);
-
-      var clone = final.DataSet.InitSolution.Clone();
-      TrySaveAppSubmit(final, clone, writer);
-      SaveJobSubmit(final, writer);
-      writer.Close();
-
-      WriteLine($"== DataSet {final.DataSet.Id} Judge==");
-      //从文件读入部署会改变clone的状态
-      clone.SetInitAppDeploy();
-      clone.ClearJobDeploy();
-
-      ReadAppSubmit(clone, csvSubmit);
-      ReadJobSubmit(clone, csvSubmit);
-      Write($"[SaveAndJudge]: {clone.DataSet.Id} ");
-      CheckAppInterference(clone);
-      CheckResource(clone);
-      CheckTaskSequence(clone);
-      WriteLine(clone.ScoreMsg);
-    }
   }
 
   public partial class Machine {
@@ -535,7 +512,7 @@ namespace Tianchi {
       return true;
     }
 
-    public JobBatch Put(JobTask task, int beginTime, int size) {
+    private JobBatch Put(JobTask task, int beginTime, int size) {
       if (BatchKv.TryGetValue(task, out var x)) {
         throw new Exception(
           $"[Put]: {task.FullId} has {x.Size}@{x.BeginTime} min " +

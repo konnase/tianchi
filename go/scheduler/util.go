@@ -3,7 +3,7 @@ package scheduler
 func TotalScore(machines []*Machine) float64 {
 	s := 0.0
 	for _, m := range machines {
-		s += m.GetScore()
+		s += m.Score()
 	}
 	return s
 }
@@ -25,11 +25,11 @@ func CopySolution(solution *Solution) *Solution {
 	instKV := make(map[string]*Instance)
 	for _, inst := range s1.InstKV {
 		inst1 := &Instance{
-			Id:       inst.Id,
-			App:      appKV[inst.AppId],
-			AppId:    inst.AppId,
+			Id:        inst.Id,
+			App:       appKV[inst.AppId],
+			AppId:     inst.AppId,
 			MachineId: inst.MachineId,
-			Deployed: false,
+			Deployed:  false,
 			Exchanged: inst.Exchanged,
 		}
 		instKV[inst1.Id] = inst1
@@ -45,17 +45,17 @@ func CopySolution(solution *Solution) *Solution {
 			PmpCapacity:     machine.PmpCapacity,
 			Capacity:        machine.Capacity,
 			Usage:           machine.Usage,
-			Score:           -1e9,
+			score:           -1e9,
 			InstKV:          make(map[string]*Instance),
 			AppKV:           make(map[string]*Instance),
 			AppCntKV:        make(map[string]int),
 			AppInterference: machine.AppInterference,
 		}
-		for instid := range machine.InstKV {
-			m2.InstKV[instid] = instKV[instid]
+		for instId := range machine.InstKV {
+			m2.InstKV[instId] = instKV[instId]
 		}
-		for appid, inst := range machine.AppKV {
-			m2.AppKV[appid] = instKV[inst.Id]
+		for appId, inst := range machine.AppKV {
+			m2.AppKV[appId] = instKV[inst.Id]
 		}
 		for appId, cnt := range machine.AppCntKV {
 			m2.AppCntKV[appId] = cnt
