@@ -12,8 +12,8 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 5 {
-		fmt.Println("Usage: go run tabu.go <submit_file> <cores> <dataSet> <round>")
+	if len(os.Args) != 6 {
+		fmt.Println("Usage: go run tabu.go <submit_file> <cores> <dataSet=a b c d e> <round=1 2 3> <search_polic=local tabu>")
 		os.Exit(1)
 	}
 
@@ -23,6 +23,7 @@ func main() {
 	cores, _ := strconv.Atoi(os.Args[2])
 	dataSet := os.Args[3]
 	round, _ := strconv.Atoi(os.Args[4])
+	search_policy := os.Args[5]
 
 	runtime.GOMAXPROCS(cores)
 
@@ -33,10 +34,19 @@ func main() {
 	scheduler := NewScheduler(round, dataSet, submitFile, machines, instKV, appKV, machineKV)
 	logrus.Infof("totalScore: %.8f\n", TotalScore(scheduler.InitSol.Machines))
 
-	for i := 0; i < cores; i++ {
-		go scheduler.TabuSearch()
+	if search_policy == "tabu" {
+		for i := 0; i < cores; i++ {
+			go scheduler.TabuSearch()
+		}
+		<-stopChan
+		scheduler.Output(dataSet)
+		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
+	} else if search_policy == "local" {
+		for i := 0; i < cores; i++ {
+			go scheduler.LocalSearch()
+		}
+		<-stopChan
+		scheduler.LocalSearchOutput(dataSet)
+		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 	}
-	<-stopChan
-	scheduler.Output(dataSet)
-	logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 }

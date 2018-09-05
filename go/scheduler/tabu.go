@@ -20,6 +20,7 @@ type Scheduler struct {
 	UnchangedSol *Solution //在移动inst的过程中，不将inst从其原来的machine上删除
 	BestSol      *Solution
 	CurrentSol   *Solution
+	BestScore    float64
 
 	TabuKv        map[ExchangeApp]int //禁忌表
 	SubmitResult  []SubmitResult
@@ -67,11 +68,11 @@ func (s *Scheduler) readSubmitFile(SubmitFile string) int{
 	for _, line := range lines {
 		split := strings.Split(line, ",")
 		if inRound, _ := strconv.Atoi(split[0]); round == inRound {
-			s.moveInstViaSubmitFile(split[1], split[2])
+			s.moveInstViaSubmitFile(split[1], split[2], inRound)
 		} else {
 			round++
 			s.prepareNextRound()
-			s.moveInstViaSubmitFile(split[1], split[2])
+			s.moveInstViaSubmitFile(split[1], split[2], inRound)
 		}
 	}
 
@@ -92,7 +93,7 @@ func (s *Scheduler) prepareNextRound() {
 	s.PendingInstKv = make(map[string]string)
 }
 
-func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string) {
+func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
 	inst := s.InitSol.InstKV[instId]
 	machine := s.InitSol.MachineKV[machineId]
 	s.PendingInstKv[inst.Id] = inst.Machine.Id
@@ -101,6 +102,9 @@ func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string) {
 	uinst := s.UnchangedSol.InstKV[instId]
 	umachine := s.UnchangedSol.MachineKV[machineId]
 	umachine.Put(uinst, false)
+
+	submitA := SubmitResult{round, inst.Id, inst.Machine.Id, machine.Id}
+	s.SubmitResult = append(s.SubmitResult, submitA)
 }
 
 func (s *Scheduler) TabuSearch() {
@@ -115,17 +119,22 @@ func (s *Scheduler) StartSearch() {
 		logrus.Infof("invalid round! ")
 		os.Exit(0)
 	}
+
 	s.BestSol = CopySolution(s.InitSol)
 	s.CurrentSol = CopySolution(s.BestSol)
-	logrus.Infof("CurrentSol score: %f", TotalScore(s.BestSol.Machines))
+
 	round := s.Round
+	iter := 0
+
 	var localBestCandidate *Candidate
 	var localBestSolution *Solution
+
+	logrus.Infof("CurrentSol score: %f", TotalScore(s.BestSol.Machines))
 	logrus.Infof("round: %d", round)
 	for {
+		iter++
 		//得到候选集
 		if !s.getInitNeighbor(s.CurrentSol) {
-			//logrus.Infof("no")
 			continue
 		}
 		s.getCandidateNeighbor()
@@ -137,6 +146,7 @@ func (s *Scheduler) StartSearch() {
 		localBestSolution = s.CurrentSol
 		instA := localBestSolution.InstKV[localBestCandidate.InstA]
 		uinstA := s.UnchangedSol.InstKV[localBestCandidate.InstA]
+		machineA := instA.Machine
 		machineB := localBestSolution.MachineKV[localBestCandidate.MachineB]
 		umachineB := s.UnchangedSol.MachineKV[localBestCandidate.MachineB]
 		//如果inst已经被移动了，则不再移动该inst
@@ -144,7 +154,7 @@ func (s *Scheduler) StartSearch() {
 			continue
 		}
 		//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
-		//todo: 是复制solution的时候即GetNewSolutionFromCurrentSolution()方法里面machine.appCntKV没有重新创建
+		//todo: 是复制solution的时候即CopySolution()方法里面machine.appCntKV没有重新创建
 		s.PendingInstKv[uinstA.Id] = uinstA.Machine.Id
 		umachineB.Put(uinstA, false)
 		machineB.Put(instA, true)
@@ -152,7 +162,7 @@ func (s *Scheduler) StartSearch() {
 		localBestSolution.TotalScore = localBestCandidate.TotalScore
 		s.UnchangedSol.TotalScore = localBestCandidate.TotalScore
 
-		submitA := SubmitResult{round, instA.Id, instA.Machine.Id}
+		submitA := SubmitResult{round, instA.Id, instA.Machine.Id, machineA.Id}
 		s.SubmitResult = append(s.SubmitResult, submitA)
 
 		//设置局部最优解的特赦值
@@ -168,14 +178,39 @@ func (s *Scheduler) StartSearch() {
 		//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
 		if localBestCandidate.TotalScore < s.BestSol.TotalScore-0.0001 {
 			logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSol.TotalScore, localBestCandidate.TotalScore)
+			s.BestScore = localBestCandidate.TotalScore
 			s.BestSol = nil
 			s.BestSol = CopySolution(localBestSolution)
 		}
 
 		s.CurrentSol = localBestSolution
 		logrus.Infof("Local best solution score: %.8f\n", localBestCandidate.TotalScore)
+
+		s.backSpace(iter)
 	}
 
+}
+
+func (s *Scheduler) backSpace(iter int)  {
+	if iter % 100 == 0 {
+		index := rand.Intn(len(s.SubmitResult))
+		submit := s.SubmitResult[index]
+		inst := s.CurrentSol.InstKV[submit.Instance]
+		machineFrom := s.CurrentSol.MachineKV[submit.MachineFrom]
+
+		uinst := s.UnchangedSol.InstKV[submit.Instance]
+		umachineB := s.UnchangedSol.MachineKV[submit.Machine]
+
+		// 不用判断能不能撤销这一步，因为在s.UnchangedSol中inst原来的机器上依然保留着inst，故inst原来的机器上是可以容纳inst的，所以直接迁移回去即可
+		machineFrom.Put(inst, true)
+		inst.Exchanged = false
+		s.CurrentSol.TotalScore = TotalScore(s.CurrentSol.Machines)
+		s.CurrentSol.PermitValue = s.CurrentSol.TotalScore
+		umachineB.Remove(uinst) //因为uinst没有从原来的机器上删除，故只需要把umachineB上的uinst删除即可
+
+		s.SubmitResult = append(s.SubmitResult[:index], s.SubmitResult[index+1:]...)
+		//s.CurrentSol = CopySolution(s.BestSol)
+	}
 }
 
 func (s *Scheduler) initCandidateSet() {
@@ -278,9 +313,9 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution) bool {
 			i--
 			s.Neighbors = s.Neighbors[:len(s.Neighbors)-1]
 		}
-		if failIter > 5000 {
-			return false
-		}
+		//if failIter > 5000 {
+		//	return false
+		//}
 	}
 	return true
 }
@@ -292,18 +327,18 @@ func (s *Scheduler) getMachineBIndex() int {
 		if rate > 30 {
 			machineBIndex = rand.Intn(3000) + 6000
 		} else {
-			machineBIndex = rand.Intn(4000) + 2000
+			machineBIndex = rand.Intn(6000)
 		}
 	} else if s.DataSet == "e" {
 		rate := rand.Intn(100)
-		if rate > 50 {
+		if rate > 60 {
 			machineBIndex = rand.Intn(2000) + 6000
 		} else {
-			machineBIndex = rand.Intn(4000) + 2000
+			machineBIndex = rand.Intn(6000)
 		}
 	} else {
 		//a, b的分数都在5000以下，故目标机器的范围不需要太大
-		machineBIndex = rand.Intn(5000)
+		machineBIndex = rand.Intn(8000)
 	}
 	return machineBIndex
 }
@@ -375,8 +410,8 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 
 func (s *Scheduler) Output(dataSet string) {
 
-	filePath := fmt.Sprintf("submit_file_%s.csv", dataSet)
-	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	filePath := fmt.Sprintf("submit_%s_%.0f.csv", dataSet, s.BestScore)
+	f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		panic(err)
 	}
