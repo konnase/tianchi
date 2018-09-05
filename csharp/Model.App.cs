@@ -89,7 +89,7 @@ namespace Tianchi {
     public Machine Machine;
 
     /// <summary>
-    ///   迁移前所在机器，仅当 TryPut 不是 removeInstFromPrevMachine 才使用此字段
+    ///   迁移前所在机器，仅当 TryPut 不是 autoRemove 才使用此字段
     /// </summary>
     public Machine PrevMachine;
 

@@ -284,14 +284,18 @@ namespace Tianchi {
             //优先处理大型实例
             var list = mSrc.AppKv.Values.OrderByDescending(inst => inst.R.Cpu.Avg);
             foreach (var inst in list) {
+              var uInst = _holdSol.AppInstKv[inst.Id];
+              var uDest = _holdSol.MachineKv[mDest.Id];
+
+              if (uInst.IsPending) {
+                continue;
+              }
+
               if (Exists(mDest, inst, moves)) {
                 continue; //换一个inst
               }
 
               var canMove = EvaluateMove(mDest, inst, cpu1, cpu2, out var delta);
-
-              var uInst = _holdSol.AppInstKv[inst.Id];
-              var uDest = _holdSol.MachineKv[mDest.Id];
               // 使用 _holdSol 的检查结果要比实际更严格一点
               var uCanMove = EvaluateMove(uDest, uInst, cpu1, cpu2, out _);
 
@@ -391,8 +395,7 @@ namespace Tianchi {
         }
       } else {
         // a 和 b 均有 8000 台大型机器
-        // a, b的分数都在5000以下，故目标机器的范围不需要太大
-        idx = rnd.Next(maxValue: 5000);
+        idx = rnd.Next(maxValue: 8000);
       }
 
       return idx;
