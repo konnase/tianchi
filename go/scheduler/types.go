@@ -56,7 +56,7 @@ func NewApplication(line string) *Application {
 	for i := 0; i < 98; i++ {
 		app.Resource[i] = app.Cpu[i]
 	}
-	for i := 99; i < 196; i++ {
+	for i := 98; i < 196; i++ {  // 巨坑，这里原来写的i:=99 。。。
 		app.Resource[i] = app.Mem[i-98]
 	}
 	app.Resource[196] = app.Disk
@@ -125,6 +125,9 @@ func NewMachine(line string, interference AppInterference) *Machine {
 	machine.Capacity[196] = machine.DiskCapacity
 	for i := 197; i < 200; i++ {
 		machine.Capacity[i] = machine.PmpCapacity[i-197]
+	}
+	for i :=0; i < 200; i++ {
+		machine.Usage[i] = 0.0
 	}
 	return machine
 }
@@ -209,6 +212,7 @@ func (m *Machine) Put(inst *Instance, autoRemove bool) {
 	for i := 0; i < 200; i++ {
 		m.Usage[i] += inst.App.Resource[i]
 	}
+	//logrus.Infof("%s mem usage: %f", m.Id, m.Usage[145])
 
 	if autoRemove && inst.Machine != nil {
 		inst.Machine.Remove(inst)
@@ -268,7 +272,14 @@ func (m *Machine) CanPutInst(inst *Instance) bool {
 func (m *Machine) OutOfCapacityInst(inst *Instance) bool {
 	for i := 0; i < 200; i++ {
 		if inst.App.Resource[i]+m.Usage[i] > m.Capacity[i] {
+			//logrus.Info("out of capacity")
 			return true
+		}
+		if i >= 98 && i < 196 {
+			//logrus.Info("out of capacity")
+			if inst.App.Mem[i-98]+m.Usage[i] > m.Capacity[i]{
+				return true
+			}
 		}
 	}
 	return false

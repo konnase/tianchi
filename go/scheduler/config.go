@@ -7,7 +7,7 @@ const (
 	AppInterferenceInput = "data/scheduling_semifinal_data_20180815/app_interference.csv"
 	//JobInfoInput         = "data/scheduling_semifinal_data_20180815/job_info.%s.csv"
 	//SearchMachineRange   = 5000
-	InitNeighborSize = 100
-	CandidateLen     = 80
+	InitNeighborSize = 50
+	CandidateLen     = 40
 	TabuLen          = 400
 )
