@@ -37,7 +37,7 @@ func (s *Scheduler) LocalSearch() {
 
 			newNeighbor := new(Candidate) //优化：只记录邻居相对currentSolution的单步移动，避免记录整个solution导致内存开销过大
 			newNeighbor.TotalScore = 1e9
-			s.Neighbors = append(s.Neighbors, newNeighbor)
+			s.CurrentSol.Neighbors = append(s.CurrentSol.Neighbors, newNeighbor)
 
 			machineA := s.CurrentSol.Machines[machineAIndex]
 			machineB := s.CurrentSol.Machines[machineBIndex]
@@ -70,7 +70,7 @@ func (s *Scheduler) LocalSearch() {
 					s.CurrentSol = localBestSolution
 					logrus.Infof("Local best solution score: %.8f\n", totalScore)
 
-					s.backSpace(iter)
+					s.backSpace(iter, s.CurrentSol, s.UnchangedSol)
 					moved = true
 					break //产生一个邻居后，继续产生下一个邻居
 				}

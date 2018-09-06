@@ -77,5 +77,7 @@ func CopySolution(solution *Solution) *Solution {
 		TotalScore:  s1.TotalScore,
 		PermitValue: s1.PermitValue,
 	}
+	s2.SubmitResult = make([]SubmitResult, len(solution.SubmitResult))
+	copy(s2.SubmitResult, solution.SubmitResult)
 	return s2
 }

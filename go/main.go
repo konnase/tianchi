@@ -46,7 +46,7 @@ func main() {
 			go scheduler.LocalSearch()
 		}
 		<-stopChan
-		scheduler.LocalSearchOutput(dataSet)
+		//scheduler.LocalSearchOutput(dataSet)
 		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 	}
 }

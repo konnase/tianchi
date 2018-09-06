@@ -137,7 +137,7 @@ func (m *Machine) CpuUsage() []float64 {
 }
 
 func (m *Machine) MemUsage() []float64 {
-	return m.Usage[99:196]
+	return m.Usage[98:196]  //这也是个巨坑。。。写的99
 }
 
 func (m *Machine) DiskUsage() float64 {
@@ -212,7 +212,7 @@ func (m *Machine) Put(inst *Instance, autoRemove bool) {
 	for i := 0; i < 200; i++ {
 		m.Usage[i] += inst.App.Resource[i]
 	}
-	//logrus.Infof("%s mem usage: %f", m.Id, m.Usage[145])
+	//logrus.Infof("%s mem usage: %f", m.Id, m.Usage[98])
 
 	if autoRemove && inst.Machine != nil {
 		inst.Machine.Remove(inst)
@@ -352,6 +352,11 @@ type SubmitResult struct {
 	MachineFrom string
 }
 
+type TabuList struct {
+	Tabu map[ExchangeApp]int
+	Lock sync.RWMutex
+}
+
 type Candidate struct {
 	InstA    string
 	MachineA string
@@ -368,10 +373,15 @@ type Solution struct {
 	InstKV      map[string]*Instance
 	AppKV       map[string]*Application
 	MachineKV   map[string]*Machine
+
+	Neighbors  []*Candidate
+	Candidates []*Candidate
+
+	SubmitResult []SubmitResult
 	TotalScore  float64
 	PermitValue float64
 
-	lock sync.RWMutex
+	Lock sync.RWMutex
 }
 
 type NeighborSlice []*Candidate
