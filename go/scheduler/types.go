@@ -396,3 +396,11 @@ func (s NeighborSlice) Swap(i, j int) {
 func (s NeighborSlice) Less(i, j int) bool {
 	return s[i].TotalScore < s[j].TotalScore
 }
+
+type MachineCpuUtil struct {
+	MachineId       string
+	MaxCpu          float64
+	MinCpu          float64
+	AverageCpu      float64
+	InstCpuKV map[string]float64
+}

@@ -48,5 +48,12 @@ func main() {
 		<-stopChan
 		//scheduler.LocalSearchOutput(dataSet)
 		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
+	} else if search_policy == "analyse" {
+		scheduler.Analyse()
+	} else if search_policy == "movetolarge" {
+		go scheduler.MoveToLargeMachine()
+		<-stopChan
+		scheduler.Output(dataSet)
+		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 	}
 }

@@ -11,7 +11,7 @@ namespace Tianchi {
       var semiA = DataSetSemi.SemiA;
       var sol = semiA.InitSolution.Clone();
       WriteLine($"[{semiA.Id}]: Score of App: {sol.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(sol, "submit_file_a.csv");
+      Solution.ReadAppSubmit(sol, "submit_file_a_4563.csv");
       WriteLine($"[{semiA.Id}]: Score of submit_file_a: {sol.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(sol);
       WriteLine($"[{semiA.Id}]: Score of App+Job: {sol.ActualScore: 0.0000}; ");
@@ -29,7 +29,7 @@ namespace Tianchi {
       var semiB = DataSetSemi.SemiB;
       var solB = semiB.InitSolution.Clone();
       WriteLine($"[{semiB.Id}]: Score of App: {solB.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solB, "submit_file_b.csv");
+      Solution.ReadAppSubmit(solB, "submit_file_b_4567.csv");
       WriteLine($"[{semiB.Id}]: Score of submit_file_b: {solB.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(solB);
       WriteLine($"[{semiB.Id}]: Score of App+Job: {solB.ActualScore: 0.0000}; ");
@@ -45,7 +45,7 @@ namespace Tianchi {
       var semiC = DataSetSemi.SemiC;
       var solC = semiC.InitSolution.Clone();
       WriteLine($"[{semiC.Id}]: Score of App: {solC.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solC, "submit_file_c.csv");
+      Solution.ReadAppSubmit(solC, "submit_file_c_7480.csv");
       WriteLine($"[{semiC.Id}]: Score of submit_file_c: {solC.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(solC);
       WriteLine($"[{semiC.Id}]: Score of App+Job: {solC.ActualScore: 0.0000}; ");
@@ -61,7 +61,7 @@ namespace Tianchi {
       var semiD = DataSetSemi.SemiD;
       var solD = semiD.InitSolution.Clone();
       WriteLine($"[{semiD.Id}]: Score of App: {solD.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solD, "submit_file_d.csv");
+      Solution.ReadAppSubmit(solD, "submit_file_d_7471.csv");
       WriteLine($"[{semiD.Id}]: Score of submit_file_d: {solD.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(solD);
       WriteLine($"[{semiD.Id}]: Score of App+Job: {solD.ActualScore: 0.0000}; ");
@@ -77,7 +77,7 @@ namespace Tianchi {
       var semiE = DataSetSemi.SemiE;
       var solE = semiE.InitSolution.Clone();
       WriteLine($"[{semiE.Id}]: Score of App: {solE.ActualScore: 0.0000}; ");
-      Solution.ReadAppSubmit(solE, "submit_file_e.csv");
+      Solution.ReadAppSubmit(solE, "submit_file_e_8974.csv");
       WriteLine($"[{semiE.Id}]: Score of submit_file_e: {solE.ActualScore: 0.0000}; ");
       JobDeploy.FirstFit(solE);
       WriteLine($"[{semiE.Id}]: Score of App+Job: {solE.ActualScore: 0.0000}; ");
@@ -89,6 +89,10 @@ namespace Tianchi {
       writerE.Close();
 
       WriteLine("==End==");
+
+      var finalScore = (sol.ActualScore + solB.ActualScore + solC.ActualScore + solD.ActualScore + solE.ActualScore) /
+                       5;
+      WriteLine($"[{semiE.Id}]: Score of App+Job: {finalScore: 0.0000}; ");
     }
   }
 }
