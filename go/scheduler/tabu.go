@@ -67,7 +67,6 @@ func (s *Scheduler) readSubmitFile(SubmitFile string) {
 	round := 1
 	sizeCount := 0
 	for _, line := range lines {
-		//if line == "\n" { logrus.Infof("empty line")}
 		split := strings.Split(line, ",")
 		if inRound, _ := strconv.Atoi(split[0]); round == inRound {
 			sizeCount++
@@ -107,7 +106,7 @@ func (s *Scheduler) prepareNextRound() {
 }
 
 func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
-	inst := s.InitSol.InstKV[instId]
+	inst    := s.InitSol.InstKV[instId]
 	machine := s.InitSol.MachineKV[machineId]
 
 	s.PendingInstKv[inst.Id] = inst.Machine.Id
@@ -116,32 +115,25 @@ func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
 
 	machine.Put(inst, true)
 
-	uinst := s.UnchangedSol.InstKV[instId]
+	uinst    := s.UnchangedSol.InstKV[instId]
 	umachine := s.UnchangedSol.MachineKV[machineId]
-	//if instId == "inst_84480" {
-	//	logrus.Infof("%f + %f > %f", umachine.Usage[98], uinst.App.Mem[0], umachine.Capacity[98])
-	//	logrus.Infof("%f + %f > %f", machine.Usage[98], inst.App.Mem[0], machine.Capacity[98])
-	//	ucanMove, _ := s.tryMove(uinst, umachine, s.UnchangedSol, true)
-	//	logrus.Infof("%s can move to %s: %t", instId, machineId, ucanMove)
-	//}
 	umachine.Put(uinst, false)
 
 }
 
 func (s *Scheduler) TabuSearch() {
-	//logrus.Infof("%.10f", 1e-9)
 	s.StartSearch()
 }
 
 func (s *Scheduler) StartSearch() {
-	CurrentSol := CopySolution(s.BestSol)
+	CurrentSol          := CopySolution(s.BestSol)
 	CurrentUnchangedSol := CopySolution(s.UnchangedSol)
 
 	round := s.Round
-	iter := 0
+	iter  := 0
 
 	var localBestCandidate *Candidate
-	var localBestSolution *Solution
+	var localBestSolution  *Solution
 
 	logrus.Infof("CurrentSol score: %f", TotalScore(s.InitSol.Machines))
 	logrus.Infof("round: %d", round)
@@ -158,10 +150,10 @@ func (s *Scheduler) StartSearch() {
 		localBestCandidate = s.getMinScoreSolution(CurrentSol)
 		//移动inst
 		localBestSolution = CurrentSol
-		instA := localBestSolution.InstKV[localBestCandidate.InstA]
-		uinstA := CurrentUnchangedSol.InstKV[localBestCandidate.InstA]
-		machineA := instA.Machine
-		machineB := localBestSolution.MachineKV[localBestCandidate.MachineB]
+		instA     := localBestSolution.InstKV[localBestCandidate.InstA]
+		uinstA    := CurrentUnchangedSol.InstKV[localBestCandidate.InstA]
+		machineA  := instA.Machine
+		machineB  := localBestSolution.MachineKV[localBestCandidate.MachineB]
 		umachineB := CurrentUnchangedSol.MachineKV[localBestCandidate.MachineB]
 
 		//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
@@ -170,7 +162,7 @@ func (s *Scheduler) StartSearch() {
 		umachineB.Put(uinstA, false)
 		machineB.Put(instA, true) //todo: put的时候，偶尔会出现内存超出的情况
 
-		localBestSolution.TotalScore = localBestCandidate.TotalScore
+		localBestSolution.TotalScore   = localBestCandidate.TotalScore
 		CurrentUnchangedSol.TotalScore = localBestCandidate.TotalScore
 
 		submitA := SubmitResult{round, instA.Id, machineB.Id, machineA.Id}
@@ -222,25 +214,22 @@ func (s *Scheduler) StartSearch() {
 func (s *Scheduler) backSpace(iter int, CurrentSol *Solution, CurrentUnchangedSol *Solution) {
 	if iter%BackSpaceLen == 0 { //不宜太小，不然扰动太大
 		startIndex := 0
-		//logrus.Infof("EveryRoundSize: %d", len(s.EveryRoundSize))
 		if s.Round != 1 {
 			startIndex = s.EveryRoundSize[s.Round-2] //即上一轮迁移的inst的数目，因为是上一轮迁移的，故本轮中startIndex是不会变的
 		}
-		roundSize := len(CurrentSol.SubmitResult[startIndex:])
-		index := rand.Intn(roundSize) + startIndex
-		//logrus.Infof("startIndex: %d", index)
-		submit := CurrentSol.SubmitResult[index]
-		//logrus.Infof("submit: %s", submit)
-		inst := CurrentSol.InstKV[submit.Instance]
+		roundSize   := len(CurrentSol.SubmitResult[startIndex:])
+		index       := rand.Intn(roundSize) + startIndex
+		submit      := CurrentSol.SubmitResult[index]
+		inst        := CurrentSol.InstKV[submit.Instance]
 		machineFrom := CurrentSol.MachineKV[submit.MachineFrom]
 
-		uinst := CurrentUnchangedSol.InstKV[submit.Instance]
+		uinst     := CurrentUnchangedSol.InstKV[submit.Instance]
 		umachineB := CurrentUnchangedSol.MachineKV[submit.Machine]
 
 		// 不用判断能不能撤销这一步，因为在CurrentUnchangedSol中inst原来的机器上依然保留着inst，故inst原来的机器上是可以容纳inst的，所以直接迁移回去即可
 		machineFrom.Put(inst, true)
 		inst.Exchanged = false
-		CurrentSol.TotalScore = TotalScore(CurrentSol.Machines)
+		CurrentSol.TotalScore  = TotalScore(CurrentSol.Machines)
 		CurrentSol.PermitValue = CurrentSol.TotalScore
 		umachineB.Remove(uinst) //因为uinst没有从原来的机器上删除，故只需要把umachineB上的uinst删除即可
 
@@ -278,7 +267,6 @@ func (s *Scheduler) getMinScoreSolution(CurrentSol *Solution) *Candidate {
 	var localBestCandidate *Candidate
 	i := 0
 	for _, candidateS := range CurrentSol.Candidates {
-		// println(candidateS.TotalScore)
 		if candidateS.IsCandidate {
 			if i == 0 {
 				localBestCandidate = candidateS
@@ -316,7 +304,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution, CurrentUnchangedS
 		newNeighbor := new(Candidate) //优化：只记录邻居相对currentSolution的单步移动，避免记录整个solution导致内存开销过大
 		newNeighbor.TotalScore = 1e9
 		CurrentSolution.Neighbors = append(CurrentSolution.Neighbors, newNeighbor)
-		moved := false
+		moved    := false
 		machineA := CurrentSolution.Machines[machineAIndex]
 		machineB := CurrentSolution.Machines[machineBIndex]
 		for _, instA := range machineA.AppKV {
@@ -340,7 +328,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution, CurrentUnchangedS
 
 			//注意这里canMove和ucanMove，ucanMove的force参数必须是true
 			canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, AllowScoreDecrease) //主要用来判断是否能移动
-			uinstA := CurrentUnchangedSol.InstKV[instA.Id]
+			uinstA    := CurrentUnchangedSol.InstKV[instA.Id]
 			umachineB := CurrentUnchangedSol.Machines[machineBIndex]
 			ucanMove, _ := s.tryMove(uinstA, umachineB, CurrentUnchangedSol, true) //UnchangedSol只用来判断是否有冲突以及是否有资源超额
 			//logrus.Infof("%t %t", canMove, ucanMove)
@@ -379,7 +367,6 @@ func (s *Scheduler) getMachineBIndex() int {
 			machineBIndex = rand.Intn(6000)
 		}
 	} else {
-		//a, b的分数都在5000以下，故目标机器的范围不需要太大
 		machineBIndex = rand.Intn(8000)
 	}
 	return machineBIndex
@@ -450,14 +437,92 @@ func (s *Scheduler) tryMove(inst *Instance, m2 *Machine, solution *Solution, for
 	score1 := CpuScore(cpu1[0:98], m1.CpuCapacity, len(m1.InstKV)-1)
 	score2 := CpuScore(cpu2[0:98], m2.CpuCapacity, len(m2.InstKV)+1)
 	delta := score1 + score2 - (m1.GetScore() + m2.GetScore())
-	//logrus.Infof("delta: %f %f %f", delta, m1.GetScore(), m2.GetScore())
 
 	if !force && (delta > 0 || -delta < 0.00001) {
-		//logrus.Infof("tryMove")
 		return false, 1e9
 	}
 
 	return true, solution.TotalScore + delta
+}
+
+func (s *Scheduler) HandleHighCpuMachines() {
+	machineLen := len(s.BestSol.Machines)
+	largeMachineIndex := s.getLargeMachineIndex()
+	logrus.Infof("largeMachineIndex: ", largeMachineIndex)
+	for _, machine := range s.BestSol.Machines {
+		if len(machine.InstKV) == 0 {
+			continue
+		}
+		averageCpuUtil := s.calculateMachineCpuUtil(machine)
+		if averageCpuUtil > 0.6 {
+			logrus.Infof("high cpu util: %s--%f", machine.Id, averageCpuUtil)
+			for _, inst := range machine.InstKV {
+				averageCpuUtil := s.calculateMachineCpuUtil(machine)
+				if averageCpuUtil < 0.6 {
+					logrus.Infof("high cpu util: %s--%f", machine.Id, averageCpuUtil)
+					break
+				}
+				//先放大机器，后放小机器
+				moved := false
+				for j := largeMachineIndex; j < machineLen; j++ {
+					if s.moveToDestMachine(j, inst, machine, true) {
+						moved = true
+						break
+					}
+				}
+				if !moved {
+					for j := 0; j < largeMachineIndex; j++ {
+						if s.moveToDestMachine(j, inst, machine, true) {
+							moved = true
+							break
+						}
+
+					}
+				}
+			}
+		}
+
+	}
+}
+
+func (s *Scheduler) moveToDestMachine(machineIndex int, inst *Instance, machine *Machine, allowScoreDecrease bool) bool {
+	machineB := s.BestSol.Machines[machineIndex]
+	cpu := s.calculateMachineCpuUtil(machineB)
+	if cpu > 0.5 {
+		return false
+	}
+
+	//注意这里canMove和ucanMove，ucanMove的force参数必须是true
+	canMove, _ := s.tryMove(inst, machineB, s.BestSol, allowScoreDecrease) //主要用来判断是否能移动
+	uinstA := s.UnchangedSol.InstKV[inst.Id]
+	umachineB := s.UnchangedSol.Machines[machineIndex]
+	ucanMove, _ := s.tryMove(uinstA, umachineB, s.BestSol, true) //UnchangedSol只用来判断是否有冲突以及是否有资源超额
+
+	if canMove && ucanMove {
+		submitA := SubmitResult{s.Round, inst.Id, machineB.Id, machine.Id}
+		s.SubmitResult = append(s.SubmitResult, submitA)
+		s.BestSol.SubmitResult = append(s.BestSol.SubmitResult, submitA)
+
+		machineB.Put(inst, true)
+		umachineB.Put(uinstA, false)
+
+		//oldScore := s.BestSol.TotalScore
+		s.BestSol.TotalScore = TotalScore(s.BestSol.Machines)
+		s.BestSol.PermitValue = s.BestSol.TotalScore
+		s.BestScore = s.BestSol.TotalScore
+		return true
+	}
+	return false
+}
+
+func (s *Scheduler) calculateMachineCpuUtil(machine *Machine) float64 {
+	var averageCpuUtil = 0.0
+	for _, cpuUtil := range machine.CpuUsage() {
+		averageCpuUtil += cpuUtil
+	}
+	averageCpuUtil /= 98
+	averageCpuUtil /= machine.CpuCapacity
+	return averageCpuUtil
 }
 
 func (s *Scheduler) Output(dataSet string) {
@@ -475,7 +540,6 @@ func (s *Scheduler) Output(dataSet string) {
 			fmt.Fprintln(w, line)
 		}
 	} else {
-		logrus.Infof("bestSol.SubmitResult")
 		for _, submit := range s.BestSol.SubmitResult {
 			line := fmt.Sprintf("%d,%s,%s", submit.Round, submit.Instance, submit.Machine)
 			fmt.Fprintln(w, line)
@@ -484,98 +548,4 @@ func (s *Scheduler) Output(dataSet string) {
 
 	w.Flush()
 	logrus.Infof("writing to %s\n", filePath)
-}
-
-func (s *Scheduler) MoveToLargeMachine() {
-	machineLen := len(s.BestSol.Machines)
-	largeMachineIndex := s.getLargeMachineIndex()
-	logrus.Infof("largeMachineIndex: ", largeMachineIndex)
-	for _, machine := range s.BestSol.Machines {
-		if len(machine.InstKV) == 0 {
-			continue
-		}
-		averageCpuUtil := s.caculateMachineCpuUtil(machine)
-		if averageCpuUtil > 0.6 {
-			logrus.Infof("high cpu util: %s--%f", machine.Id, averageCpuUtil)
-			for _, inst := range machine.InstKV {
-				averageCpuUtil := s.caculateMachineCpuUtil(machine)
-				logrus.Infof("high cpu util: %s--%f", machine.Id, averageCpuUtil)
-				if averageCpuUtil < 0.6 {
-					break
-				}
-				moved := false
-				for j := largeMachineIndex; j < machineLen; j++ {
-					machineB := s.BestSol.Machines[j]
-					cpu := s.caculateMachineCpuUtil(machineB)
-					if cpu > 0.5 {
-						continue
-					}
-
-					//注意这里canMove和ucanMove，ucanMove的force参数必须是true
-					canMove, _ := s.tryMove(inst, machineB, s.BestSol, true) //主要用来判断是否能移动
-					uinstA := s.UnchangedSol.InstKV[inst.Id]
-					umachineB := s.UnchangedSol.Machines[j]
-					ucanMove, _ := s.tryMove(uinstA, umachineB, s.BestSol, true) //UnchangedSol只用来判断是否有冲突以及是否有资源超额
-
-					if canMove && ucanMove {
-						submitA := SubmitResult{s.Round, inst.Id, machineB.Id, machine.Id}
-						s.SubmitResult = append(s.SubmitResult, submitA)
-						s.BestSol.SubmitResult = append(s.BestSol.SubmitResult, submitA)
-
-						machineB.Put(inst, true)
-						umachineB.Put(uinstA, false)
-						oldScore := s.BestSol.TotalScore
-						s.BestSol.TotalScore = TotalScore(s.BestSol.Machines)
-						s.BestSol.PermitValue = s.BestSol.TotalScore
-						s.BestScore = s.BestSol.TotalScore
-						logrus.Infof("New best solution: %0.8f --> %0.8f\n", oldScore, s.BestSol.TotalScore)
-						moved = true
-						break
-					}
-				}
-				if !moved {
-					for j := 0; j < largeMachineIndex; j++ {
-						machineB := s.BestSol.Machines[j]
-
-						cpu := s.caculateMachineCpuUtil(machineB)
-						if cpu > 0.5 {
-							continue
-						}
-						//注意这里canMove和ucanMove，ucanMove的force参数必须是true
-						canMove, _ := s.tryMove(inst, machineB, s.BestSol, true) //主要用来判断是否能移动
-						uinstA := s.UnchangedSol.InstKV[inst.Id]
-						umachineB := s.UnchangedSol.Machines[j]
-						ucanMove, _ := s.tryMove(uinstA, umachineB, s.BestSol, true) //UnchangedSol只用来判断是否有冲突以及是否有资源超额
-
-						if canMove && ucanMove {
-							submitA := SubmitResult{s.Round, inst.Id, machineB.Id, machine.Id}
-							s.SubmitResult = append(s.SubmitResult, submitA)
-							s.BestSol.SubmitResult = append(s.BestSol.SubmitResult, submitA)
-
-							machineB.Put(inst, true)
-							umachineB.Put(uinstA, false)
-							oldScore := s.BestSol.TotalScore
-							s.BestSol.TotalScore = TotalScore(s.BestSol.Machines)
-							s.BestSol.PermitValue = s.BestSol.TotalScore
-							s.BestScore = s.BestSol.TotalScore
-							logrus.Infof("New best solution: %0.8f --> %0.8f\n", oldScore, s.BestSol.TotalScore)
-							moved = true
-							break
-						}
-					}
-				}
-			}
-		}
-
-	}
-}
-
-func (s *Scheduler) caculateMachineCpuUtil(machine *Machine) float64 {
-	averageCpuUtil := 0.0
-	for _, cpuUtil := range machine.CpuUsage() {
-		averageCpuUtil += cpuUtil
-	}
-	averageCpuUtil /= 98
-	averageCpuUtil /= machine.CpuCapacity
-	return averageCpuUtil
 }

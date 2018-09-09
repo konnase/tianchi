@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) != 6 {
-		fmt.Println("Usage: go run tabu.go <submit_file> <cores> <dataSet=a b c d e> <round=1 2 3> <search_polic=local tabu>")
+		fmt.Println("Usage: go run tabu.go <submit_file> <cores> <dataSet=a b c d e> <round=1 2 3> <search_policy=local tabu analyse reduce>")
 		os.Exit(1)
 	}
 
@@ -50,8 +50,8 @@ func main() {
 		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 	} else if search_policy == "analyse" {
 		scheduler.Analyse()
-	} else if search_policy == "movetolarge" {
-		go scheduler.MoveToLargeMachine()
+	} else if search_policy == "reduce" {
+		go scheduler.HandleHighCpuMachines()
 		<-stopChan
 		scheduler.Output(dataSet)
 		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
