@@ -10,8 +10,9 @@ machine_count = 0
 def submit():
     parser = OptionParser()
     parser.add_option("-s", "--search", dest="search", help="input search file")
+    parser.add_option("-d", "--dataset", default="data/scheduling_semifinal_data_20180815",dest="dataset", help="dataset directory")
     (options, args) = parser.parse_args()
-    insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv("data")
+    insts, apps, machines, inst_kv, app_kv, machine_kv = read_from_csv(options.dataset)
 
     machines.sort(key=lambda x: x.disk_cap, reverse=True)
     global machine_count
@@ -31,14 +32,14 @@ def submit():
             # print "deployed %s to %s" % (inst.id, machine.id)
         machine_count += 1
         if machine_count % 1000 == 0:
-            print machine_count
+            print(machine_count)
     global total_score
     total_score = Machine.total_score(machines)
-    print "Total score: %.2f on %d machines" % (total_score, machine_count)
+    print("Total score: %.2f on %d machines" % (total_score, machine_count))
 
 
 def migrate(machine_from, machines):
-    for inst in machine_from.inst_kv.values()[:]:
+    for inst in list(machine_from.inst_kv.values())[:]:
         for machine_to in machines:
             if machine_to != machine_from \
                     and machine_to.can_put_inst(inst, full_cap=True):
@@ -47,7 +48,7 @@ def migrate(machine_from, machines):
                 # print "move %s to %s" % (inst.id, machine_to.id)
                 break
         else:
-            print "Cannot migrate %s from %s" % (inst.id, machine_from.id)
+            print("Cannot migrate %s from %s" % (inst.id, machine_from.id))
 
 
 def write_to_csv():

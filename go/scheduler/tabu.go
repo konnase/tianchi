@@ -106,7 +106,7 @@ func (s *Scheduler) prepareNextRound() {
 }
 
 func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
-	inst    := s.InitSol.InstKV[instId]
+	inst := s.InitSol.InstKV[instId]
 	machine := s.InitSol.MachineKV[machineId]
 
 	s.PendingInstKv[inst.Id] = inst.Machine.Id
@@ -115,7 +115,7 @@ func (s *Scheduler) moveInstViaSubmitFile(instId, machineId string, round int) {
 
 	machine.Put(inst, true)
 
-	uinst    := s.UnchangedSol.InstKV[instId]
+	uinst := s.UnchangedSol.InstKV[instId]
 	umachine := s.UnchangedSol.MachineKV[machineId]
 	umachine.Put(uinst, false)
 
@@ -126,14 +126,14 @@ func (s *Scheduler) TabuSearch() {
 }
 
 func (s *Scheduler) StartSearch() {
-	CurrentSol          := CopySolution(s.BestSol)
+	CurrentSol := CopySolution(s.BestSol)
 	CurrentUnchangedSol := CopySolution(s.UnchangedSol)
 
 	round := s.Round
-	iter  := 0
+	iter := 0
 
 	var localBestCandidate *Candidate
-	var localBestSolution  *Solution
+	var localBestSolution *Solution
 
 	logrus.Infof("CurrentSol score: %f", TotalScore(s.InitSol.Machines))
 	logrus.Infof("round: %d", round)
@@ -150,10 +150,10 @@ func (s *Scheduler) StartSearch() {
 		localBestCandidate = s.getMinScoreSolution(CurrentSol)
 		//移动inst
 		localBestSolution = CurrentSol
-		instA     := localBestSolution.InstKV[localBestCandidate.InstA]
-		uinstA    := CurrentUnchangedSol.InstKV[localBestCandidate.InstA]
-		machineA  := instA.Machine
-		machineB  := localBestSolution.MachineKV[localBestCandidate.MachineB]
+		instA := localBestSolution.InstKV[localBestCandidate.InstA]
+		uinstA := CurrentUnchangedSol.InstKV[localBestCandidate.InstA]
+		machineA := instA.Machine
+		machineB := localBestSolution.MachineKV[localBestCandidate.MachineB]
 		umachineB := CurrentUnchangedSol.MachineKV[localBestCandidate.MachineB]
 
 		//todo: uinstA迁移之后居然对instA的迁移产生了影响：已经确定是复制solution之后，solution之间是有干扰的
@@ -162,7 +162,7 @@ func (s *Scheduler) StartSearch() {
 		umachineB.Put(uinstA, false)
 		machineB.Put(instA, true) //todo: put的时候，偶尔会出现内存超出的情况
 
-		localBestSolution.TotalScore   = localBestCandidate.TotalScore
+		localBestSolution.TotalScore = localBestCandidate.TotalScore
 		CurrentUnchangedSol.TotalScore = localBestCandidate.TotalScore
 
 		submitA := SubmitResult{round, instA.Id, machineB.Id, machineA.Id}
@@ -217,19 +217,24 @@ func (s *Scheduler) backSpace(iter int, CurrentSol *Solution, CurrentUnchangedSo
 		if s.Round != 1 {
 			startIndex = s.EveryRoundSize[s.Round-2] //即上一轮迁移的inst的数目，因为是上一轮迁移的，故本轮中startIndex是不会变的
 		}
-		roundSize   := len(CurrentSol.SubmitResult[startIndex:])
-		index       := rand.Intn(roundSize) + startIndex
-		submit      := CurrentSol.SubmitResult[index]
-		inst        := CurrentSol.InstKV[submit.Instance]
+		roundSize := len(CurrentSol.SubmitResult[startIndex:])
+		index := 0
+		if roundSize <= 0 {
+			index = startIndex
+		} else {
+			index = rand.Intn(roundSize) + startIndex
+		}
+		submit := CurrentSol.SubmitResult[index]
+		inst := CurrentSol.InstKV[submit.Instance]
 		machineFrom := CurrentSol.MachineKV[submit.MachineFrom]
 
-		uinst     := CurrentUnchangedSol.InstKV[submit.Instance]
+		uinst := CurrentUnchangedSol.InstKV[submit.Instance]
 		umachineB := CurrentUnchangedSol.MachineKV[submit.Machine]
 
 		// 不用判断能不能撤销这一步，因为在CurrentUnchangedSol中inst原来的机器上依然保留着inst，故inst原来的机器上是可以容纳inst的，所以直接迁移回去即可
 		machineFrom.Put(inst, true)
 		inst.Exchanged = false
-		CurrentSol.TotalScore  = TotalScore(CurrentSol.Machines)
+		CurrentSol.TotalScore = TotalScore(CurrentSol.Machines)
 		CurrentSol.PermitValue = CurrentSol.TotalScore
 		umachineB.Remove(uinst) //因为uinst没有从原来的机器上删除，故只需要把umachineB上的uinst删除即可
 
@@ -304,7 +309,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution, CurrentUnchangedS
 		newNeighbor := new(Candidate) //优化：只记录邻居相对currentSolution的单步移动，避免记录整个solution导致内存开销过大
 		newNeighbor.TotalScore = 1e9
 		CurrentSolution.Neighbors = append(CurrentSolution.Neighbors, newNeighbor)
-		moved    := false
+		moved := false
 		machineA := CurrentSolution.Machines[machineAIndex]
 		machineB := CurrentSolution.Machines[machineBIndex]
 		for _, instA := range machineA.AppKV {
@@ -328,7 +333,7 @@ func (s *Scheduler) getInitNeighbor(CurrentSolution *Solution, CurrentUnchangedS
 
 			//注意这里canMove和ucanMove，ucanMove的force参数必须是true
 			canMove, totalScore := s.tryMove(instA, machineB, CurrentSolution, AllowScoreDecrease) //主要用来判断是否能移动
-			uinstA    := CurrentUnchangedSol.InstKV[instA.Id]
+			uinstA := CurrentUnchangedSol.InstKV[instA.Id]
 			umachineB := CurrentUnchangedSol.Machines[machineBIndex]
 			ucanMove, _ := s.tryMove(uinstA, umachineB, CurrentUnchangedSol, true) //UnchangedSol只用来判断是否有冲突以及是否有资源超额
 			//logrus.Infof("%t %t", canMove, ucanMove)
@@ -525,6 +530,7 @@ func (s *Scheduler) calculateMachineCpuUtil(machine *Machine) float64 {
 	return averageCpuUtil
 }
 
+// Output
 func (s *Scheduler) Output(dataSet string) {
 
 	filePath := fmt.Sprintf("submit_%s_round%d_%.0f.csv", dataSet, s.Round, s.BestScore)

@@ -1,9 +1,9 @@
 # coding=utf-8
 import random
 import numpy as np
-from analyse import Analyse
+from scheduler.analyse import Analyse
 from scheduler.models import Machine, write_to_search, cpu_score
-import config as cfg
+import scheduler.config as cfg
 
 
 class Search(object):
@@ -44,7 +44,7 @@ class Search(object):
                 set1.append(i)
             if self.machines[i].score >= 1.0 and self.machines[i].score <= 1.30:
                 set2.append(i)
-        print len(set1), len(set2)
+        print(len(set1), len(set2))
         # set1 = range(len(self.machines))
         # set2 = range(len(self.machines))
         while True:
@@ -59,7 +59,7 @@ class Search(object):
     def _search(self, set1, set2):
         random.shuffle(set1)  # random.Random(seed).shuffle(set1)
         random.shuffle(set2)
-        print '...'
+        print('...')
 
         swap_cnt = 0
         has_change = False
@@ -73,7 +73,7 @@ class Search(object):
                     # <app_id, only_one_inst>
                     for inst in self.machines[j].app_inst_kv.values():
                         if self.try_move_inst(self.machines[i], inst):
-                            print "move %s -> %s: %f" % (
+                            print("move %s -> %s: %f") % (
                                 inst.id, self.machines[i].id, self.total_score)
                             has_change = True
                 elif choice == 2:
@@ -82,7 +82,7 @@ class Search(object):
                             if self.try_swap_inst(inst1, inst2):
                                 swap_cnt += 1
                                 if swap_cnt % 100 == 1:
-                                    print "swap %s <-> %s: %f" % (
+                                    print("swap %s <-> %s: %f") % (
                                         inst1.id, inst2.id, self.total_score)
                                 has_change = True
         return has_change
@@ -188,16 +188,16 @@ class Search(object):
     def print_abnormal_machine_info(machines):
         out_of_cap_set, conflict_set = Machine.get_abnormal_machines(machines)
         if len(out_of_cap_set) > 0:
-            print "Invalid search result: resource overload # %d" % len(
+            print("Invalid search result: resource overload # %d") % len(
                 out_of_cap_set)
         if len(conflict_set) > 0:
-            print "Invalid search result: constraint conflict # %d" % len(
+            print("Invalid search result: constraint conflict # %d") % len(
                 conflict_set)
         for m in out_of_cap_set:
-            print m.usage > m.capacity
+            print(m.usage > m.capacity)
             # print machine.capacity - machine.usage
-            print m.id
+            print(m.id)
         for m in conflict_set:
-            print m.id, m.get_conflict_list()
+            print (m.id, m.get_conflict_list())
 
         return len(out_of_cap_set) + len(conflict_set)

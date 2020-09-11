@@ -38,7 +38,7 @@ def main():
     if cfg.CPU_UTIL_SMALL > cfg.CPU_UTIL_LARGE \
             or cfg.CPU_UTIL_SMALL > 1 or cfg.CPU_UTIL_SMALL <= 0 \
             or cfg.CPU_UTIL_LARGE > 1 or cfg.CPU_UTIL_LARGE <= 0:
-        print "Invalid larger_cpu_util %.2f or smaller_cpu_util %.2f, please retry!" % \
+        print("Invalid larger_cpu_util %.2f or smaller_cpu_util %.2f, please retry!") % \
               (cfg.CPU_UTIL_LARGE, cfg.CPU_UTIL_SMALL)
         exit(-1)
 
@@ -66,7 +66,7 @@ def main():
                 knapsack.search()
                 knapsack.output()
             except KeyboardInterrupt:
-                print "write to file."
+                print("write to file.")
                 knapsack.output()
 
     elif Method(options.method) == Method.Analyse:

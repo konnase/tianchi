@@ -1,7 +1,7 @@
 # coding=utf-8
 import os
 import numpy as np
-import config as cfg
+import scheduler.config as cfg
 
 TS_COUNT = cfg.TS_COUNT
 RESOURCE_LEN = cfg.RESOURCE_LEN
@@ -193,7 +193,7 @@ class Machine(object):
     def put_inst(self, inst):
         # 幂等性，若inst已经部署到这台机器了，则直接跳过
         # 这个放底层判断影响效率
-        if self.inst_kv.has_key(inst.id):
+        if inst.id in self.inst_kv.keys():
             return
 
         self.usage += inst.app.resource
@@ -257,7 +257,7 @@ class Machine(object):
         appId_b = inst.app.id
         appCnt_b = self.app_cnt_kv.get(appId_b, 0)
 
-        for appId_a, appCnt_a in self.app_cnt_kv.iteritems():
+        for appId_a, appCnt_a in self.app_cnt_kv.items():
             if appCnt_b + 1 > AppInterference.limit_of(appId_a, appId_b):
                 return True
 
@@ -345,7 +345,7 @@ def cpu_score(cpu_usage, cpu_cap, inst_count):
 
 def write_to_search(path, machines):
     with open(path, "w") as f:
-        print "writing to %s" % path
+        print("writing to %s" % path)
         for m in machines:
             if m.disk_usage == 0:
                 continue
@@ -354,7 +354,7 @@ def write_to_search(path, machines):
 
 # [(inst_id, machine_id)]
 def write_to_submit_csv(path, submit_result):
-    print "writing to %s" % (path)
+    print("writing to %s" % (path))
     with open(path, "w") as f:
         for rounds, inst_id, machine_id in submit_result:
             f.write("{0},{1},{2}\n".format(rounds, inst_id, machine_id))

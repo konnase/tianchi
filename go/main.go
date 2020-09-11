@@ -1,14 +1,15 @@
 package main
 
 import (
-	. "./scheduler"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
 	"strconv"
+
+	tianchi "github.com/konnase/tianchi/scheduler"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -30,9 +31,9 @@ func main() {
 	stopChan := make(chan os.Signal, 1)
 	signal.Notify(stopChan, os.Interrupt, os.Kill) //todo: 让goroutine正常停止
 
-	machines, instKV, appKV, machineKV := ReadData(dataSet)
-	scheduler := NewScheduler(round, dataSet, submitFile, machines, instKV, appKV, machineKV)
-	logrus.Infof("totalScore: %.8f\n", TotalScore(scheduler.InitSol.Machines))
+	machines, instKV, appKV, machineKV := tianchi.ReadData(dataSet)
+	scheduler := tianchi.NewScheduler(round, dataSet, submitFile, machines, instKV, appKV, machineKV)
+	logrus.Infof("totalScore: %.8f\n", tianchi.TotalScore(scheduler.InitSol.Machines))
 
 	if search_policy == "tabu" {
 		for i := 0; i < cores; i++ {
@@ -46,7 +47,7 @@ func main() {
 			go scheduler.LocalSearch()
 		}
 		<-stopChan
-		//scheduler.LocalSearchOutput(dataSet)
+		scheduler.LocalSearchOutput(dataSet)
 		logrus.Infof("total score: %.6f\n", scheduler.BestSol.TotalScore)
 	} else if search_policy == "analyse" {
 		scheduler.Analyse()

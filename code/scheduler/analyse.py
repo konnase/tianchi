@@ -1,5 +1,5 @@
 # coding=utf-8
-from models import Instance, Machine, write_to_submit_csv
+from scheduler.models import Instance, Machine, write_to_submit_csv
 
 
 # 检查 search result
@@ -59,15 +59,15 @@ class Analyse(object):
                 multi_deployed_insts_num += 1
 
         if multi_deployed_insts_num > 0:
-            print "multi-deployed insts num:%s" % multi_deployed_insts_num
+            print("multi-deployed insts num:%s" % multi_deployed_insts_num)
 
     @staticmethod
     def print_undeployed_inst_info(instances):
         undeployed_insts = Instance.get_undeployed_insts(instances)
         undeployed_cnt = len(undeployed_insts)
         if undeployed_cnt > 0:
-            print "undeployed insts num:%d, for example:" % len(undeployed_insts)
-            print ",".join(inst.id for inst in undeployed_insts)
+            print("undeployed insts num:%d, for example:" % len(undeployed_insts))
+            print(",".join(inst.id for inst in undeployed_insts))
 
         return undeployed_cnt
 
@@ -76,18 +76,18 @@ class Analyse(object):
     def print_abnormal_machine_info(machines):
         out_of_cap_set, conflict_set = Machine.get_abnormal_machines(machines)
         for m in out_of_cap_set:
-            print "%s, [%d], %.2f, %.2f/%.2f, %.2f/%.2f, %.0f, %.0f, %.0f, %.0f" % \
+            print("%s, [%d], %.2f, %.2f/%.2f, %.2f/%.2f, %.0f, %.0f, %.0f, %.0f" % \
                   (m.id, m.disk_cap, m.score,
                    m.cpu_util_avg, m.cpu_util_max,
                    m.mem_util_avg, m.mem_util_max,
                    m.disk_usage,
-                   m.pmp_usage[0], m.pmp_usage[1], m.pmp_usage[2])
+                   m.pmp_usage[0], m.pmp_usage[1], m.pmp_usage[2]))
 
         # [(appId_a, appId_b, appCnt_b, limit)]
         for m in conflict_set:
             for x in m.get_conflict_list():
-                print "%s, appA:%s, appB:%s, appB deployed:%d, appB limit:%d" % \
-                      (m.id, x[0], x[1], x[2], x[3])
+                print("%s, appA:%s, appB:%s, appB deployed:%d, appB limit:%d" % \
+                      (m.id, x[0], x[1], x[2], x[3]))
         return len(out_of_cap_set) + len(conflict_set)
 
     @staticmethod
@@ -123,16 +123,16 @@ class Analyse(object):
                 # (appId_a, appId_b, appCnt_b, limit)
                 violate_cnt += m.app_cnt_kv[x[1]]
 
-        print "CPU Score: %.4f" % total_score
-        print "Disk Overload: %.4f (%d / %d)" % (float(disk_overload_cnt) /
-                                                 total_cnt, disk_overload_cnt, total_cnt)
-        print "CPU Overload: %.4f (%d / %d)" % (float(cpu_overload_cnt) /
-                                                total_cnt, cpu_overload_cnt, total_cnt)
-        print "Memory Overload: %.4f (%d / %d)" % (float(mem_overload_cnt) /
-                                                   total_cnt, mem_overload_cnt, total_cnt)
-        print "PMP Overload %.4f (%d / %d)" % (float(pmp_overload_cnt) /
-                                               total_cnt, pmp_overload_cnt, total_cnt)
-        print "Constraint violate: %d / %d" % (interference_cnt, violate_cnt)
+        print("CPU Score: %.4f" % total_score)
+        print("Disk Overload: %.4f (%d / %d)" % (float(disk_overload_cnt) /
+                                                 total_cnt, disk_overload_cnt, total_cnt))
+        print("CPU Overload: %.4f (%d / %d)" % (float(cpu_overload_cnt) /
+                                                total_cnt, cpu_overload_cnt, total_cnt))
+        print("Memory Overload: %.4f (%d / %d)" % (float(mem_overload_cnt) /
+                                                   total_cnt, mem_overload_cnt, total_cnt))
+        print("PMP Overload %.4f (%d / %d)" % (float(pmp_overload_cnt) /
+                                               total_cnt, pmp_overload_cnt, total_cnt))
+        print("Constraint violate: %d / %d" % (interference_cnt, violate_cnt))
         return total_score
 
     @staticmethod

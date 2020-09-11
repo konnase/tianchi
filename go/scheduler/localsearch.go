@@ -1,11 +1,12 @@
 package scheduler
 
 import (
-	"github.com/sirupsen/logrus"
-	"os"
-	"math/rand"
-	"fmt"
 	"bufio"
+	"fmt"
+	"math/rand"
+	"os"
+
+	"github.com/sirupsen/logrus"
 )
 
 func (s *Scheduler) LocalSearch() {
@@ -63,7 +64,7 @@ func (s *Scheduler) LocalSearch() {
 					//如果局部最优解优于当前最优解，则将局部最优解设置为当前最优解
 					if totalScore < s.BestSol.TotalScore-0.0001 {
 						logrus.Infof("New best solution: %0.8f --> %0.8f\n", s.BestSol.TotalScore, totalScore)
-						s.BestSol = nil
+						// s.BestSol = nil
 						s.BestSol = CopySolution(localBestSolution)
 					}
 
